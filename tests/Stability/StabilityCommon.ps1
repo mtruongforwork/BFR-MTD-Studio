@@ -7,10 +7,24 @@
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-Add-Type -TypeDefinition @"
-using System; using System.Runtime.InteropServices;
+Add-Type -AssemblyName System.Drawing
+Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
+using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
 public static class StabNative {
   [DllImport("user32.dll")] public static extern uint GetGuiResources(IntPtr hProcess, uint flags); // 0 = GDI, 1 = USER
+  [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
+  [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
+  // Chụp ĐÚNG cửa sổ của app (kể cả khi bị che), không bao giờ chụp màn hình chung.
+  public static bool Shot(IntPtr hwnd, string path) {
+    RECT r; if (!GetWindowRect(hwnd, out r)) return false;
+    int w = r.R - r.L, h = r.B - r.T; if (w < 50 || h < 50) return false;
+    using (var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb)) {
+      using (var g = Graphics.FromImage(bmp)) { IntPtr hdc = g.GetHdc(); bool ok = PrintWindow(hwnd, hdc, 2); g.ReleaseHdc(hdc); if (!ok) return false; }
+      bmp.Save(path, ImageFormat.Png);
+    }
+    return true;
+  }
 }
 "@
 
@@ -58,6 +72,29 @@ function Get-VisibleButtonNames($parent, [int]$max = 20) {
         if ($names.Count -ge $max) { break }
     }
     return ($names -join ' | ')
+}
+
+function Save-WindowShot($win, [string]$path) {
+    try { return [StabNative]::Shot([IntPtr]$win.Current.NativeWindowHandle, $path) } catch { return $false }
+}
+
+# Các dòng chữ trên thanh trạng thái (số tệp / sẽ đổi / không đổi / lỗi) ở mọi ngôn ngữ.
+function Get-StatusTexts($win) {
+    $out = @()
+    foreach ($t in $win.FindAll($script:TS::Descendants, (Prop-Cond $script:AE::ControlTypeProperty $script:CT::Text))) {
+        $n = $t.Current.Name
+        if ($n -and -not $t.Current.IsOffscreen -and $n -match '\|' -and $n -match '\d') { $out += $n }
+    }
+    return ($out | Select-Object -Unique) -join ' // '
+}
+
+# Đóng hộp thoại đang mở bằng nút huỷ (theo 4 ngôn ngữ). Trả về true nếu đã đóng được.
+function Close-StuckDialog($win) {
+    foreach ($label in 'Cancel', 'Hủy', 'Huỷ', 'Annuler', '取消', 'Close', 'Đóng', 'Fermer', '关闭') {
+        $b = Find-WithPattern $win $label ([System.Windows.Automation.InvokePattern]::Pattern)
+        if ($b) { try { $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { } }
+    }
+    return $false
 }
 
 function Find-ByClass($parent, [string]$className) {

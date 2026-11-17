@@ -57,21 +57,37 @@ try {
     $script:lang = 'en'
     $pages = @('Nav home', 'Nav rename', 'Nav tools', 'Nav shelf', 'Nav history', 'Nav presets', 'Nav watch folder', 'Nav settings')
     $warmupDumped = $false
+    $actionLog = New-Object System.Collections.Generic.List[string]
+    $failShots = 0
 
     function Act([string]$what, [scriptblock]$body) {
         $stats.Actions++
+        $actionLog.Add("$(Get-Date -Format HH:mm:ss.fff) [$($script:lang)] $what")
         try { & $body }
         catch { if (-not $proc.HasExited) { $failures.Add("[$(Get-Date -Format HH:mm:ss)] $what : $($_.Exception.Message)") } }
+    }
+
+    # Ghi lại bối cảnh khi một vòng Áp dụng/Hoàn tác hỏng: ảnh cửa sổ app, dòng trạng thái, mọi nút đang hiện, 15 thao tác trước đó.
+    # Rồi đóng hộp thoại kẹt (nếu có) để lỗi không lan sang các vòng sau.
+    function Capture-CycleFailure([string]$reason) {
+        $stamp = Get-Date -Format 'HHmmss'
+        $detail = @("=== $(Get-Date -Format 'HH:mm:ss') $reason", "ngôn ngữ (theo script): $($script:lang)",
+            "trạng thái: $(Get-StatusTexts $win)", "nút đang hiện: $(Get-VisibleButtonNames $win 300)", '15 thao tác trước:')
+        $detail += @($actionLog | Select-Object -Last 15)
+        if ($script:failShots -lt 10) { $script:failShots++; [void](Save-WindowShot $win (Join-Path $OutDir "fail-$stamp.png")) }
+        $closed = Close-StuckDialog $win
+        $detail += "đóng hộp thoại kẹt: $closed"
+        Add-Content (Join-Path $OutDir 'soak-failures.log') ($detail -join [Environment]::NewLine) -Encoding UTF8
     }
 
     function Rename-Cycle {
         Select-Nav $win 'Nav rename'
         $apply = Find-Visible $win 'Apply renaming'
-        if ($null -eq $apply -or -not $apply.Current.IsEnabled) { throw 'Nút Áp dụng không dùng được (không có thay đổi để áp dụng?)' }
+        if ($null -eq $apply -or -not $apply.Current.IsEnabled) { Capture-CycleFailure 'Áp dụng bị vô hiệu'; throw "Nút Áp dụng không dùng được. Trạng thái: $(Get-StatusTexts $win)" }
         $apply.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 
         $confirm = $applyLabel[$script:lang]
-        if (-not (Wait-For { $null -ne (Find-Visible $win $confirm) } 8000)) { throw "Không thấy hộp thoại xác nhận (nút '$confirm', ngôn ngữ $($script:lang)). Nút đang hiện: $(Get-VisibleButtonNames $win)" }
+        if (-not (Wait-For { $null -ne (Find-Visible $win $confirm) } 8000)) { Capture-CycleFailure "Không thấy nút xác nhận '$confirm'"; throw "Không thấy hộp thoại xác nhận (nút '$confirm', ngôn ngữ $($script:lang)); chi tiết trong soak-failures.log" }
         Invoke-Named $win $confirm
 
         $first = Join-Path $data.Dir $data.Names[0]
@@ -203,6 +219,7 @@ finally {
 
 foreach ($f in (Test-LeakCriteria $samples 0.1)) { $failures.Add($f) }
 $samples | Export-Csv (Join-Path $OutDir 'soak-samples.csv') -NoTypeInformation -Encoding UTF8
+if ($actionLog) { $actionLog | Set-Content (Join-Path $OutDir 'soak-actions.log') -Encoding UTF8 }
 $lines = @(
     "- Thời lượng: $DurationMinutes phút; mẫu: $($samples.Count); thao tác: $($stats.Actions)",
     "- Vòng Áp dụng/Hoàn tác toàn vẹn: $($stats.Cycles); đổi giao diện: $($stats.Appearance)",

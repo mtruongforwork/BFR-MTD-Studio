@@ -13,6 +13,12 @@ on:
         default: "20"
   schedule:
     - cron: "0 20 * * 0"   # Chủ nhật, 03:00 giờ Việt Nam
+  # workflow_dispatch chỉ dùng được khi file này đã có trên nhánh mặc định: trên nhánh tính năng, chạy khi script ổn định thay đổi.
+  push:
+    branches: [ "feat/**" ]
+    paths:
+      - "tests/Stability/**"
+      - ".github/workflows/stability.yml"
 
 permissions:
   contents: read
