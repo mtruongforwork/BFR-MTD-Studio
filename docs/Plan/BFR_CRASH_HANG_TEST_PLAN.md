@@ -164,12 +164,12 @@ Phát hiện trong T2:
 
 Còn lại cho T2 (chưa làm): kiểm tra `MainWindow` ở mức tài nguyên XAML trong project UI test (đã được walk-pages phủ ở mức chạy thật nên ưu tiên thấp); đo thời gian khởi động lạnh làm baseline cho T3.
 
-### Trạng thái Phase T3 (đã triển khai; soak 8 giờ chưa chạy, còn một lỗi chưa rõ nguồn gốc)
+### Trạng thái Phase T3 (đã xong; soak 8 giờ hoãn, xem "Soak 8 giờ" bên dưới)
 
 | Hạng mục | Nơi đặt | Kết quả khi chạy thử |
 |---|---|---|
 | Thư viện dùng chung | `tests/Stability/StabilityCommon.ps1` | UIA theo PID, số liệu tiến trình (Private/Working, Handle, Thread, GDI, USER), độ trễ UI, hệ số góc bình phương tối thiểu để phát hiện rò rỉ, sao lưu/khôi phục dữ liệu app và nhật ký lỗi. Vẫn **không** chuột/SendKeys. |
-| B1 Soak | `soak.ps1` | Có bước khởi động tường minh (đi hết mọi trang và công cụ, một vòng Áp dụng/Hoàn tác, đủ 4 ngôn ngữ) rồi mới lấy mẫu. Vòng Áp dụng/Hoàn tác kiểm tra **toàn vẹn tệp**. Tiêu chí: Private Bytes < +20 %, Handle < +30 %, GDI/USER < 5000, không `[hang]`, không crash. Thử 9 phút: bộ nhớ không còn tăng đột biến sau khởi động, 4 vòng toàn vẹn. |
+| B1 Soak | `soak.ps1` | Có bước khởi động tường minh (đi hết mọi trang và công cụ, một vòng Áp dụng/Hoàn tác, đủ 4 ngôn ngữ) rồi mới lấy mẫu. Vòng Áp dụng/Hoàn tác kiểm tra **toàn vẹn tệp**. Tiêu chí cứng: Handle < +30 %, GDI/USER < 5000, không `[hang]`, không crash, mọi vòng toàn vẹn; heap managed và Private Bytes chỉ là cảnh báo (xem "Các nghi vấn đã điều tra xong"). Soak 30 phút trên Release: 50 vòng toàn vẹn, 42 lần đổi giao diện, 0 vòng hỏng. |
 | B2 Stress theme | `stress-theme.ps1` + `ThemeStressTests.cs` | Trên app thật 80 lần: p95 đổi giao diện ~0,6 s, không rò rỉ. Trong tiến trình: số từ điển tài nguyên không đổi, cửa sổ đã đóng được thu gom. |
 | B4 Tải dữ liệu | `load.ps1` | 100 000 tệp: nạp 6,4 s, Private 539 MB, thao tác chậm nhất 0,8 s; đóng cửa sổ khi đang nạp: thoát sau 0,5 s. |
 | B5 Chaos | `chaos.ps1` | 10 thao tác ngẫu nhiên (đổi trang, mở công cụ, lọc, sắp xếp, đổi giao diện, thu gọn sidebar, đổi cỡ / di chuyển / phóng to / thu nhỏ cửa sổ) có seed, 109 thao tác không lỗi. Chỉ dùng UIA: kéo thả, phím tắt toàn cục, khoá màn hình, ngủ/đánh thức vẫn phải chạy tay trên VM. |
@@ -181,10 +181,24 @@ Còn lại cho T2 (chưa làm): kiểm tra `MainWindow` ở mức tài nguyên X
 |---|---|---|
 | S1 | `MainViewModel.AddPaths` kiểm trùng bằng `List.Contains` (O(n) mỗi đường dẫn): nạp tăng **bậc hai**, 10k tệp 2,8 s, 20k tệp 14 s, 40k tệp 56 s, ngoại suy 100k ≈ 6 phút treo UI. Watchdog bắt được ở 20k. | Thêm `HashSet` kiểm trùng song song. 20k còn 3,9 s, 40k 5,4 s, 100k 6–17 s, không treo. Test hồi quy `LargeBatchTests`. |
 
-**Chưa rõ nguồn gốc (cần soak 8 giờ hoặc điều tra)**
-- Ở soak 9 phút, một vòng Áp dụng ở tiếng Việt không thấy hộp thoại xác nhận, sau đó nút Áp dụng bị vô hiệu ở mọi vòng sau (nghi hộp thoại còn mở hoặc preview mất thay đổi). Thăm dò riêng: hộp thoại tiếng Việt có nút "Áp dụng"; đổi ngôn ngữ đơn lẻ không làm mất preset. Chưa tái hiện được, chưa biết do app hay do script. Soak 8 giờ ghi lại nhật ký thao tác trước lỗi để tái hiện.
-- Đo CPU lúc rảnh ban đầu cho 30–39 % một nhân nhưng không tái hiện (lần đo sau 7–10 % ở mọi cấu hình, kể cả mascot bật/tắt, safe-render, tương phản cao). Coi là nhiễu do máy bận, **không** phải lỗi.
-- Mỗi lần đổi giao diện trong test tiến trình mất khoảng 2 s; trên app thật đo được ~0,6 s.
+**Các nghi vấn đã điều tra xong**
+
+| Nghi vấn | Kết luận | Bằng chứng |
+|---|---|---|
+| Vòng Áp dụng hỏng ở tiếng Việt (soak 9 phút, bản Debug) | **Không tái hiện**; xếp vào lỗi môi trường/thời gian của bản Debug. | Soak 30 phút trên Release, vòng đổi tên mỗi 30 s và đổi giao diện mỗi 36 s: **50 vòng toàn vẹn qua 42 lần đổi giao diện (có tiếng Việt), 0 vòng hỏng**. Soak 20 phút trên runner GitHub: 10 vòng toàn vẹn. Soak giờ tự ghi ảnh cửa sổ, dòng trạng thái, mọi nút đang hiện và 15 thao tác trước đó vào `soak-failures.log` nếu một vòng hỏng, rồi tự đóng hộp thoại kẹt. |
+| Private Bytes tăng 28–29 % (stress 500 lần, chaos 10 phút trên GitHub; soak 30 phút cục bộ) | **Không phải rò rỉ của app.** Do (1) GC chưa trả bộ nhớ về hệ điều hành và (2) chính client UI Automation của bài test giữ phần tử. | Handle, GDI, USER đi ngang trong mọi lần chạy. Heap managed sau GC đầy đủ (`dotnet-gcdump`): chỉ đổi giao diện 640 lần, heap 13,9 → 13,8 MB trong khi Private Bytes 303 → 351 MB rồi dừng. Kịch bản "đổi theme rồi mở trang khác rồi quay lại Cài đặt" 60 lần: heap 17,3 → 63,5 MB; `dotnet-dump` + `gcroot`: 16 `SettingsPage` còn sống, cả 16 bị giữ qua `MS.Internal.Automation.ElementProxy` (handle COM đếm tham chiếu của client UIA) → mục trong ComboBox → `SettingsPage`. **7 phút sau khi client UIA thoát** (COM dọn client đã chết), heap về 19,1 MB. Test trong tiến trình (không UIA) `SettingsPagesRecreatedOnEachOpen_AreCollected_WithoutUiaClient`: 20 trang Cài đặt dựng lại xen kẽ đổi theme/ngôn ngữ đều được thu gom. |
+| UI treo ~6 s khi mở công cụ "Ngày giờ, thuộc tính và GPS" (walk-pages trên Release, lượt đầu) | **Do máy bận**, không phải lỗi app. | Xảy ra đúng lúc đang `git push`; hai lượt chạy lại (168 bước) công cụ đó mở trong ~0,47 s, không treo. |
+| CPU lúc rảnh 30–39 % một nhân | **Nhiễu do máy bận.** | Đo lại 7–10 % ở mọi cấu hình (mascot bật/tắt, safe-render, tương phản cao). |
+
+Hệ quả cho tiêu chí rò rỉ: bài chạy **ngoài tiến trình bằng UIA** (soak, stress, chaos) chỉ dùng **Handle, GDI, USER** làm tiêu chí cứng; heap managed (`dotnet-gcdump`, nếu cài) và Private Bytes được ghi nhưng chỉ là **cảnh báo**, vì client UIA của bài test giữ đối tượng trong app. Rò rỉ managed được kiểm **trong tiến trình**, không có UIA: `ThemeStressTests` (số từ điển tài nguyên không đổi, bộ nhớ managed ổn định, cửa sổ đã đóng và trang Cài đặt cũ đều được thu gom). Các bài dùng chung bước khởi động `Invoke-WarmUp` (đi hết mọi trang, mở mọi công cụ) trước lần đo đầu, vì trang và công cụ dựng lười.
+
+Ghi nhận cho khả năng tiếp cận (S3, không chặn): trang Cài đặt được dựng mới mỗi lần mở; một client UIA giữ tham chiếu lâu (trình đọc màn hình bên thứ ba, công cụ kiểm thử) sẽ giữ các bản cũ cho tới khi nó nhả. Nếu cần giảm, giữ một `SettingsPage` và làm mới nội dung trong `OnShown` thay vì dựng lại.
+
+**Chạy trên bản Release** (máy dev): walk-pages 4 cấu hình × 2 lượt 168 bước 0 lỗi; crash-logging 25/25; chaos 4 phút 211 thao tác; stress-theme 150 lần; load 100 000 tệp nạp 5,6 s, 481 MB. **Trên runner GitHub** (`stability.yml`, lần 1, tiêu chí cũ): soak 20 phút PASS (10 vòng toàn vẹn), load 100k PASS (nạp 31 s, 436 MB), chaos 10 phút (499 thao tác) và stress 500 lần chỉ fail theo tiêu chí Private Bytes đã được chứng minh là báo động giả ở trên. **Lần 2** (tiêu chí mới, có `dotnet-gcdump`, run `44168662868`): **cả 4 bài PASS**: stress 500 lần (p95 đổi giao diện 2,1 s trên runner), tải 100k (nạp 37 s, 458 MB, đóng giữa lúc nạp thoát 0,1 s), chaos 10 phút 433 thao tác (p95 độ trễ UIA 43 ms), soak 20 phút 10 vòng toàn vẹn; Handle/GDI/USER ổn định; heap managed tăng chỉ ở mức cảnh báo, đúng như dự đoán do client UIA giữ phần tử.
+
+**Soak 8 giờ**: hoãn (laptop không chạy được qua đêm). Bù bằng `stability.yml` (soak rút gọn 20 phút trên mỗi lần đẩy nhánh `feat/**` thay đổi `tests/Stability`, và hằng tuần) cùng soak 30 phút cục bộ ở trên. Bộ chạy sẵn cho VPS Windows: `tests/Stability/kit` (đóng gói thành `BFR-soak-kit.zip`, xem `README.txt`). **Vẫn là điều kiện chặn phát hành v2.1** (mục 5).
+
+Mỗi lần đổi giao diện trong test trong tiến trình mất khoảng 2 s; trên app thật đo được 0,4–0,8 s.
 
 **Bài học khi viết script UIA**: tên phần tử đổi theo ngôn ngữ (dùng `AutomationProperties.Name` cố định tiếng Anh); trang ẩn vẫn có thể còn trong cây UIA (kiểm `IsOffscreen`); `powershell -File` không tách mảng tham số; cây UIA phải chờ dựng (ComboBox, hộp thoại).
 
