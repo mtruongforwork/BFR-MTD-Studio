@@ -56,12 +56,14 @@ public static class BfrTheme
         {
             ReduceMotion = reduce;
             Remove(merged, "Bfr.Controls.xaml");
+            Remove(merged, "Bfr.Glass.xaml");
         }
 
         Ensure(merged, "Tokens.xaml");
         Replace(merged, "Palette.", $"Palette.{(dark ? "Dark" : "Light")}.xaml");
         Replace(merged, "Accent.", $"Accent.{accent}.xaml");
         Ensure(merged, "Bfr.Controls.xaml");
+        Ensure(merged, "Bfr.Glass.xaml");
 
         // Tương phản cao nạp sau cùng để ghi đè mọi khoá Bfr; tắt thì gỡ ra.
         Remove(merged, "HighContrast.xaml");

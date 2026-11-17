@@ -21,6 +21,12 @@
     <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrShadowOpacity">0.38</sys:Double>
     <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrGlowOpacity">0.22</sys:Double>
 
+    <Color x:Key="BfrGlassFillColor">#14FFFFFF</Color>
+    <Color x:Key="BfrGlassFillStrongColor">#1FFFFFFF</Color>
+    <Color x:Key="BfrGlassSheenColor">#14FFFFFF</Color>
+    <Color x:Key="BfrGlassRimTopColor">#40FFFFFF</Color>
+    <Color x:Key="BfrGlassRimBottomColor">#08FFFFFF</Color>
+
     <SolidColorBrush x:Key="BfrBgBase" Color="{DynamicResource BfrBgBaseColor}" />
     <SolidColorBrush x:Key="BfrSurface1" Color="{DynamicResource BfrSurface1Color}" />
     <SolidColorBrush x:Key="BfrSurface2" Color="{DynamicResource BfrSurface2Color}" />
@@ -39,4 +45,16 @@
 
     <!-- Chữ nhấn (liên kết, focus ring) lấy từ bảng màu nhấn, biến thể dành cho nền tối. -->
     <SolidColorBrush x:Key="BfrAccFg" Color="{DynamicResource BfrAccFgDarkColor}" />
+
+    <!-- Kính (glass) v2.1: nền trong mờ, lớp sáng phía trên, viền gradient 1 px. Dùng cho ô bento và thanh bên. -->
+    <SolidColorBrush x:Key="BfrGlassFill" Color="{DynamicResource BfrGlassFillColor}" />
+    <SolidColorBrush x:Key="BfrGlassFillStrong" Color="{DynamicResource BfrGlassFillStrongColor}" />
+    <LinearGradientBrush x:Key="BfrGlassSheen" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{DynamicResource BfrGlassSheenColor}" Offset="0" />
+        <GradientStop Color="#00FFFFFF" Offset="0.55" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="BfrGlassRim" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{DynamicResource BfrGlassRimTopColor}" Offset="0" />
+        <GradientStop Color="{DynamicResource BfrGlassRimBottomColor}" Offset="1" />
+    </LinearGradientBrush>
 </ResourceDictionary>

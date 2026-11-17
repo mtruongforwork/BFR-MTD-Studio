@@ -10,6 +10,8 @@
         Trang Gallery (chỉ dành cho dev, mở bằng bảng lệnh khi đặt BFR_GALLERY=1): liệt kê mọi token và thành phần của bộ giao diện mới
         ở mọi trạng thái, đổi sáng/tối và bảng màu tại chỗ. Mỗi thay đổi theme phải xem qua trang này trước khi áp dụng vào màn hình thật.
     -->
+    <Grid>
+    <ctl:BackdropBlobs />
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,28,32,40" MaxWidth="1000" HorizontalAlignment="Left">
 
@@ -46,6 +48,28 @@
                     </StackPanel>
                 </WrapPanel>
             </Border>
+
+            <!-- Kính + bento (v2.1) -->
+            <TextBlock Style="{StaticResource BfrTitleText}" Text="Kính + Bento" Margin="0,8,0,10" />
+            <ctl:BentoPanel Margin="0,0,0,24" RowHeight="80">
+                <ctl:GlassTile ctl:BentoPanel.ColSpan="5" ctl:BentoPanel.RowSpan="3" Header="Quy tắc" Icon="&#xE70F;">
+                    <TextBlock Style="{StaticResource BfrBodyText}" Foreground="{DynamicResource BfrFg2}" TextWrapping="Wrap"
+                               Text="Ô kính tĩnh: nền trong, lớp sáng phía trên, viền gradient 1 px, bóng chỉ ở ngoài ô." />
+                </ctl:GlassTile>
+                <ctl:GlassTile ctl:BentoPanel.ColSpan="7" ctl:BentoPanel.RowSpan="3" Header="Xem trước" Icon="&#xE7B3;">
+                    <TextBlock Style="{StaticResource BfrBodyText}" Foreground="{DynamicResource BfrFg2}" TextWrapping="Wrap"
+                               Text="Đổi sáng/tối và bảng màu ở trên để xem độ trong trên từng nền." />
+                </ctl:GlassTile>
+                <ctl:GlassTile ctl:BentoPanel.ColSpan="3" ctl:BentoPanel.RowSpan="2" IsInteractive="True" Header="Tương tác" Icon="&#xE8B0;">
+                    <TextBlock Style="{StaticResource BfrCaptionText}" Text="Rê chuột: nổi 2 px" />
+                </ctl:GlassTile>
+                <ctl:GlassTile ctl:BentoPanel.ColSpan="4" ctl:BentoPanel.RowSpan="2" Header="Tóm tắt">
+                    <TextBlock Style="{StaticResource BfrDisplayText}" Text="128" Foreground="{DynamicResource BfrOk}" />
+                </ctl:GlassTile>
+                <ctl:GlassTile ctl:BentoPanel.ColSpan="5" ctl:BentoPanel.RowSpan="2" Header="Gần đây">
+                    <TextBlock Style="{StaticResource BfrBodyText}" Text="IMG_0001.jpg → 2026-11-17_001.jpg" Foreground="{DynamicResource BfrFg2}" />
+                </ctl:GlassTile>
+            </ctl:BentoPanel>
 
             <!-- Màu -->
             <TextBlock Style="{StaticResource BfrTitleText}" Text="Màu" Margin="0,8,0,10" />
@@ -286,4 +310,5 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </Window>
