@@ -152,7 +152,7 @@ function Run-Walk([string]$run) {
             $hwnd = [IntPtr]$script:win.Current.NativeWindowHandle
             if (-not [WinShot]::Save($hwnd, $shot)) { $shot = '' }
         }
-        $results.Add([pscustomobject]@{ Run = $run; Page = $page; Ms = $ms; Status = $status; Shot = (Split-Path $shot -Leaf) })
+        $results.Add([pscustomobject]@{ Run = $run; Page = $page; Ms = $ms; Status = $status; Shot = $(if ($shot) { Split-Path $shot -Leaf } else { '' }) })
         if ($status -ne 'ok') { $failures.Add("[$run/$page] $status") }
         Write-Host ("   {0,-28} {1,6} ms  {2}" -f $page, $ms, $status)
         return ($status -eq 'ok')
