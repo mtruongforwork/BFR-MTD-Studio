@@ -472,6 +472,7 @@
     <sys:String x:Key="QuickUnknownPreset">Unknown quick-rename preset: {0}</sys:String>
     <sys:String x:Key="NavRename">Rename</sys:String>
     <sys:String x:Key="NavHome">Home</sys:String>
+    <sys:String x:Key="NavCollapseTip">Collapse / expand sidebar</sys:String>
     <sys:String x:Key="HomeTitle">What are we sorting today?</sys:String>
     <sys:String x:Key="HomeSubtitle">Drop files to rename, or jump straight to a tool.</sys:String>
     <sys:String x:Key="HomeDropTitle">Drop files or folders here</sys:String>

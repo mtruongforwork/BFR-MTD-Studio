@@ -902,6 +902,14 @@ public partial class MainWindow : FluentWindow
 
     // ----------------------------------------------------------------- Điều hướng (v1.4)
 
+    /// <summary>Thu gọn / mở rộng thanh bên: 220 px có nhãn ↔ 72 px chỉ icon (nhãn ẩn qua Tag của NavRail).</summary>
+    private void NavCollapse_Click(object sender, RoutedEventArgs e)
+    {
+        var collapse = NavRail.Tag as string != "Collapsed";
+        NavRail.Tag = collapse ? "Collapsed" : "Expanded";
+        NavRail.Width = collapse ? 72 : 220;
+    }
+
     private void Nav_Checked(object sender, RoutedEventArgs e)
     {
         if (sender is RadioButton { Tag: string key }) ShowPage(key);

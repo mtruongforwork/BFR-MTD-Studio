@@ -472,6 +472,7 @@
     <sys:String x:Key="QuickUnknownPreset">未知的快速重命名预设：{0}</sys:String>
     <sys:String x:Key="NavRename">重命名</sys:String>
     <sys:String x:Key="NavHome">主页</sys:String>
+    <sys:String x:Key="NavCollapseTip">折叠 / 展开侧边栏</sys:String>
     <sys:String x:Key="HomeTitle">今天要整理什么？</sys:String>
     <sys:String x:Key="HomeSubtitle">拖入文件进行重命名，或直接打开某个工具。</sys:String>
     <sys:String x:Key="HomeDropTitle">将文件或文件夹拖到这里</sys:String>

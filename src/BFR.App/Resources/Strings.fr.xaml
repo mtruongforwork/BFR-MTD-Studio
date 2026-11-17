@@ -472,6 +472,7 @@
     <sys:String x:Key="QuickUnknownPreset">Préréglage de renommage rapide inconnu : {0}</sys:String>
     <sys:String x:Key="NavRename">Renommer</sys:String>
     <sys:String x:Key="NavHome">Accueil</sys:String>
+    <sys:String x:Key="NavCollapseTip">Réduire / développer la barre latérale</sys:String>
     <sys:String x:Key="HomeTitle">On range quoi aujourd’hui ?</sys:String>
     <sys:String x:Key="HomeSubtitle">Déposez des fichiers à renommer, ou ouvrez directement un outil.</sys:String>
     <sys:String x:Key="HomeDropTitle">Déposez des fichiers ou dossiers ici</sys:String>

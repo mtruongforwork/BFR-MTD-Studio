@@ -472,6 +472,7 @@
     <sys:String x:Key="QuickUnknownPreset">Preset đổi tên nhanh không tồn tại: {0}</sys:String>
     <sys:String x:Key="NavRename">Đổi tên</sys:String>
     <sys:String x:Key="NavHome">Trang chủ</sys:String>
+    <sys:String x:Key="NavCollapseTip">Thu gọn / mở rộng thanh bên</sys:String>
     <sys:String x:Key="HomeTitle">Hôm nay mình làm gì nhỉ?</sys:String>
     <sys:String x:Key="HomeSubtitle">Thả tệp để đổi tên, hoặc vào thẳng một công cụ.</sys:String>
     <sys:String x:Key="HomeDropTitle">Thả tệp hoặc thư mục vào đây</sys:String>
