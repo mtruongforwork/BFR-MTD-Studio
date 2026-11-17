@@ -35,6 +35,9 @@ $latencies = New-Object System.Collections.Generic.List[double]
 $data = $null
 $proc = $null
 $count = 0
+$heapStart = $null
+$heapEnd = $null
+$heapTaken = $false
 
 try {
     Set-TestSettings $ctx 'en' 'Dark'
@@ -42,6 +45,7 @@ try {
     $proc = Start-TestApp $Exe ('--file-list "' + $data.List + '"')
     $win = Get-MainWindow $proc
     Start-Sleep -Seconds 3
+    Invoke-WarmUp $win
     Write-Host "Chaos $Minutes phút, seed $Seed, PID $($proc.Id)"
 
     $window = $win.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
@@ -80,6 +84,7 @@ try {
     function Pick-Action { $r = $rng.Next($totalW); foreach ($a in $actions) { if ($r -lt $a.W) { return $a }; $r -= $a.W }; return $actions[0] }
 
     $end = (Get-Date).AddMinutes($Minutes)
+    $heapAt = (Get-Date).AddMinutes($Minutes * 0.25)
     $nextSample = Get-Date
     while ((Get-Date) -lt $end) {
         if ($proc.HasExited) { $failures.Add("App thoát sau $count thao tác (mã $($proc.ExitCode)); thao tác cuối: $($log | Select-Object -Last 3 | Out-String)"); break }
@@ -92,6 +97,7 @@ try {
         $log.Add("#$count $($a.Name) ${ms}ms")
         if ($ms -gt $MaxActionMs) { $failures.Add("#$count $($a.Name) mất $ms ms (> $MaxActionMs)") }
 
+        if (-not $heapTaken -and (Get-Date) -ge $heapAt) { $heapTaken = $true; $heapStart = Measure-ManagedHeap $proc.Id }
         if ((Get-Date) -ge $nextSample) {
             $m = Get-Metrics $proc; $lat = Measure-Latency $win
             $m | Add-Member -NotePropertyName LatencyMs -NotePropertyValue $lat
@@ -103,6 +109,7 @@ try {
         Start-Sleep -Milliseconds ($rng.Next(100, 700))
     }
 
+    $heapEnd = Measure-ManagedHeap $proc.Id
     $diag = Get-DiagnosticsSummary $ctx
     if ($diag.Hangs -gt 0) { $failures.Add("Watchdog ghi $($diag.Hangs) lần UI treo"); Copy-Item (Join-Path $ctx.Diag 'bfr-hang.txt') (Join-Path $OutDir 'bfr-hang.txt') -Force }
     if ($diag.Crashes -gt 0) { $failures.Add("bfr-crash.txt có $($diag.Crashes) mục"); Copy-Item $ctx.Crash (Join-Path $OutDir 'bfr-crash.txt') -Force }
@@ -114,10 +121,10 @@ finally {
     Stop-Safety $ctx
 }
 
-foreach ($f in (Test-LeakCriteria $samples)) { $failures.Add($f) }
+foreach ($f in (Test-LeakCriteria $samples -heapStartMB $heapStart -heapEndMB $heapEnd -UiaDriven)) { $failures.Add($f) }
 $log | Set-Content (Join-Path $OutDir 'chaos-actions.log') -Encoding UTF8
 $samples | Export-Csv (Join-Path $OutDir 'chaos-samples.csv') -NoTypeInformation -Encoding UTF8
-$lines = @("- Thời lượng: $Minutes phút; seed: $Seed; thao tác: $count", "- Độ trễ UIA: p95 $(Get-Percentile $latencies.ToArray() 95) ms (Tái hiện: chạy lại với cùng -Seed; nhật ký thao tác: chaos-actions.log)")
+$lines = @("- Thời lượng: $Minutes phút; seed: $Seed; thao tác: $count", "- Heap managed sau GC đầy đủ (ở 25% thời gian -> cuối): $heapStart -> $heapEnd MB", "- Độ trễ UIA: p95 $(Get-Percentile $latencies.ToArray() 95) ms (Tái hiện: chạy lại với cùng -Seed; nhật ký thao tác: chaos-actions.log)")
 Write-StabilityReport (Join-Path $OutDir 'chaos-report.md') 'Chaos (Phase T3 / B5)' $lines $failures $samples
 
 if ($failures.Count -eq 0) { Write-Host "CHAOS: PASS ($count thao tác)"; exit 0 }

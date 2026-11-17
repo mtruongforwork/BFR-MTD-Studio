@@ -42,6 +42,8 @@ $latencies = New-Object System.Collections.Generic.List[double]
 $failures = New-Object System.Collections.Generic.List[string]
 $stats = @{ Actions = 0; Cycles = 0; CycleFail = 0; Appearance = 0 }
 $proc = $null
+$heapStart = $null
+$heapEnd = $null
 
 try {
     Set-TestSettings $ctx 'en' 'Dark'
@@ -164,7 +166,8 @@ try {
 
     Write-Host 'Khởi động (đi hết mọi trang/công cụ trước khi lấy mẫu)...'
     try { Warm-Up } catch { $failures.Add("Khởi động: $($_.Exception.Message)") }
-    Write-Host 'Bắt đầu lấy mẫu.'
+    $heapStart = Measure-ManagedHeap $proc.Id $(if ($GcDump) { Join-Path $OutDir 'gcdump-start.gcdump' } else { '' })
+    Write-Host "Bắt đầu lấy mẫu. Heap managed sau GC: $heapStart MB"
     $start = Get-Date
     $end = $start.AddMinutes($DurationMinutes)
     $nextSample = $start
@@ -187,12 +190,6 @@ try {
             Write-Host ("{0:HH:mm:ss}  Private {1,7} MB  Handle {2,5}  GDI {3,4}  USER {4,4}  UI {5,4} ms  vòng {6}" -f $now, $m.PrivateMB, $m.Handles, $m.GDI, $m.USER, $lat, $stats.Cycles)
         }
 
-        if ($GcDump -and -not $warmupDumped -and $now -ge $dumpAt) {
-            $warmupDumped = $true
-            $d = Save-GcDump $proc.Id (Join-Path $OutDir 'gcdump-start.gcdump')
-            if (-not $d) { Write-Host 'Bỏ qua gcdump: chưa cài dotnet-gcdump (dotnet tool install -g dotnet-gcdump)' }
-        }
-
         if ($now -ge $nextCycle) { Act 'rename-cycle' { Rename-Cycle }; $nextCycle = (Get-Date).AddMinutes($RenameCycleMinutes) }
         elseif ($now -ge $nextAppearance) { Act 'appearance' { Change-Appearance }; $nextAppearance = (Get-Date).AddMinutes($AppearanceMinutes) }
         else {
@@ -204,7 +201,7 @@ try {
         Start-Sleep -Milliseconds ($rng.Next(300, 1500))
     }
 
-    if ($GcDump) { [void](Save-GcDump $proc.Id (Join-Path $OutDir 'gcdump-end.gcdump')) }
+    $heapEnd = Measure-ManagedHeap $proc.Id $(if ($GcDump) { Join-Path $OutDir 'gcdump-end.gcdump' } else { '' })
     $diag = Get-DiagnosticsSummary $ctx
     if ($diag.Hangs -gt 0) { $failures.Add("Watchdog ghi $($diag.Hangs) lần UI treo (bfr-hang.txt)"); Copy-Item (Join-Path $ctx.Diag 'bfr-hang.txt') (Join-Path $OutDir 'bfr-hang.txt') -Force }
     if ($diag.Crashes -gt 0) { $failures.Add("bfr-crash.txt có $($diag.Crashes) mục"); Copy-Item $ctx.Crash (Join-Path $OutDir 'bfr-crash.txt') -Force }
@@ -217,12 +214,13 @@ finally {
     Stop-Safety $ctx
 }
 
-foreach ($f in (Test-LeakCriteria $samples 0.1)) { $failures.Add($f) }
+foreach ($f in (Test-LeakCriteria $samples 0.1 -heapStartMB $heapStart -heapEndMB $heapEnd -UiaDriven)) { $failures.Add($f) }
 $samples | Export-Csv (Join-Path $OutDir 'soak-samples.csv') -NoTypeInformation -Encoding UTF8
 if ($actionLog) { $actionLog | Set-Content (Join-Path $OutDir 'soak-actions.log') -Encoding UTF8 }
 $lines = @(
     "- Thời lượng: $DurationMinutes phút; mẫu: $($samples.Count); thao tác: $($stats.Actions)",
     "- Vòng Áp dụng/Hoàn tác toàn vẹn: $($stats.Cycles); đổi giao diện: $($stats.Appearance)",
+    "- Heap managed sau GC đầy đủ: sau khởi động $heapStart MB -> cuối $heapEnd MB (trống = chưa cài dotnet-gcdump)",
     "- Độ trễ UIA: p50 $(Get-Percentile $latencies.ToArray() 50) ms, p95 $(Get-Percentile $latencies.ToArray() 95) ms, tối đa $(if ($latencies.Count) { ($latencies | Measure-Object -Maximum).Maximum } else { 0 }) ms"
 )
 Write-StabilityReport (Join-Path $OutDir 'soak-report.md') 'Soak test (Phase T3 / B1)' $lines $failures $samples

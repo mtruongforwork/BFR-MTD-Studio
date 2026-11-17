@@ -69,6 +69,48 @@ public class ThemeStressTests
         });
     }
 
+    /// <summary>
+    /// Trang Cài đặt được dựng MỚI mỗi lần mở (để hiện đúng ngôn ngữ sau khi đổi). Bài soak/stress chạy bằng UI Automation thấy heap tăng
+    /// ~0,77 MB mỗi lần mở lại; dotnet-dump gcroot cho thấy trang cũ bị giữ bởi tham chiếu COM của chính client UIA (ElementProxy),
+    /// và heap trở về bình thường vài phút sau khi client thoát. Test này kiểm chứng phía app: KHÔNG có client UIA thì trang cũ được thu gom.
+    /// </summary>
+    [Fact]
+    public void SettingsPagesRecreatedOnEachOpen_AreCollected_WithoutUiaClient()
+    {
+        const int Count = 20;
+        var weak = new List<WeakReference>();
+
+        StaHost.Run(() =>
+        {
+            var fs = new BFR.Core.FakeFileSystem();
+            var license = new BFR.Core.Licensing.LicenseCoordinator(
+                new BFR.Core.Licensing.LicenseService(new BFR.Core.Licensing.LicenseStore(fs, "/license.json"), trialEnabled: false));
+            var host = new System.Windows.Controls.Grid();
+
+            for (var i = 0; i < Count; i++)
+            {
+                ApplyAll(i % 2 == 0, (BfrTheme.Accent)(i % 3), false, Languages[i % Languages.Length]);
+                var page = new SettingsPage(license);
+                host.Children.Add(page);
+                host.Measure(new Size(1200, 900));
+                host.Arrange(new Rect(0, 0, 1200, 900));
+                host.UpdateLayout();
+                host.Children.Remove(page);   // giống MainWindow.GetPage("Settings"): gỡ trang cũ khỏi PageHost
+                weak.Add(new WeakReference(page));
+            }
+        });
+
+        for (var attempt = 0; attempt < 5 && weak.Count(w => w.IsAlive) > 1; attempt++)
+        {
+            StaHost.Run(() => { });
+            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+            System.Threading.Thread.Sleep(100);
+        }
+
+        var alive = weak.Count(w => w.IsAlive);
+        Assert.True(alive <= 1, $"{alive}/{Count} trang Cài đặt cũ vẫn sống sau GC khi không có client UIA: app tự giữ trang cũ (rò rỉ thật)");
+    }
+
     [Fact]
     public void WindowsCreatedAndDropped_AreCollected_NotPinnedByThemeHooks()
     {

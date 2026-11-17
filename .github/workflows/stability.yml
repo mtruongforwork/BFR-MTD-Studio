@@ -35,6 +35,12 @@ jobs:
       - name: Build (Release)
         run: dotnet build src/BFR.App/BFR.App.csproj -c Release
 
+      # Đo heap managed sau GC đầy đủ: thước đo rò rỉ chính (Private Bytes chỉ là cảnh báo, xem StabilityCommon.ps1).
+      - name: Cài dotnet-gcdump
+        run: |
+          dotnet tool install -g dotnet-gcdump
+          echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
       - name: Stress theme/ngôn ngữ (500 lần)
         shell: powershell
         continue-on-error: true

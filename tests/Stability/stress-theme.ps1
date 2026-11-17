@@ -30,12 +30,15 @@ $changeMs = New-Object System.Collections.Generic.List[double]
 $failures = New-Object System.Collections.Generic.List[string]
 $proc = $null
 $done = 0
+$heapStart = $null
+$heapEnd = $null
 
 try {
     Set-TestSettings $ctx 'en' 'Dark'
     $proc = Start-TestApp $Exe ''
     $win = Get-MainWindow $proc
     Start-Sleep -Seconds 3
+    Invoke-WarmUp $win
     Select-Nav $win 'Nav settings'
     Start-Sleep -Milliseconds 800
     Write-Host "Stress theme: $Iterations lần, PID $($proc.Id)"
@@ -61,6 +64,7 @@ try {
         }
         catch { if (-not $proc.HasExited) { $failures.Add("Lần $i : $($_.Exception.Message)") } }
 
+        if ($i -eq [int]($Iterations * 0.2)) { $heapStart = Measure-ManagedHeap $proc.Id }
         if ($i % $SampleEvery -eq 0) {
             $m = Get-Metrics $proc
             $m | Add-Member -NotePropertyName Iteration -NotePropertyValue $i
@@ -69,6 +73,7 @@ try {
         }
     }
 
+    $heapEnd = Measure-ManagedHeap $proc.Id
     $diag = Get-DiagnosticsSummary $ctx
     if ($diag.Hangs -gt 0) { $failures.Add("Watchdog ghi $($diag.Hangs) lần UI treo"); Copy-Item (Join-Path $ctx.Diag 'bfr-hang.txt') (Join-Path $OutDir 'bfr-hang.txt') -Force }
     if ($diag.Crashes -gt 0) { $failures.Add("bfr-crash.txt có $($diag.Crashes) mục"); Copy-Item $ctx.Crash (Join-Path $OutDir 'bfr-crash.txt') -Force }
@@ -79,11 +84,12 @@ finally {
     Stop-Safety $ctx
 }
 
-foreach ($f in (Test-LeakCriteria $samples)) { $failures.Add($f) }
+foreach ($f in (Test-LeakCriteria $samples -heapStartMB $heapStart -heapEndMB $heapEnd -UiaDriven)) { $failures.Add($f) }
 $samples | Export-Csv (Join-Path $OutDir 'stress-theme-samples.csv') -NoTypeInformation -Encoding UTF8
 $arr = $changeMs.ToArray()
 $lines = @(
     "- Lần đổi hoàn tất: $done / $Iterations",
+    "- Heap managed sau GC đầy đủ (ở 20% số lần -> cuối): $heapStart -> $heapEnd MB",
     "- Thời gian một lần đổi: p50 $(Get-Percentile $arr 50) ms, p95 $(Get-Percentile $arr 95) ms, tối đa $(if ($arr.Count) { ($arr | Measure-Object -Maximum).Maximum } else { 0 }) ms"
 )
 Write-StabilityReport (Join-Path $OutDir 'stress-theme-report.md') 'Stress theme/ngôn ngữ (Phase T3 / B2)' $lines $failures $samples

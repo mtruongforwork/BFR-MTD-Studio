@@ -97,6 +97,26 @@ function Close-StuckDialog($win) {
     return $false
 }
 
+# Khởi động: đi hết mọi trang và mở mọi công cụ một lần. Trang và công cụ dựng lười ở lần truy cập đầu, nên phải làm việc này
+# TRƯỚC lần đo heap/tài nguyên đầu tiên, nếu không mức "tăng" đo được chỉ là chi phí dựng trang (báo động giả rò rỉ).
+function Invoke-WarmUp($win) {
+    foreach ($pg in 'Nav home', 'Nav rename', 'Nav tools', 'Nav shelf', 'Nav history', 'Nav presets', 'Nav watch folder', 'Nav settings') {
+        try { Select-Nav $win $pg; Start-Sleep -Milliseconds 400 } catch { }
+    }
+    try {
+        Select-Nav $win 'Nav tools'; Start-Sleep -Milliseconds 400
+        $count = @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button }).Count
+        for ($i = 0; $i -lt $count; $i++) {
+            $tiles = @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button })
+            if ($tiles.Count -eq 0) { break }
+            $tiles[$i % $tiles.Count].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Start-Sleep -Milliseconds 400
+            $back = Find-Visible $win 'Back to tools home'
+            if ($back) { $back.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 300 }
+        }
+    } catch { }
+}
+
 function Find-ByClass($parent, [string]$className) {
     $out = @()
     foreach ($e in $parent.FindAll($script:TS::Descendants, (Prop-Cond $script:AE::ClassNameProperty $className))) {
@@ -181,8 +201,22 @@ function Get-Slope([double[]]$x, [double[]]$y) {
 
 # Kiểm tra rò rỉ theo tiêu chí của kế hoạch (B1): sau giai đoạn khởi động (warmup), Private Bytes tăng < MaxGrowthPct,
 # handle không tăng tuyến tính quá mức, GDI và USER dưới ngưỡng tuyệt đối.
-function Test-LeakCriteria($samples, [double]$warmupFraction = 0.2, [double]$maxGrowthPct = 20, [int]$maxGdi = 5000, [int]$maxUser = 5000, [double]$maxHandleGrowthPct = 30) {
+# -UiaDriven: bài test điều khiển app bằng UI Automation từ tiến trình khác. Client UIA giữ tham chiếu COM tới phần tử nó đã chạm
+# (đã kiểm chứng bằng dotnet-dump gcroot: các trang Cài đặt cũ bị giữ qua MS.Internal.Automation.ElementProxy; 7 phút sau khi client
+# thoát, heap từ 63,5 về 19,1 MB). Khi đó heap và Private Bytes KHÔNG đo được rò rỉ của app: chỉ ghi cảnh báo.
+# Rò rỉ managed được kiểm trong tiến trình, không có UIA: tests/BFR.App.UiTests/ThemeStressTests.cs. Handle/GDI/USER vẫn là tiêu chí cứng.
+function Test-LeakCriteria($samples, [double]$warmupFraction = 0.2, [double]$maxGrowthPct = 20, [int]$maxGdi = 5000, [int]$maxUser = 5000, [double]$maxHandleGrowthPct = 30, $heapStartMB = $null, $heapEndMB = $null, [switch]$UiaDriven) {
     $fail = New-Object System.Collections.Generic.List[string]
+    $haveHeap = ($null -ne $heapStartMB -and $null -ne $heapEndMB -and $heapStartMB -gt 0)
+    if ($haveHeap) {
+        $heapPct = 100.0 * ($heapEndMB - $heapStartMB) / $heapStartMB
+        # Heap nhỏ dao động vài MB là bình thường: chỉ tính khi tăng cả về % lẫn tuyệt đối (> 5 MB).
+        if ($heapPct -gt $maxGrowthPct -and ($heapEndMB - $heapStartMB) -gt 5) {
+            $msg = ("Heap managed sau GC tăng {0:0.0}% ({1} -> {2} MB)" -f $heapPct, $heapStartMB, $heapEndMB)
+            if ($UiaDriven) { $script:LeakWarnings.Add($msg + ' (cảnh báo: client UIA của bài test giữ tham chiếu; rò rỉ managed kiểm bằng test trong tiến trình)') }
+            else { $fail.Add($msg + ': rò rỉ managed') }
+        }
+    }
     if ($samples.Count -lt 6) { return @("Quá ít mẫu ($($samples.Count)) để đánh giá rò rỉ") }
 
     $skip = [int][math]::Floor($samples.Count * $warmupFraction)
@@ -197,7 +231,11 @@ function Test-LeakCriteria($samples, [double]$warmupFraction = 0.2, [double]$max
         $base = ($ys | Select-Object -First ([math]::Max(1, [int]($ys.Count * 0.1))) | Measure-Object -Average).Average
         $growth = (Get-Slope $xs $ys) * $span
         $pct = if ($base -gt 0) { 100.0 * $growth / $base } else { 0 }
-        if ($pct -gt $m[1]) { $fail.Add(("{0} tăng ~{1:0.0}% sau khởi động (ngưỡng {2}%): {3:0.0} -> xu hướng +{4:0.0}" -f $m[2], $pct, $m[1], $base, $growth)) }
+        $msg = ("{0} tăng ~{1:0.0}% sau khởi động (ngưỡng {2}%): {3:0.0} -> xu hướng +{4:0.0}" -f $m[2], $pct, $m[1], $base, $growth)
+        if ($pct -gt $m[1]) {
+            # Có số đo heap thì Private Bytes chỉ là cảnh báo (GC lười / bộ đệm native); Handle luôn là tiêu chí cứng.
+            if (($haveHeap -or $UiaDriven) -and $m[0] -eq 'PrivateMB') { $script:LeakWarnings.Add($msg + ' (cảnh báo: Private Bytes gồm GC chưa trả bộ nhớ và đối tượng bị client UIA giữ)') } else { $fail.Add($msg) }
+        }
     }
 
     $maxG = ($samples | Measure-Object GDI -Maximum).Maximum
@@ -308,13 +346,24 @@ function Get-DiagnosticsSummary($ctx) {
     return [pscustomobject]@{ Hangs = $hang; Crashes = $crash }
 }
 
-# Tuỳ chọn: chụp gcdump (cần `dotnet tool install -g dotnet-gcdump`). Trả về đường dẫn hoặc $null.
-function Save-GcDump([int]$processId, [string]$path) {
+# Heap managed SAU một lần GC đầy đủ (dotnet-gcdump ép GC trước khi chụp), tính bằng MB. Đây là thước đo rò rỉ chính:
+# Private Bytes tăng dần thường chỉ là GC chưa trả bộ nhớ cho hệ điều hành và bộ đệm native của WPF (đã kiểm chứng: 640 lần đổi giao diện,
+# heap đứng yên ~13,5 MB trong khi Private Bytes 303 -> 351 MB rồi dừng). Cần: dotnet tool install -g dotnet-gcdump. Không có công cụ thì trả về $null.
+function Measure-ManagedHeap([int]$processId, [string]$keepAs = '') {
     $tool = Get-Command dotnet-gcdump -ErrorAction SilentlyContinue
     if (-not $tool) { return $null }
-    & dotnet-gcdump collect -p $processId -o $path 2>&1 | Out-Null
-    if (Test-Path $path) { return $path } else { return $null }
+    $ErrorActionPreference = 'Continue'   # dotnet-gcdump ghi cảnh báo ra stderr
+    $file = if ($keepAs) { $keepAs } else { Join-Path $env:TEMP ('bfr-heap-' + [guid]::NewGuid().ToString('N') + '.gcdump') }
+    & dotnet-gcdump collect -p $processId -o $file 2>&1 | Out-Null
+    if (-not (Test-Path $file)) { return $null }
+    $line = (& dotnet-gcdump report $file 2>&1 | Where-Object { "$_" -match 'GC Heap bytes' } | Select-Object -First 1)
+    if (-not $keepAs) { Remove-Item $file -ErrorAction SilentlyContinue }
+    if ("$line" -match '([\d,]+)\s+GC Heap bytes') { return [math]::Round(([long]($matches[1] -replace ',', '')) / 1MB, 2) }
+    return $null
 }
+
+# Cảnh báo (không làm hỏng bài test) do Test-LeakCriteria ghi ra.
+$script:LeakWarnings = New-Object System.Collections.Generic.List[string]
 
 function Write-StabilityReport([string]$path, [string]$title, $lines, $failures, $samples) {
     $md = @("# $title", '', "Kết quả: " + $(if ($failures.Count -eq 0) { 'PASS' } else { "FAIL ($($failures.Count))" }), '')
@@ -327,5 +376,6 @@ function Write-StabilityReport([string]$path, [string]$title, $lines, $failures,
         $md += "| tối đa | $(($samples | Measure-Object PrivateMB -Maximum).Maximum) | $(($samples | Measure-Object WorkingMB -Maximum).Maximum) | $(($samples | Measure-Object Handles -Maximum).Maximum) | $(($samples | Measure-Object Threads -Maximum).Maximum) | $(($samples | Measure-Object GDI -Maximum).Maximum) | $(($samples | Measure-Object USER -Maximum).Maximum) |"
     }
     if ($failures.Count) { $md += @('', '## Lỗi'); $failures | ForEach-Object { $md += "- $_" } }
+    if ($script:LeakWarnings.Count) { $md += @('', '## Cảnh báo'); $script:LeakWarnings | ForEach-Object { $md += "- $_" } }
     $md | Set-Content $path -Encoding UTF8
 }
