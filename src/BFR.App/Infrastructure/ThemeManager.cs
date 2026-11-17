@@ -61,7 +61,7 @@ public static class ThemeManager
         Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
             BfrTheme.IsHighContrast ? Wpf.Ui.Appearance.ApplicationTheme.HighContrast
                 : IsDark ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
-            BfrTheme.IsHighContrast ? Wpf.Ui.Controls.WindowBackdropType.None : Wpf.Ui.Controls.WindowBackdropType.Mica,
+            !BfrTheme.GlassEffectsEnabled ? Wpf.Ui.Controls.WindowBackdropType.None : Wpf.Ui.Controls.WindowBackdropType.Mica,
             updateAccent: !BfrTheme.IsHighContrast);
 
         var uri = new Uri($"Themes/Theme.{(IsDark ? "Dark" : "Light")}.xaml", UriKind.Relative);
@@ -144,12 +144,13 @@ public static class ThemeManager
             DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
 
             // Tương phản cao: nền đặc của hệ thống, không Mica (Mica làm mờ độ tương phản chữ).
-            if (BfrTheme.IsHighContrast) window.SetResourceReference(Window.BackgroundProperty, "AppBackground");
+            var solid = BfrTheme.IsHighContrast || BfrTheme.SafeRender;
+            if (solid) window.SetResourceReference(Window.BackgroundProperty, "AppBackground");
             else window.ClearValue(Window.BackgroundProperty);
 
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621))
             {
-                var backdrop = BfrTheme.IsHighContrast ? 1 : DwmSystemBackdropMica;
+                var backdrop = solid ? 1 : DwmSystemBackdropMica;
                 DwmSetWindowAttribute(handle, DwmwaSystemBackdropType, ref backdrop, sizeof(int));
             }
         }

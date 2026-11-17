@@ -27,6 +27,15 @@ public static class BfrTheme
 
     public static bool IsHighContrast { get; private set; }
 
+    /// <summary>
+    /// BFR_SAFE_RENDER=1: tắt blob, làm mờ, bóng và Mica để cô lập lỗi do kết xuất (treo/crash/giật trên GPU hoặc driver yếu).
+    /// Chỉ đọc một lần lúc chạy; dùng cho kiểm thử và hỗ trợ.
+    /// </summary>
+    public static bool SafeRender { get; } = Environment.GetEnvironmentVariable("BFR_SAFE_RENDER") == "1";
+
+    /// <summary>Hiệu ứng kính (blob, blur, shadow) được phép chạy.</summary>
+    public static bool GlassEffectsEnabled => !IsHighContrast && !SafeRender;
+
     /// <summary>Giảm chuyển động: Windows tắt hiệu ứng hoạt hình hoặc đang ở tương phản cao.</summary>
     public static bool ReduceMotion { get; private set; }
 

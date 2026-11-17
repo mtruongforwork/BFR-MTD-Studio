@@ -27,7 +27,7 @@ public sealed class BackdropBlobs : Grid
     {
         Children.Clear();
         _blobHost.Children.Clear();
-        if (BfrTheme.IsHighContrast) return;
+        if (!BfrTheme.GlassEffectsEnabled) return;
 
         // Lớp phủ nền: giảm độ chói (sáng) / độ xám đục của Mica (tối); độ đậm theo token để mỗi theme tự chỉnh.
         var tint = new Rectangle { IsHitTestVisible = false };

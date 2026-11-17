@@ -56,7 +56,11 @@ public static class ActivityData
             Wipe(root, "*");
         }
 
-        if (!string.IsNullOrEmpty(crashFile)) TryDelete(crashFile);
+        if (!string.IsNullOrEmpty(crashFile))
+        {
+            TryDelete(crashFile);
+            foreach (var rotated in CrashLog.RotatedPaths(crashFile)) TryDelete(rotated);
+        }
         return new EraseResult(deleted, failed);
     }
 

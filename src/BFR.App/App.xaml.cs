@@ -19,6 +19,7 @@ public partial class App : Application
     private LicenseCoordinator? _license;
     private TrayIcon? _tray;
     private int _toasts;
+    private UiWatchdog? _watchdog;
 
     /// <summary>Tệp báo lỗi nghiêm trọng (đã che đường dẫn); xoá cùng dữ liệu hoạt động.</summary>
     internal static string CrashFilePath => Path.Combine(Path.GetTempPath(), "bfr-crash.txt");
@@ -78,15 +79,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
-        {
-            try { File.WriteAllText(CrashFilePath, LogRedactor.Redact(ev.ExceptionObject?.ToString() ?? "null")); } catch { }
-        };
-
-        DispatcherUnhandledException += (s, ev) =>
-        {
-            try { File.WriteAllText(CrashFilePath, LogRedactor.Redact(ev.Exception.ToString())); } catch { }
-        };
+        // Phase T0: ghi nhật ký crash nối tiếp (luồng nền, luồng UI, Task không await) và canh treo UI khi BFR_WATCHDOG=1|2.
+        CrashReporter.Install(this);
+        _watchdog = UiWatchdog.StartIfEnabled(Dispatcher);
+        FaultInjection.StartIfRequested(Dispatcher);
 
         SessionEnding += (_, _) => IsExiting = true;   // không chặn đăng xuất/tắt máy khi đang ẩn trong khay
         var parsed = StartupArgs.Parse(e.Args);
@@ -374,6 +370,7 @@ public partial class App : Application
             }
         }
 
+        _watchdog?.Dispose();
         _lock?.Dispose();
         base.OnExit(e);
     }

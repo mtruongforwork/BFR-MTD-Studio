@@ -112,6 +112,19 @@ Việc cần sửa trước khi test (làm ở Phase T0): ghi crash **append có
 | 4.6 | **Script soak + chaos** | PowerShell, ghi CSV số liệu tiến trình | `tests/Stability/*.ps1` |
 | 4.7 | **Resource-key linter** | quét XAML tìm khoá thiếu (A4) | `tests/BFR.Presentation.Tests` |
 
+### Trạng thái Phase T0 (đã triển khai và kiểm chứng)
+
+| Hạng mục | Kết quả |
+|---|---|
+| 4.2 Crash logger v2 | `BFR.Core/CrashLog.cs`: ghi nối tiếp, dấu thời gian UTC, che đường dẫn, xoay vòng 256 KB × 3 tệp, cắt mục > 32 KB, không bao giờ ném lỗi. `EraseAll` dọn cả tệp xoay vòng. Đã thêm bắt `UnobservedTaskException` (`Infrastructure/CrashReporter.cs`). Mỗi mục kèm phiên bản, hệ điều hành, render tier, safe-render, bộ nhớ, số luồng. Vẫn **không** đặt `Handled` (chờ quyết định mục 6). |
+| 4.1 UI watchdog | `Infrastructure/UiWatchdog.cs` + `BFR.Core/HangDetector.cs` (thuần logic, 4 test). Bật bằng `BFR_WATCHDOG=1` (chỉ log) hoặc `=2` (log + minidump, tối đa 3 dump/phiên). Log ở `%TEMP%\BatchFileRenamer\diagnosticsbfr-hang.txt`, dump ở `...\diagnostics\dumps\` (được "Xoá dữ liệu hoạt động" dọn cùng). |
+| 4.3 `BFR_SAFE_RENDER=1` | `BfrTheme.SafeRender` / `GlassEffectsEnabled`: tắt blob + blur, bóng của `GlassTile`, và Mica (nền đặc). Dùng để bisect lỗi kết xuất. |
+| Hook gây lỗi | `BFR_TEST_FAULT` = `hang:<ms>` / `ui` / `thread` / `task`: gây lỗi có chủ đích sau 6 s để kiểm chứng (A5/A6 dùng lại trong CI). |
+| WER LocalDumps | `tests/Stability/Enable-LocalDumps.ps1` (cần admin, `-Disable` để gỡ). **Chưa chạy** trên máy dev vì sửa HKLM. |
+
+Kiểm chứng thực tế (chạy app thật, từng ca một): `safe-render` khởi động và phản hồi; `thread`, `task`, `ui` mỗi ca ghi đúng một mục vào `bfr-crash.txt` (ca `ui` ghi `ui-thread` rồi `fatal-thread`); `hang:8000` với watchdog ghi `hang` ở 5,0 s, minidump 1,6 MB, rồi `hang-recovered`.
+Phát hiện thêm: sau lỗi chết người (`thread`, `ui`) tiến trình vẫn "sống nhưng không phản hồi" cho tới khi hộp thoại Windows Error Reporting đóng, nghĩa là người dùng sẽ thấy cửa sổ đơ chứ không tắt ngay; nên xử lý trong chính sách mục 6.
+
 ## 5. Mức độ lỗi và tiêu chí chặn phát hành
 
 | Mức | Ví dụ | Quy tắc |
