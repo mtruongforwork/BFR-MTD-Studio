@@ -24,7 +24,8 @@
         </StackPanel>
 
         <!-- Bảng + trạng thái rỗng -->
-        <Grid Grid.Row="1">
+        <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{DynamicResource BfrRadiusTile}" Padding="4">
+        <Grid>
             <DataGrid x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
                       CanUserAddRows="False" HeadersVisibility="Column"
                       Style="{StaticResource PreviewDataGridStyle}"
@@ -49,6 +50,7 @@
                 <TextBlock Text="{DynamicResource HistoryEmpty}" TextWrapping="Wrap" TextAlignment="Center" />
             </HeaderedContentControl>
         </Grid>
+        </Border>
 
         <!-- Thanh hành động -->
         <DockPanel Grid.Row="2" Margin="0,12,0,0" LastChildFill="False">

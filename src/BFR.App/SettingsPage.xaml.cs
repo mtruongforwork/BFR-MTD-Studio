@@ -53,7 +53,7 @@ public class SettingsPage : PageBase
         Grid.SetRow(header, 0);
         root.Children.Add(header);
 
-        var content = new StackPanel { Margin = new Thickness(28, 4, 28, 16), MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
+        var content = new TileColumns();
 
         // ---- Giao diện & ngôn ngữ ----
         var look = Card(content, Loc.T("SettingsLanguage") + " · " + Loc.T("SettingsTheme"));
@@ -415,7 +415,7 @@ public class SettingsPage : PageBase
         };
         about.Children.Add(rateButton);
 
-        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = content };
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = content.Root };
         Grid.SetRow(scroll, 1);
         root.Children.Add(scroll);
 
@@ -423,23 +423,40 @@ public class SettingsPage : PageBase
     }
 
     /// <summary>Thêm một Card có tiêu đề vào <paramref name="parent"/> và trả về StackPanel bên trong.</summary>
-    private static StackPanel Card(StackPanel parent, string title)
+    /// <summary>Hai cột ô kính xếp xen kẽ (masonry): ô cao thấp khác nhau nên không dùng lưới hàng cố định.</summary>
+    private sealed class TileColumns
+    {
+        private readonly StackPanel _left = new() { Margin = new Thickness(0, 0, 6, 0) };
+        private readonly StackPanel _right = new() { Margin = new Thickness(6, 0, 0, 0) };
+        private int _count;
+
+        public TileColumns()
+        {
+            Root = new Grid { Margin = new Thickness(28, 4, 28, 16), MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Stretch };
+            Root.ColumnDefinitions.Add(new ColumnDefinition());
+            Root.ColumnDefinitions.Add(new ColumnDefinition());
+            Grid.SetColumn(_right, 1);
+            Root.Children.Add(_left);
+            Root.Children.Add(_right);
+        }
+
+        public Grid Root { get; }
+
+        public void Add(UIElement tile) => (_count++ % 2 == 0 ? _left : _right).Children.Add(tile);
+    }
+
+    /// <summary>Thêm một ô kính có tiêu đề vào <paramref name="parent"/> và trả về StackPanel bên trong.</summary>
+    private static StackPanel Card(TileColumns parent, string title)
     {
         var inner = new StackPanel();
-        inner.Children.Add(new TextBlock
+        parent.Add(new BFR.App.Controls.GlassTile
         {
-            Text = title,
-            Style = (Style)Application.Current.FindResource("PanelHeaderTextStyle"),
-            Margin = new Thickness(0, 0, 0, 8)
-        });
-
-        parent.Children.Add(new Ui.Card
-        {
+            Header = title,
             Content = inner,
             Margin = new Thickness(0, 0, 0, 12),
-            Padding = new Thickness(16),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch
+            Padding = new Thickness(18, 16, 18, 16),
+            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
+            HorizontalAlignment = HorizontalAlignment.Stretch
         });
         return inner;
     }
