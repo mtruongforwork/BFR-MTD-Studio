@@ -94,6 +94,20 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/smoke-ui.ps1 | Tee-Object -FilePath artifacts/smoke-ui.log
 
+      - name: UI Walk - đi qua mọi trang x 4 cấu hình (dark/light/safe-render/high-contrast), đo phản hồi, chụp ảnh
+        shell: powershell
+        # Bước mới (Phase T2): chạy ở chế độ báo cáo cho tới khi có vài lần chạy xanh trên runner, rồi bỏ continue-on-error để chặn.
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          powershell -ExecutionPolicy Bypass -File tests/Stability/walk-pages.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -OutDir artifacts/ui-walk -KillExisting
+
+      - name: Verify crash and hang logging (fault injection)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/Stability/verify-crash-logging.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -KillExisting | Tee-Object -FilePath artifacts/crash-logging.log
+
       - name: Capture UI Screenshots (Upgrade states + Regex tester)
         shell: powershell
         continue-on-error: true
@@ -131,5 +145,6 @@ jobs:
             artifacts/*.json
             artifacts/*.md
             artifacts/msix-layout/
+            artifacts/ui-walk/
             docs/ui-upgrade/
           retention-days: 14

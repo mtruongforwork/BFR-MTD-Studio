@@ -1,5 +1,9 @@
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace BFR.App.Controls;
@@ -30,6 +34,50 @@ public class GlassTile : HeaderedContentControl
 
     /// <summary>Bật hiệu ứng nổi khi rê chuột và vòng focus bàn phím.</summary>
     public bool IsInteractive { get => (bool)GetValue(IsInteractiveProperty); set => SetValue(IsInteractiveProperty, value); }
+
+    /// <summary>Ô tương tác được kích hoạt: bấm chuột, Enter/Space, hoặc InvokePattern của UI Automation (trình đọc màn hình, test tự động).</summary>
+    public event EventHandler? Invoked;
+
+    public void RaiseInvoked() => Invoked?.Invoke(this, EventArgs.Empty);
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        if (!IsInteractive || e.Handled) return;
+        e.Handled = true;
+        RaiseInvoked();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!IsInteractive || e.Handled || e.Key is not (Key.Enter or Key.Space)) return;
+        e.Handled = true;
+        RaiseInvoked();
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new GlassTileAutomationPeer(this);
+
+    private sealed class GlassTileAutomationPeer : FrameworkElementAutomationPeer, IInvokeProvider
+    {
+        private readonly GlassTile _tile;
+
+        public GlassTileAutomationPeer(GlassTile owner) : base(owner) => _tile = owner;
+
+        protected override AutomationControlType GetAutomationControlTypeCore() =>
+            _tile.IsInteractive ? AutomationControlType.Button : AutomationControlType.Group;
+
+        protected override string GetClassNameCore() => nameof(GlassTile);
+
+        public override object? GetPattern(PatternInterface patternInterface) =>
+            patternInterface == PatternInterface.Invoke && _tile.IsInteractive ? this : base.GetPattern(patternInterface);
+
+        public void Invoke()
+        {
+            if (!_tile.IsEnabled) throw new ElementNotEnabledException();
+            _tile.RaiseInvoked();
+        }
+    }
 
     private FrameworkElement? _shadow;
 

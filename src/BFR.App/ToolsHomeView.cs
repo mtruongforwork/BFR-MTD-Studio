@@ -102,11 +102,7 @@ internal sealed class ToolsHomeView : UserControl
             });
             tile.Content = panel;
 
-            tile.MouseLeftButtonUp += (_, _) => open(key);
-            tile.KeyDown += (_, e) =>
-            {
-                if (e.Key is Key.Enter or Key.Space) { open(key); e.Handled = true; }
-            };
+            tile.Invoked += (_, _) => open(key);
             System.Windows.Automation.AutomationProperties.SetName(tile, "Open " + title);
             bento.Children.Add(tile);
         }

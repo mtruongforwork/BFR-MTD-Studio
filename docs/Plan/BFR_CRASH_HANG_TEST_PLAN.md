@@ -145,6 +145,25 @@ Phát hiện thêm: sau lỗi chết người (`thread`, `ui`) tiến trình v�
 
 Chưa làm trong T1 (chuyển sang T2): bắt lỗi tài nguyên của `MainWindow` (cần dựng giấy phép giả), kiểm thử `SettingsPage`/`PresetsPage` (cần `LicenseCoordinator`).
 
+### Trạng thái Phase T2 (đã triển khai và chạy xanh)
+
+| Hạng mục | Nơi đặt | Kết quả |
+|---|---|---|
+| A5 Đi trang + watchdog + ảnh | `tests/Stability/walk-pages.ps1` | App thật, 4 cấu hình (dark, light, safe-render, high-contrast), mỗi cấu hình 21 bước: Home, Rename (12 tệp), Tools + cả 10 công cụ (mở rồi bấm Back), Shelf, History, Presets, Watch, Settings, thu/mở sidebar. Mỗi bước kiểm tra: app còn sống, phần tử đặc trưng của trang **đang hiển thị** (không chỉ tồn tại trong cây UIA), thời gian phản hồi; chụp ảnh. Cuối lượt: watchdog không ghi `[hang]`, không có mục mới trong `bfr-crash.txt`. Báo cáo `ui-walk-report.md` + ảnh vào `artifacts/ui-walk/` (CI upload). Chạy cục bộ: 84 bước, 0 lỗi, mọi bước < 1,2 s. |
+| A6 Kiểm chứng ghi crash/hang | `tests/Stability/verify-crash-logging.ps1` | 7 ca trên app thật: lỗi luồng nền, Task không await, luồng UI, **che đường dẫn cá nhân** (nhật ký không chứa tên tệp hay tên người dùng, có `<path>`), **ghi nối tiếp** (lần 2 không ghi đè lần 1), treo UI 8 s (đúng 1 `[hang]`, 1 `[hang-recovered]`, minidump > 100 KB), safe-render. Mọi mục có dòng bối cảnh. 25 kiểm tra, tất cả xanh. |
+| Khả năng tiếp cận | `GlassTile` | Ô bento tương tác nay có `InvokePattern` (UIA, Narrator) và phản hồi Enter/Space/chuột qua sự kiện `Invoked`. Trước đó UIA và trình đọc màn hình **không** kích hoạt được các ô ở Home và Tools. |
+| CI | `ci.yml` | Hai bước mới (ở chế độ báo cáo: `continue-on-error: true` cho tới khi có vài lần chạy xanh trên runner, rồi bỏ để chặn). |
+
+An toàn khi chạy script trên máy đang dùng (rút ra từ sự cố click nhầm ở T0): chỉ dùng UI Automation theo PID của tiến trình tự khởi chạy (không chuột, không SendKeys, không cần foreground); chụp bằng `PrintWindow` lên đúng HWND của app; từ chối chạy nếu đã có BatchFileRenamer.exe đang chạy (trừ khi `-KillExisting`); sao lưu và khôi phục `%LOCALAPPDATA%\BatchFileRenamer` và `%TEMP%\bfr-crash.txt`; không bấm Áp dụng.
+
+Phát hiện trong T2:
+- **Kiểm tra "tồn tại" dễ đúng giả**: UIA vẫn thấy `Preview table` của trang Rename khi trang đó đang bị ẩn; lượt đầu ghi nhận pass trong khi ảnh chụp cho thấy vẫn là trang Home. Đã siết thành "đang hiển thị" (`IsOffscreen = false`). Áp dụng cho mọi test UIA sau này.
+- Script PowerShell 5.1 đọc tệp UTF-8 không BOM theo ANSI nên vỡ tiếng Việt: mọi `.ps1` có chữ Việt phải lưu UTF-8 **có BOM** (đã sửa luôn `Enable-LocalDumps.ps1` của T0).
+- `powershell -File x.ps1 -Runs a,b,c` truyền thành một chuỗi: script phải tự tách theo dấu phẩy.
+- Nội dung bên trong từng công cụ (`ToolView`) vẫn là giao diện phẳng cũ, chưa bọc kính; dời sang đợt hoàn thiện giao diện, không thuộc test crash/hang.
+
+Còn lại cho T2 (chưa làm): kiểm tra `MainWindow` ở mức tài nguyên XAML trong project UI test (đã được walk-pages phủ ở mức chạy thật nên ưu tiên thấp); đo thời gian khởi động lạnh làm baseline cho T3.
+
 ## 5. Mức độ lỗi và tiêu chí chặn phát hành
 
 | Mức | Ví dụ | Quy tắc |

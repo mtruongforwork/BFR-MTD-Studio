@@ -110,11 +110,7 @@ internal sealed class HomePage : PageBase
         BentoPanel.SetRowSpan(card, 2);
         card.Content = new TextBlock { Text = Loc.T(hintKey), Style = S("BfrCaptionText"), TextWrapping = TextWrapping.Wrap };
         System.Windows.Automation.AutomationProperties.SetName(card, Loc.T(titleKey));
-        card.MouseLeftButtonUp += (_, _) => _navigate(page);
-        card.KeyDown += (_, e) =>
-        {
-            if (e.Key is Key.Enter or Key.Space) { _navigate(page); e.Handled = true; }
-        };
+        card.Invoked += (_, _) => _navigate(page);
         return card;
     }
 }

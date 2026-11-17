@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Bật / tắt Windows Error Reporting LocalDumps cho BatchFileRenamer.exe (Phase T0 của kế hoạch test crash/hang).
 
