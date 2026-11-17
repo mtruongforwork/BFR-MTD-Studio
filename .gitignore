@@ -39,3 +39,5 @@ desktop.ini
 
 # ---- Ghi chú cục bộ ----
 *.log
+
+TestResults/
