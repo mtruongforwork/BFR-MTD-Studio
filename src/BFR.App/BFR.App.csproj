@@ -15,6 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="BFR.App.UiTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BFR.Core\BFR.Core.csproj" />
     <ProjectReference Include="..\BFR.Presentation\BFR.Presentation.csproj" />
     <ProjectReference Include="..\BFR.Store\BFR.Store.csproj" />

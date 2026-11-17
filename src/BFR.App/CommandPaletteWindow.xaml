@@ -60,7 +60,7 @@
                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                                     <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextPrimary}" />
                                     <TextBlock Text="{Binding Category}" Margin="10,0,0,0"
-                                               Foreground="{DynamicResource TextTertiary}" />
+                                               Foreground="{DynamicResource BfrFg3}" />
                                 </StackPanel>
 
                                 <TextBlock Grid.Column="1" Text="{Binding Shortcut}" Margin="12,0,0,0"
@@ -79,8 +79,8 @@
 
             <!-- Chân -->
             <Border Grid.Row="2" Margin="0,10,0,0" Padding="18,8" CornerRadius="0,0,11,11"
-                    Background="{DynamicResource SurfaceSecondary}">
-                <TextBlock Text="{Binding HintText}" Foreground="{DynamicResource TextTertiary}" />
+                    Background="{DynamicResource BfrSurface2}">
+                <TextBlock Text="{Binding HintText}" Foreground="{DynamicResource BfrFg3}" />
             </Border>
         </Grid>
     </Border>

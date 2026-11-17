@@ -62,6 +62,22 @@ public class BentoLayoutTests
         Assert.Equal(expected, BentoLayout.ColumnsFor(width, 12, 900));
 
     [Fact]
+    public void Place_FiveThousandTiles_IsFast_AndNeverOverlaps()
+    {
+        var items = Enumerable.Range(0, 5000).Select(i => new BentoLayout.Item(1 + i % 12, 1 + i % 4)).ToList();
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var cells = BentoLayout.Place(12, items, out _);
+        Assert.True(sw.ElapsedMilliseconds < 1500, $"Xếp 5000 ô mất {sw.ElapsedMilliseconds} ms");
+
+        var taken = new System.Collections.Generic.HashSet<(int, int)>();
+        foreach (var c in cells)
+            for (var r = c.Row; r < c.Row + c.RowSpan; r++)
+                for (var col = c.Col; col < c.Col + c.ColSpan; col++)
+                    Assert.True(taken.Add((col, r)));
+    }
+
+    [Fact]
     public void Place_EmptyListGivesNoRows()
     {
         Assert.Empty(BentoLayout.Place(12, System.Array.Empty<BentoLayout.Item>(), out var rows));

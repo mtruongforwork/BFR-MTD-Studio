@@ -68,6 +68,12 @@ public sealed class RenameExecutorResult
     public int Succeeded { get; set; }
     public int Failed { get; set; }
     public bool Cancelled { get; set; }
+
+    /// <summary>
+    /// Ghi journal thất bại SAU khi một thao tác đã có hiệu lực: bộ thực thi dừng và không ghi footer, để lần mở sau
+    /// <see cref="RecoveryService"/> thấy journal dang dở và hoàn tất/ghi nhận bước đó.
+    /// </summary>
+    public bool JournalWriteFailed { get; set; }
     public List<(string Step, string Error)> Errors { get; set; } = new();
 }
 

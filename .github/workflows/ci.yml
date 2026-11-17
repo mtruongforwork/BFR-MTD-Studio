@@ -37,6 +37,9 @@ jobs:
       - name: Run ViewModel Tests (UI layer, không phụ thuộc WPF)
         run: dotnet test tests/BFR.Presentation.Tests/BFR.Presentation.Tests.csproj -c Release --no-build --verbosity normal
 
+      - name: Run UI Tests (bố cục BentoPanel/GlassTile, khoá tài nguyên mọi tổ hợp theme, STA)
+        run: dotnet test tests/BFR.App.UiTests/BFR.App.UiTests.csproj -c Release --no-build --verbosity normal
+
       - name: Run CLI Tests (v2.0 tool commands)
         run: dotnet test tests/BFR.Cli.Tests/BFR.Cli.Tests.csproj -c Release --no-build --verbosity normal
 

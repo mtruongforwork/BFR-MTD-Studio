@@ -303,7 +303,19 @@ public static class WorkflowSerializer
         if (string.IsNullOrWhiteSpace(json)) throw new JsonException(CoreText.Get("CoreWorkflowInvalid", "Workflow không hợp lệ"));
         if (json.Length > MaxJsonBytes) throw new JsonException(CoreText.Get("CoreWorkflowInvalid", "Workflow không hợp lệ"));
 
-        var definition = JsonSerializer.Deserialize<WorkflowDefinition>(json, Options)
+        WorkflowDefinition? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<WorkflowDefinition>(json, Options);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            // ArgumentException: chuỗi chứa nửa cặp surrogate lẻ (không phải UTF-16 hợp lệ).
+            // NotSupportedException: bước thiếu/sai trường loại ("kind") nên không dựng được kiểu bước cụ thể.
+            throw new JsonException(CoreText.Get("CoreWorkflowInvalid", "Workflow không hợp lệ"), ex);
+        }
+
+        var definition = parsed
             ?? throw new JsonException(CoreText.Get("CoreWorkflowInvalid", "Workflow không hợp lệ"));
 
         if (definition.Steps is null || definition.Steps.Count == 0 || definition.Steps.Count > WorkflowPlanner.MaxSteps)

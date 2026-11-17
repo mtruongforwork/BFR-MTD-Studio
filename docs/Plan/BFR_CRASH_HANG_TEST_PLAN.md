@@ -125,6 +125,26 @@ Việc cần sửa trước khi test (làm ở Phase T0): ghi crash **append có
 Kiểm chứng thực tế (chạy app thật, từng ca một): `safe-render` khởi động và phản hồi; `thread`, `task`, `ui` mỗi ca ghi đúng một mục vào `bfr-crash.txt` (ca `ui` ghi `ui-thread` rồi `fatal-thread`); `hang:8000` với watchdog ghi `hang` ở 5,0 s, minidump 1,6 MB, rồi `hang-recovered`.
 Phát hiện thêm: sau lỗi chết người (`thread`, `ui`) tiến trình vẫn "sống nhưng không phản hồi" cho tới khi hộp thoại Windows Error Reporting đóng, nghĩa là người dùng sẽ thấy cửa sổ đơ chứ không tắt ngay; nên xử lý trong chính sách mục 6.
 
+### Trạng thái Phase T1 (đã triển khai và chạy xanh)
+
+| Hạng mục | Nơi đặt | Phạm vi |
+|---|---|---|
+| A1 + 4.4 Fault injection | `tests/BFR.Core.Tests/FaultInjectionTests.cs`, `Support/FaultInjectingFileSystem.cs` | Một kịch bản gồm hoán đổi a↔b qua tên tạm, tạo thư mục, di chuyển, sao chép, cách ly. Gây lỗi ở **từng** lần ghi đĩa (kể cả ghi journal) với 4 kiểu: lỗi IO thoáng qua, lỗi IO kéo dài (ổ đầy), chết trước, chết sau lần ghi. Sau mỗi lỗi: không mất dữ liệu, `RecoveryService` hoàn tất journal dang dở, Hoàn tác về đúng nguyên trạng. 123 ca. Thêm ca huỷ giữa chừng và một bước thất bại. |
+| A2 Fuzz | `tests/BFR.Core.Tests/FuzzTests.cs` | 19 test, mặc định 10 000 vòng mỗi mục (`BFR_FUZZ_ITERATIONS` để tăng; đã chạy 100 000 sạch). Gồm: glob, bộ lọc quét, danh sách nhập, phím tắt, dòng lệnh, checksum, mẫu tổ chức, tên tệp, regex Tìm/Thay (kèm 5 mẫu backtracking thảm hoạ trên chuỗi 60 000 ký tự), mẫu tên, preset JSON, workflow JSON, IPC, **journal cắt tại mọi byte**, journal/lịch sử rác. Mỗi vòng dùng RNG riêng theo (seed, vòng) nên tái hiện được; vượt 2 s thì chạy lại một lần trước khi kết tội (tránh báo giả khi máy bận). Có workflow `nightly-fuzz.yml` chạy 200 000 vòng mỗi đêm. |
+| A3 Bố cục | `tests/BFR.App.UiTests/` (project mới, STA + `Application` thật) | `BentoPanel` với 11 kích thước thù địch (0, 1 px, ∞, 100 000), ColSpan 0/âm/1000, ẩn/hiện liên tục, không tràn ngang, không NaN/∞; 400 ô co giãn tuyến tính; `GlassTile` đổi cỡ 500 lần; `BackdropBlobs`; `HomePage`, `ToolsHomeView` và cửa sổ Gallery ở cả 18 tổ hợp theme. Thuật toán xếp 5 000 ô có test riêng. |
+| A4 + 4.7 Linter khoá tài nguyên | `LayoutAndResourceTests.EveryReferencedResourceKey_...` | Quét mọi `{DynamicResource/StaticResource X}` trong XAML và `FindResource("X")`/`SetResourceReference` trong mã, kiểm tra khoá tồn tại ở **từng** tổ hợp trong 18 (sáng/tối × 3 accent × tương phản cao). Có test bảo đảm bộ quét không "xanh giả" (phải tìm được > 200 tham chiếu XAML). |
+| CI | `.github/workflows/ci.yml`, `nightly-fuzz.yml` | Thêm bước UI Tests vào CI; fuzz ban đêm. |
+
+**Lỗi thật mà T1 đã tìm ra và đã sửa**
+
+| # | Mức | Lỗi | Sửa |
+|---|---|---|---|
+| 1 | S1 | Lỗi IO khi ghi dòng "done" vào journal, **sau khi** thao tác tệp đã thành công, bị coi là bước *thất bại*: journal ghi "failed" dù tệp đã đổi, nên Hoàn tác bỏ sót bước đó (tệp kẹt ở tên tạm/ở thư mục mới/trong cách ly, không còn đường về qua giao diện). | `OperationExecutor`: thao tác đã có hiệu lực luôn tính là thành công; ghi journal thử lại 3 lần; vẫn lỗi thì dừng, **không ghi footer** và đặt `RenameExecutorResult.JournalWriteFailed`, để lần mở sau `RecoveryService` thấy journal dang dở và hoàn tất. |
+| 2 | S2 | `RegexTesterWindow` và `CommandPaletteWindow` dùng 4 khoá không tồn tại (`BorderSubtle`, `Danger`, `SurfaceSecondary`, `TextTertiary`): `DynamicResource` thiếu khoá không báo lỗi nên viền, nền và chữ phụ ở hai cửa sổ này bị trống. | Trỏ sang `BfrLine`, `BfrBad`, `BfrSurface2`, `BfrFg3`. |
+| 3 | S2 | `PresetValidator.Parse` và `WorkflowSerializer.Parse` để `ArgumentException` (chuỗi có nửa cặp surrogate lẻ) và `NotSupportedException` (bước workflow thiếu trường `kind`) lọt ra, trái hợp đồng chỉ ném `InvalidDataException`/`JsonException` mà nơi gọi chờ. | Bọc lại thành đúng loại ngoại lệ đã khai báo. |
+
+Chưa làm trong T1 (chuyển sang T2): bắt lỗi tài nguyên của `MainWindow` (cần dựng giấy phép giả), kiểm thử `SettingsPage`/`PresetsPage` (cần `LicenseCoordinator`).
+
 ## 5. Mức độ lỗi và tiêu chí chặn phát hành
 
 | Mức | Ví dụ | Quy tắc |
