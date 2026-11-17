@@ -1,0 +1,58 @@
+name: BFR Stability (soak / stress / load / chaos)
+
+# Phase T3 của kế hoạch test crash/hang (docs/Plan/BFR_CRASH_HANG_TEST_PLAN.md).
+# Chạy tay (workflow_dispatch) hoặc hằng tuần. Các script chỉ dùng UI Automation theo PID, không tiêm chuột/bàn phím.
+#
+# Soak 8 giờ (tests/Stability/soak.ps1 -DurationMinutes 480) vượt giới hạn 6 giờ của runner GitHub: chạy tay trên máy test/VM
+# hoặc runner tự quản. Ở đây chỉ chạy bản rút gọn (soak 20 phút) để bắt hồi quy sớm.
+on:
+  workflow_dispatch:
+    inputs:
+      soak_minutes:
+        description: "Số phút soak"
+        default: "20"
+  schedule:
+    - cron: "0 20 * * 0"   # Chủ nhật, 03:00 giờ Việt Nam
+
+permissions:
+  contents: read
+
+jobs:
+  stability:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build (Release)
+        run: dotnet build src/BFR.App/BFR.App.csproj -c Release
+
+      - name: Stress theme/ngôn ngữ (500 lần)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/stress-theme.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Iterations 500 -OutDir artifacts/stability/stress-theme -KillExisting
+
+      - name: Tải 100 000 tệp
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/load.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Files 100000 -OutDir artifacts/stability/load -KillExisting
+
+      - name: Chaos 10 phút
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/chaos.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Minutes 10 -OutDir artifacts/stability/chaos -KillExisting
+
+      - name: Soak rút gọn
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/soak.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -DurationMinutes ${{ github.event.inputs.soak_minutes || '20' }} -SampleSeconds 20 -Files 200 -OutDir artifacts/stability/soak -KillExisting
+
+      - name: Upload kết quả
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stability-results
+          path: artifacts/stability/
+          retention-days: 30
