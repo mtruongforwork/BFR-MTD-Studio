@@ -13,8 +13,11 @@ namespace BFR.App.Controls;
 /// </summary>
 public sealed class BackdropBlobs : Grid
 {
+    private readonly Grid _blobHost = new() { IsHitTestVisible = false };
+
     public BackdropBlobs()
     {
+        _blobHost.SetResourceReference(OpacityProperty, "BfrBlobOpacity");
         IsHitTestVisible = false;
         ClipToBounds = true;
         Loaded += (_, _) => Build();
@@ -23,11 +26,19 @@ public sealed class BackdropBlobs : Grid
     private void Build()
     {
         Children.Clear();
+        _blobHost.Children.Clear();
         if (BfrTheme.IsHighContrast) return;
 
-        AddBlob(540, HorizontalAlignment.Left, VerticalAlignment.Top, new Thickness(-180, -200, 0, 0), "BfrGlow1", 0.42);
-        AddBlob(620, HorizontalAlignment.Right, VerticalAlignment.Bottom, new Thickness(0, 0, -220, -260), "BfrGlow2", 0.38);
-        AddBlob(380, HorizontalAlignment.Right, VerticalAlignment.Top, new Thickness(0, 60, 80, 0), "BfrAcc1", 0.28);
+        // Lớp phủ nền: giảm độ chói (sáng) / độ xám đục của Mica (tối); độ đậm theo token để mỗi theme tự chỉnh.
+        var tint = new Rectangle { IsHitTestVisible = false };
+        tint.SetResourceReference(Shape.FillProperty, "BfrBgBase");
+        tint.SetResourceReference(OpacityProperty, "BfrBackdropTintOpacity");
+        Children.Add(tint);
+        Children.Add(_blobHost);
+
+        AddBlob(540, HorizontalAlignment.Left, VerticalAlignment.Top, new Thickness(-180, -200, 0, 0), "BfrGlow1", 0.80);
+        AddBlob(620, HorizontalAlignment.Right, VerticalAlignment.Bottom, new Thickness(0, 0, -220, -260), "BfrGlow2", 0.70);
+        AddBlob(380, HorizontalAlignment.Right, VerticalAlignment.Top, new Thickness(0, 60, 80, 0), "BfrAcc1", 0.50);
     }
 
     private void AddBlob(double size, HorizontalAlignment h, VerticalAlignment v, Thickness margin, string brushKey, double opacity)
@@ -39,6 +50,7 @@ public sealed class BackdropBlobs : Grid
             CacheMode = new BitmapCache(), IsHitTestVisible = false,
         };
         e.SetResourceReference(Shape.FillProperty, brushKey);
-        Children.Add(e);
+        e.Opacity = opacity;
+        _blobHost.Children.Add(e);
     }
 }

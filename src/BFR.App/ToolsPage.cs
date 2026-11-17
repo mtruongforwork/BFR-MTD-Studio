@@ -31,6 +31,7 @@ public sealed class ToolsPage : PageBase
     private readonly ListBox _list = new();
     private readonly Grid _host = new();
     private readonly TextBlock _status = new();
+    private readonly Button _back = new();
     private readonly Dictionary<string, FrameworkElement> _views = new(StringComparer.OrdinalIgnoreCase);
     private QuarantineView? _quarantine;
     private ToolsHomeView? _home;
@@ -69,7 +70,8 @@ public sealed class ToolsPage : PageBase
         System.Windows.Automation.AutomationProperties.SetName(_list, "Tool list");
 
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(236) });
+        // Bento: danh sách bên trái nhường chỗ cho lưới ô ở trang chủ; vào một công cụ thì có nút quay lại. Danh sách vẫn là nguồn chọn mục (ẩn).
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var left = new Border
@@ -79,10 +81,30 @@ public sealed class ToolsPage : PageBase
             BorderThickness = new Thickness(0, 0, 1, 0),
             BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("Divider")
         };
+        left.Visibility = Visibility.Collapsed;
+
+        var backContent = new StackPanel { Orientation = Orientation.Horizontal };
+        backContent.Children.Add(new TextBlock { Text = "", FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        backContent.Children.Add(new TextBlock { Text = Loc.T("ToolsHomeTitle"), VerticalAlignment = VerticalAlignment.Center });
+        _back.Content = backContent;
+        _back.Style = (Style)Application.Current.FindResource("BfrGhostButton");
+        _back.HorizontalAlignment = HorizontalAlignment.Left;
+        _back.Margin = new Thickness(18, 12, 0, 0);
+        _back.Visibility = Visibility.Collapsed;
+        _back.Click += (_, _) => _list.SelectedItem = _entries.First(e => e.Key == "home");
+        System.Windows.Automation.AutomationProperties.SetName(_back, "Back to tools home");
+
+        var right = new Grid();
+        right.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        right.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(_host, 1);
+        right.Children.Add(_back);
+        right.Children.Add(_host);
+
         Grid.SetColumn(left, 0);
-        Grid.SetColumn(_host, 1);
+        Grid.SetColumn(right, 1);
         grid.Children.Add(left);
-        grid.Children.Add(_host);
+        grid.Children.Add(right);
 
         Content = grid;
         _list.SelectedIndex = 0;
@@ -137,6 +159,7 @@ public sealed class ToolsPage : PageBase
 
     private void Show(Entry entry)
     {
+        _back.Visibility = entry.Key == "home" ? Visibility.Collapsed : Visibility.Visible;
         foreach (var v in _views.Values) v.Visibility = Visibility.Collapsed;
 
         if (!_views.TryGetValue(entry.Key, out var view))

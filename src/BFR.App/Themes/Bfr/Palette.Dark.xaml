@@ -22,11 +22,13 @@
     <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrGlowOpacity">0.22</sys:Double>
 
     <Color x:Key="BfrGlassFillColor">#14FFFFFF</Color>
-    <Color x:Key="BfrGlassFillStrongColor">#1FFFFFFF</Color>
+    <Color x:Key="BfrGlassFillStrongColor">#A60F1117</Color>
     <Color x:Key="BfrGlassSheenColor">#14FFFFFF</Color>
     <Color x:Key="BfrGlassRimTopColor">#40FFFFFF</Color>
     <Color x:Key="BfrGlassRimBottomColor">#08FFFFFF</Color>
 
+    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBlobOpacity">0.55</sys:Double>
+    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBackdropTintOpacity">0.62</sys:Double>
     <SolidColorBrush x:Key="BfrBgBase" Color="{DynamicResource BfrBgBaseColor}" />
     <SolidColorBrush x:Key="BfrSurface1" Color="{DynamicResource BfrSurface1Color}" />
     <SolidColorBrush x:Key="BfrSurface2" Color="{DynamicResource BfrSurface2Color}" />
