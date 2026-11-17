@@ -53,7 +53,7 @@ public sealed class OperationExecutor
         Append(journalPath, new JournalEntry
         {
             Type = "header", Id = journalId, StartedUtc = DateTime.UtcNow.ToString("O"),
-            TotalSteps = operations.Count, AppVersion = appVersion, Schema = JournalSchema
+            TotalSteps = operations.Count, AppVersion = appVersion, Schema = JournalSchema, Pid = Environment.ProcessId
         });
 
         for (var i = 0; i < operations.Count; i++)

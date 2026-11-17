@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">Application en cours...</sys:String>
     <sys:String x:Key="StatusUndoing">Annulation en cours...</sys:String>
     <sys:String x:Key="ApplySuccessMessage">{0}/{1} fichiers renommés.</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">{0} renommage(s) précédent(s) ont été interrompus. Cliquez sur Annuler pour rétablir les noms d'origine, ou ouvrez l'historique.</sys:String>
     <sys:String x:Key="Cancel">Annuler</sys:String>
     <sys:String x:Key="MenuWatchFolder">Surveiller un dossier...</sys:String>
     <sys:String x:Key="MenuContextMenu">Menu contextuel de l'Explorateur...</sys:String>
@@ -571,6 +572,7 @@
     <sys:String x:Key="CoreStatusRecovered">Récupéré</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">Récupéré avec erreurs</sys:String>
     <sys:String x:Key="CoreStatusUndone">Défait</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">Interrompu</sys:String>
     <sys:String x:Key="NavTools">Outils</sys:String>
     <sys:String x:Key="ToolsEmptyResults">Ajoutez des fichiers, réglez les options puis cliquez sur Aperçu.</sys:String>
     <sys:String x:Key="ToolsNothingToShow">Rien à afficher.</sys:String>

@@ -17,6 +17,8 @@ param(
     [int]$MaxActionMs = 8000,
     [int]$SampleSeconds = 20,
     [string]$OutDir = 'artifacts\chaos',
+    [switch]$SoftwareRender,   # B3: kết xuất bằng CPU (giả lập máy không GPU)
+    [switch]$SafeRender,       # tắt blob/blur/bóng/Mica (BFR_SAFE_RENDER=1)
     [switch]$KillExisting
 )
 
@@ -42,7 +44,7 @@ $heapTaken = $false
 try {
     Set-TestSettings $ctx 'en' 'Dark'
     $data = New-TestFiles $Files
-    $proc = Start-TestApp $Exe ('--file-list "' + $data.List + '"')
+    $proc = Start-TestApp $Exe ('--file-list "' + $data.List + '"') $($e = @{}; if ($SoftwareRender) { $e['BFR_SOFTWARE_RENDER'] = '1' }; if ($SafeRender) { $e['BFR_SAFE_RENDER'] = '1' }; $e)
     $win = Get-MainWindow $proc
     Start-Sleep -Seconds 3
     Invoke-WarmUp $win

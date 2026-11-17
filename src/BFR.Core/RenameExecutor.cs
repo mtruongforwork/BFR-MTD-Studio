@@ -19,6 +19,12 @@ public sealed class JournalEntry
     /// <summary>Phiên bản định dạng journal (chỉ có ở header). Null hoặc 1 = đổi tên thuần tuý.</summary>
     public int? Schema { get; set; }
 
+    /// <summary>
+    /// Tiến trình đang ghi journal (chỉ ở dòng header). Dùng để phân biệt journal của một lần Áp dụng ĐANG chạy (app khác, CLI)
+    /// với journal bị bỏ dở do tiến trình chết. Journal cũ không có trường này được coi là của tiến trình đã chết.
+    /// </summary>
+    public int? Pid { get; set; }
+
     public int Seq { get; set; }
     public string? From { get; set; }
     public string? To { get; set; }

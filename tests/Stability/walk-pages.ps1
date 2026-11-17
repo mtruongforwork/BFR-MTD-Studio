@@ -10,7 +10,7 @@
     - Sao lưu và khôi phục %LOCALAPPDATA%\BatchFileRenamer (settings, lịch sử, journal) và %TEMP%\bfr-crash.txt.
     - Dùng tier Pro giả (BFR_DEV_TIER) và thư mục dữ liệu thử; KHÔNG bấm Áp dụng.
 
-  Mỗi "lượt" (run) = một cấu hình: dark | light | safe-render (BFR_SAFE_RENDER=1) | high-contrast (BFR_HC=1).
+  Mỗi "lượt" (run) = một cấu hình: dark | light | safe-render (BFR_SAFE_RENDER=1) | high-contrast (BFR_HC=1) | software-render (BFR_SOFTWARE_RENDER=1: kết xuất bằng CPU, giả lập máy không GPU).
   Mỗi lượt đi qua: Home, Rename (có tệp), Tools + từng công cụ, Shelf, History, Presets, Watch, Settings.
   Kiểm tra mỗi bước: tiến trình còn sống, phản hồi UIA < StepBudgetMs, phần tử đặc trưng của trang có mặt.
   Cuối lượt: không có mục "hang" trong bfr-hang.txt, không có mục mới trong bfr-crash.txt.
@@ -22,7 +22,7 @@
 param(
     [Parameter(Mandatory)] [string]$Exe,
     [string]$OutDir = 'artifacts\ui-walk',
-    [string[]]$Runs = @('dark', 'light', 'safe-render', 'high-contrast'),
+    [string[]]$Runs = @('dark', 'light', 'safe-render', 'high-contrast', 'software-render'),
     [int]$StepBudgetMs = 4000,
     [switch]$KillExisting
 )
@@ -131,6 +131,7 @@ function Run-Walk([string]$run) {
     $psi.EnvironmentVariables['BFR_WATCHDOG'] = '1'
     if ($run -eq 'safe-render') { $psi.EnvironmentVariables['BFR_SAFE_RENDER'] = '1' }
     if ($run -eq 'high-contrast') { $psi.EnvironmentVariables['BFR_HC'] = '1' }
+    if ($run -eq 'software-render') { $psi.EnvironmentVariables['BFR_SOFTWARE_RENDER'] = '1' }
     $proc = [Diagnostics.Process]::Start($psi)
     Write-Output "== Lượt '$run' (PID $($proc.Id)) =="
 

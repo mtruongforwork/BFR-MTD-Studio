@@ -81,6 +81,9 @@ public partial class App : Application
 
         // Phase T0: ghi nhật ký crash nối tiếp (luồng nền, luồng UI, Task không await) và canh treo UI khi BFR_WATCHDOG=1|2.
         CrashReporter.Install(this);
+        // Kế hoạch test B3: BFR_SOFTWARE_RENDER=1 ép kết xuất hoàn toàn bằng CPU (giả lập máy không GPU, driver hỏng, một số VM/RDP).
+        if (Environment.GetEnvironmentVariable("BFR_SOFTWARE_RENDER") == "1")
+            System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         _watchdog = UiWatchdog.StartIfEnabled(Dispatcher);
         FaultInjection.StartIfRequested(Dispatcher);
 

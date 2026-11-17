@@ -202,6 +202,50 @@ Mỗi lần đổi giao diện trong test trong tiến trình mất khoảng 2 s
 
 **Bài học khi viết script UIA**: tên phần tử đổi theo ngôn ngữ (dùng `AutomationProperties.Name` cố định tiếng Anh); trang ẩn vẫn có thể còn trong cây UIA (kiểm `IsOffscreen`); `powershell -File` không tách mảng tham số; cây UIA phải chờ dựng (ComboBox, hộp thoại).
 
+### Trạng thái Phase T4 (phần tự động hoá đã xong; phần cần VM là checklist chạy tay bên dưới)
+
+| Hạng mục | Nơi đặt | Kết quả |
+|---|---|---|
+| B6 Kill giữa lúc Áp dụng | `tests/Stability/kill-apply.ps1` + `tests/BFR.Core.Tests/InterruptedRunTests.cs` | App thật, 2 000 tệp nội dung riêng, kill ở thời điểm ngẫu nhiên. Sau khi sửa (bên dưới): 12/12 vòng **0 tệp mất, 0 nhân đôi, 0 tên tạm sót**; 8 vòng bị kill giữa chừng (350–1 962 tệp đã đổi) đều có mục "Bị gián đoạn" trong Lịch sử và Hoàn tác về **đúng nguyên trạng**. Test Core: chết trước/sau **mọi** điểm ghi đĩa rồi đăng ký và Hoàn tác (48 ca). Bản "mất điện thật" (ghi đĩa dở, cache ổ) vẫn chỉ chạy trên VM. |
+| B7 Môi trường tệp khó | `tests/BFR.Core.Tests/HardFileSystemTests.cs` (đĩa thật, chạy trong CI) | 10/10: tệp bị khoá độc quyền, chỉ đọc, thư mục bị ACL chặn ghi (không ném lỗi, tệp y nguyên), Unicode (emoji, RTL, CJK, NFC và NFD cùng tồn tại), đổi chỉ hoa/thường và vòng 1→2→3→1, đường dẫn > 260 ký tự (bỏ qua nếu máy tắt LongPathsEnabled), tên có dấu chấm cuối tạo qua `\\?\` (không bao giờ hỏng), tệp bị xoá giữa xem trước và Áp dụng, **tệp đích xuất hiện giữa chừng không bị ghi đè**, tệp đang được ghi tiếp. |
+| B3 Kết xuất không GPU | cờ `BFR_SOFTWARE_RENDER=1` (`RenderMode.SoftwareOnly`); `walk-pages.ps1` thêm cấu hình `software-render`; `chaos.ps1 -SoftwareRender [-SafeRender]` | walk-pages PASS (trung bình 632 ms/bước, chậm nhất 1,04 s). Chaos: xem bảng dưới. |
+| B8 Đa tiến trình | `tests/Stability/multi-instance.ps1` | 3/3 lượt PASS: mở 20 lần dồn dập khi app **đang khởi động** và khi đã sẵn sàng → 1 tiến trình, 20/20 tệp tới danh sách; `--background` khởi động ẩn, mở lần 2 hiện đúng cửa sổ của tiến trình nền. |
+| CI | `stability.yml` | Thêm kill-apply (10 vòng), multi-instance, chaos kết xuất CPU 5 phút. |
+
+**Kết xuất bằng CPU** (chaos, trung bình / chậm nhất mỗi thao tác):
+
+| Thao tác | Có GPU | CPU + kính | CPU + tắt kính (safe-render) |
+|---|---|---|---|
+| Điều hướng | 351 / 846 ms | 1 192 / 4 004 ms | 571 / 1 136 ms |
+| Mở công cụ | 1 900 / 2 430 ms | 3 710 / 9 526 ms | 2 509 / 3 346 ms |
+| Đổi cỡ cửa sổ | 119 / 364 ms | 634 / 920 ms | 306 / 1 180 ms |
+| Phóng to / khôi phục | 430 / 487 ms | 1 230 / 1 836 ms | 425 / 440 ms |
+
+Không treo (watchdog im lặng), nhưng **trên máy không có tăng tốc phần cứng, hiệu ứng kính làm UI chậm khoảng gấp đôi** (S2). Đề xuất cho quyết định 6.2: tự tắt blob/blur/bóng khi `RenderCapability.Tier >> 16 == 0` (không tăng tốc phần cứng) hoặc khi kết xuất bằng CPU, như đang làm với tương phản cao. Chưa áp dụng, chờ quyết định.
+
+**Lỗi thật T4 đã tìm ra và sửa**
+
+| Mức | Lỗi | Sửa |
+|---|---|---|
+| S1 | **Không có lối Hoàn tác sau khi app chết giữa lúc Áp dụng.** `RecoveryService` có trong Core nhưng không ai gọi; lịch sử chỉ ghi sau khi Áp dụng xong; journal dở dang được giữ mà không ai đọc. kill-apply.ps1 tái hiện: 1 171 và 1 740 tệp đã bị đổi, mở lại app thì Lịch sử trống. (Dữ liệu không mất nhờ journal ghi trước.) | `HistoryStore.RegisterInterrupted()` đưa journal dở dang (không footer, chủ của nó (PID trong header, mới thêm) không còn chạy) vào Lịch sử với trạng thái "Bị gián đoạn", gọi khi khởi động và khi mở trang Lịch sử; **không tự đụng tệp**. Khởi động có thông báo "N lần đổi tên trước bị gián đoạn" (4 ngôn ngữ) kèm nút Hoàn tác/Lịch sử. `UndoService.UndoJournal` dùng `RecoveryService.Rollback` cho journal dở dang (đảo cả bước đã xảy ra mà chưa kịp ghi "done") rồi ghi footer `rolled-back` để không bị đăng ký lại. Cũng vá lỗ hổng của bản sửa T1: khi không ghi được journal, bộ thực thi dừng không footer "để lần mở sau khôi phục" (trước đây chưa ai khôi phục). |
+| S3 | `BentoLayout.Place` quét lại từ hàng 0 cho mỗi ô (bậc hai): 5 000 ô mất ~1,5 s, test hiệu năng chập chờn. Giao diện thật chỉ ~20 ô nên người dùng không bị ảnh hưởng. | Nhớ hàng đầu tiên còn trống; 10 test bố cục chạy dưới 1 s. |
+
+**Rủi ro còn lại (chưa sửa):** tiến trình phụ chỉ thử gửi tệp tới tiến trình chính trong 3 s (`SingleInstanceClient.TrySendAsync(..., 3000)`) rồi thoát. Trên máy chậm, nếu tiến trình chính mất hơn 3 s để mở named pipe (ổ chậm, antivirus quét lần đầu), tệp người dùng vừa chọn có thể bị bỏ lặng lẽ. Máy dev và (sẽ thấy ở) runner chưa gặp. Gợi ý: tăng thời gian chờ hoặc thử lại, và báo cho người dùng nếu vẫn thất bại.
+
+**Checklist chạy tay trên VM** (không tự động hoá được hoặc không an toàn trên máy đang dùng):
+
+| # | Việc | Cách làm | Đạt khi |
+|---|---|---|---|
+| V1 | Windows 10 22H2 (không Mica) | VM Win10, chạy `walk-pages.ps1` và `chaos.ps1` | PASS; nền đặc thay cho Mica, không lỗi giao diện |
+| V2 | Remote Desktop | RDP vào máy Win11, chạy `walk-pages.ps1`, `chaos.ps1 -Minutes 5` | PASS; so độ trễ với bảng "kết xuất bằng CPU" |
+| V3 | DPI 125 / 150 / 200 % và 2 màn hình khác DPI | Đổi Scale trong Settings > Display; kéo cửa sổ giữa 2 màn hình; chạy `walk-pages.ps1` mỗi mức | Không chữ bị cắt, không ô tràn, ảnh chụp rõ nét |
+| V4 | Mất điện thật giữa lúc Áp dụng | VM có snapshot; Áp dụng 10 000 tệp; tắt VM cứng (Power off) ở thời điểm ngẫu nhiên, 20 lần | Mở lại: 0 tệp mất; Lịch sử có mục "Bị gián đoạn"; Hoàn tác về đúng nguyên trạng |
+| V5 | Ổ mạng SMB chậm/ngắt giữa chừng | Chia sẻ thư mục từ VM khác; giới hạn băng thông; rút mạng giữa lúc Áp dụng | Không treo UI > 5 s; bước lỗi được báo; Hoàn tác được phần đã làm |
+| V6 | OneDrive "chỉ trực tuyến" | Thư mục OneDrive có tệp placeholder chưa tải | Không tự kích hoạt tải hàng loạt; đổi tên được hoặc báo lỗi rõ |
+| V7 | USB rút ra giữa lúc Áp dụng; FAT32 / exFAT / ReFS | Ổ USB hoặc VHD định dạng tương ứng | Không crash; tệp còn lại toàn vẹn khi cắm lại |
+| V8 | Đăng xuất / tắt máy khi đang Áp dụng | Bắt đầu Áp dụng lớn rồi Sign out | Lần đăng nhập sau: Lịch sử có mục "Bị gián đoạn" |
+| V9 | Hai người dùng Windows cùng lúc | Fast User Switching, mỗi người mở app | Mỗi phiên một instance riêng, không tranh khoá |
+
 ## 5. Mức độ lỗi và tiêu chí chặn phát hành
 
 | Mức | Ví dụ | Quy tắc |

@@ -56,6 +56,21 @@ jobs:
         continue-on-error: true
         run: powershell -ExecutionPolicy Bypass -File tests/Stability/chaos.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Minutes 10 -OutDir artifacts/stability/chaos -KillExisting
 
+      - name: Kill giữa lúc Áp dụng (B6, 10 vòng)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/kill-apply.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Iterations 10 -Files 1500 -OutDir artifacts/stability/kill-apply -KillExisting
+
+      - name: Đa tiến trình (B8)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/multi-instance.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -OutDir artifacts/stability/multi-instance -KillExisting
+
+      - name: Chaos khi kết xuất bằng CPU (B3, 5 phút)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/chaos.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Minutes 5 -SoftwareRender -OutDir artifacts/stability/chaos-software -KillExisting
+
       - name: Soak rút gọn
         shell: powershell
         continue-on-error: true

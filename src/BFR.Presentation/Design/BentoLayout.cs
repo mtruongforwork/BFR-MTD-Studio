@@ -19,6 +19,8 @@ public static class BentoLayout
         columns = Math.Max(1, columns);
         var occupied = new List<bool[]>();
         var result = new List<Cell>(items.Count);
+        // Mọi hàng phía trên firstOpen đã kín: bắt đầu quét từ đây thay vì từ hàng 0 (không thì xếp n ô tốn O(n²)).
+        var firstOpen = 0;
 
         foreach (var item in items)
         {
@@ -26,7 +28,7 @@ public static class BentoLayout
             var rowSpan = Math.Max(1, item.RowSpan);
             var placed = false;
 
-            for (var row = 0; !placed; row++)
+            for (var row = firstOpen; !placed; row++)
             {
                 for (var col = 0; col + colSpan <= columns && !placed; col++)
                 {
@@ -36,6 +38,8 @@ public static class BentoLayout
                     placed = true;
                 }
             }
+
+            while (firstOpen < occupied.Count && Array.TrueForAll(occupied[firstOpen], taken => taken)) firstOpen++;
         }
 
         rowCount = occupied.Count;

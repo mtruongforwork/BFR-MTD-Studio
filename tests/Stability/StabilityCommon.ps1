@@ -310,20 +310,25 @@ function Start-TestApp([string]$exe, [string]$arguments = '', [hashtable]$extraE
 }
 
 # Thư mục dữ liệu thử (tệp nhỏ), danh sách đường dẫn đặt trong thư mục tạm riêng của BFR như app mong đợi.
-function New-TestFiles([int]$count, [string]$prefix = 'IMG_') {
+# -UniqueContent: nội dung mỗi tệp = tên gốc của nó, để kiểm "không mất, không nhân đôi" theo nội dung sau sự cố.
+function New-TestFiles([int]$count, [string]$prefix = 'IMG_', [switch]$UniqueContent) {
     $dir = Join-Path $env:TEMP ('bfr-stab-data-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $dir | Out-Null
     Add-Type -TypeDefinition @"
 using System.IO; using System.Collections.Generic;
 public static class StabFiles {
-  public static string[] Create(string dir, int count, string prefix) {
+  public static string[] Create(string dir, int count, string prefix, bool unique) {
     var names = new string[count]; var bytes = new byte[] { 1, 2, 3 };
-    for (int i = 0; i < count; i++) { names[i] = prefix + (i + 1).ToString("D6") + ".jpg"; File.WriteAllBytes(Path.Combine(dir, names[i]), bytes); }
+    for (int i = 0; i < count; i++) {
+      names[i] = prefix + (i + 1).ToString("D6") + ".jpg";
+      var path = Path.Combine(dir, names[i]);
+      if (unique) File.WriteAllText(path, names[i]); else File.WriteAllBytes(path, bytes);
+    }
     return names;
   }
 }
 "@ -ErrorAction SilentlyContinue
-    $names = [StabFiles]::Create($dir, $count, $prefix)
+    $names = [StabFiles]::Create($dir, $count, $prefix, [bool]$UniqueContent)
     $listDir = Join-Path $env:TEMP 'BatchFileRenamer'
     New-Item -ItemType Directory -Force $listDir | Out-Null
     $list = Join-Path $listDir ('stab-list-' + [guid]::NewGuid().ToString('N') + '.txt')

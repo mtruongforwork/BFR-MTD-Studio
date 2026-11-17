@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">Đang áp dụng...</sys:String>
     <sys:String x:Key="StatusUndoing">Đang hoàn tác...</sys:String>
     <sys:String x:Key="ApplySuccessMessage">Đã đổi tên {0}/{1} tệp.</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">{0} lần đổi tên trước bị gián đoạn giữa chừng. Bấm Hoàn tác để đưa tệp về tên cũ, hoặc mở Lịch sử.</sys:String>
     <sys:String x:Key="Cancel">Hủy</sys:String>
     <sys:String x:Key="MenuWatchFolder">Theo dõi thư mục...</sys:String>
     <sys:String x:Key="MenuContextMenu">Menu chuột phải Explorer...</sys:String>
@@ -571,6 +572,7 @@
     <sys:String x:Key="CoreStatusRecovered">Đã khôi phục</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">Khôi phục (có lỗi)</sys:String>
     <sys:String x:Key="CoreStatusUndone">Đã hoàn tác</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">Bị gián đoạn</sys:String>
     <sys:String x:Key="NavTools">Công cụ</sys:String>
     <sys:String x:Key="ToolsEmptyResults">Chọn tệp, đặt tuỳ chọn rồi bấm Xem trước.</sys:String>
     <sys:String x:Key="ToolsNothingToShow">Không có gì để hiển thị.</sys:String>

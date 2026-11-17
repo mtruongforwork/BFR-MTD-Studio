@@ -49,7 +49,7 @@ internal static class CrashReporter
         catch { tier = "?"; }
 
         return $"v{AppVersion.Current} | {Environment.OSVersion.VersionString} | {(Environment.Is64BitProcess ? "x64" : "x86")} | " +
-               $"render-tier={tier} safe-render={BfrTheme.SafeRender} high-contrast={BfrTheme.IsHighContrast} | " +
+               $"render-tier={tier} software-render={System.Windows.Media.RenderOptions.ProcessRenderMode} safe-render={BfrTheme.SafeRender} high-contrast={BfrTheme.IsHighContrast} | " +
                $"working-set={Environment.WorkingSet / (1024 * 1024)}MB threads={System.Diagnostics.Process.GetCurrentProcess().Threads.Count}";
     }
 }

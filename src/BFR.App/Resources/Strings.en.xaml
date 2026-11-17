@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">Applying...</sys:String>
     <sys:String x:Key="StatusUndoing">Undoing...</sys:String>
     <sys:String x:Key="ApplySuccessMessage">Renamed {0}/{1} files.</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">{0} earlier rename run(s) were interrupted. Click Undo to restore the original names, or open History.</sys:String>
     <sys:String x:Key="Cancel">Cancel</sys:String>
     <sys:String x:Key="MenuWatchFolder">Watch folder...</sys:String>
     <sys:String x:Key="MenuContextMenu">Explorer context menu...</sys:String>
@@ -571,6 +572,7 @@
     <sys:String x:Key="CoreStatusRecovered">Recovered</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">Recovered with errors</sys:String>
     <sys:String x:Key="CoreStatusUndone">Undone</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">Interrupted</sys:String>
     <sys:String x:Key="NavTools">Tools</sys:String>
     <sys:String x:Key="ToolsEmptyResults">Add files, set the options, then click Preview.</sys:String>
     <sys:String x:Key="ToolsNothingToShow">Nothing to show.</sys:String>

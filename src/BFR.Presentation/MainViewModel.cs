@@ -90,6 +90,18 @@ public sealed class MainViewModel : ObservableObject
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         ClearSelectionCommand = new RelayCommand(() => SetAllSelected(false));
 
+        // Lần Áp dụng trước bị gián đoạn (app chết/bị tắt giữa chừng): đưa vào Lịch sử để Hoàn tác được và báo cho người dùng.
+        // Không tự đổi tệp nào: người dùng chọn Hoàn tác (nút trên thông báo hoặc trang Lịch sử).
+        try
+        {
+            var interrupted = _history.RegisterInterrupted();
+            if (interrupted.Count > 0) SuccessMessage = _strings.F("InterruptedRunNotice", interrupted.Count);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            // Không đọc được journal/lịch sử: không chặn việc mở app.
+        }
+
         if (initialPayload is not null)
         {
             var paths = new List<string>(initialPayload.Paths);
