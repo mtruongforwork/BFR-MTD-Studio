@@ -100,12 +100,7 @@
 
     <!-- Thanh nổi dưới cùng (trạng thái + Áp dụng) -->
     <Style x:Key="BfrFloatingBar" TargetType="Border" BasedOn="{StaticResource BfrGlassPanel}">
-        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusPill}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusTileSm}" />
         <Setter Property="Padding" Value="20,10" />
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="30" ShadowDepth="10" Direction="270" Color="{DynamicResource BfrShadowColor}" Opacity="{DynamicResource BfrShadowOpacity}" />
-            </Setter.Value>
-        </Setter>
     </Style>
 </ResourceDictionary>
