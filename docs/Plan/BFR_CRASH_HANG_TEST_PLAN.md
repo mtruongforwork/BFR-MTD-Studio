@@ -246,6 +246,42 @@ Không treo (watchdog im lặng), nhưng **trên máy không có tăng tốc ph�
 | V8 | Đăng xuất / tắt máy khi đang Áp dụng | Bắt đầu Áp dụng lớn rồi Sign out | Lần đăng nhập sau: Lịch sử có mục "Bị gián đoạn" |
 | V9 | Hai người dùng Windows cùng lúc | Fast User Switching, mỗi người mở app | Mỗi phiên một instance riêng, không tranh khoá |
 
+### Trạng thái Phase T5 (phần tự động hoá đã xong; phần cần phím/chuột thật và gói Store thật là checklist bên dưới)
+
+**Đính chính rủi ro R12:** kế hoạch ghi shell extension "chạy trong tiến trình Explorer, lỗi làm Explorer chết". Đọc code thì `BFR.Shell` là **COM local server (tiến trình riêng `BFR.Shell.exe`)**: lỗi ở đây làm hỏng lệnh menu, không làm Explorer chết. Rủi ro thật là Explorer **chờ** server trả lời (một lời gọi chậm làm menu đơ), nên test tập trung vào thời gian và không ném lỗi.
+
+| Hạng mục | Nơi đặt | Kết quả |
+|---|---|---|
+| B9 `ShakeDetector` ở mọi tần số chuột | `tests/BFR.Presentation.Tests/ShakeDetectorRobustnessTests.cs` | Dữ liệu thù địch (toạ độ cực trị `int`, thời gian đi lùi) không ném lỗi; lắc được nhận diện một lần, thời gian hồi chặn bắn lặp; chi phí mỗi mẫu ở 125 Hz / 1 kHz / 8 kHz kéo 20 giây liền. |
+| B9 Hook chuột thật | `tests/BFR.App.UiTests/GlobalInputTests.cs` | Không di chuyển chuột thật, không gửi phím: gọi thẳng callback bằng dữ liệu giả. 1 triệu sự kiện: callback chậm nhất < 100 ms (Windows gỡ hook ở 300 ms), trung bình < 150 µs; callback **không bao giờ chặn sự kiện**; lỗi của bên nhận `Shaken` không lọt ra khỏi callback; cài/gỡ hook 100 lần không để lại luồng, `Dispose` hai lần an toàn. |
+| B9 **Bấm vào cửa sổ đang treo** | cùng tệp (dựng tiến trình riêng có cửa sổ bị chặn luồng giao diện) | Kịch bản nguy hiểm nhất của hook: người dùng bấm nút trên ứng dụng khác đang treo trong lúc callback gọi `WindowFromPoint`/`GetAncestor`/`GetWindowThreadProcessId`. Đo ngay sau khi treo và sau khi Windows thay bằng "ghost window" (~6,5 s): mọi lần < 150 ms, thực tế vài chục µs. **Không treo chuột toàn hệ thống.** |
+| B9 Phím tắt toàn cục | cùng tệp | Đăng ký trùng tổ hợp ném `Win32Exception` (MainWindow bắt và bỏ qua); đăng ký/gỡ 200 lần không rò. |
+| B10 COM shell extension | `tests/BFR.Shell.Tests` (project mới, 14 test, chạy trong CI) | `IShellItemArray` giả: 10 000 mục < 3 s; đầy đủ trường hợp Explorer trả lỗi (`GetItemAt` lỗi, tên rỗng/khoảng trắng, thiếu `FileSysPath` thì dùng `DesktopAbsoluteParsing`, `GetCount` lỗi, mảng null). Tệp danh sách: loại trùng không phân biệt hoa/thường, UTF-8 không BOM, 100 000 đường dẫn < 5 s, app đọc lại đúng. `Launch`: thiếu app → `E_FILE_NOT_FOUND`, exe hỏng → `E_FAIL`, **cả hai không để lại tệp mồ côi**; không chờ app (< 3 s); 50 lần gọi đồng thời ra 50 tệp riêng; không chọn tệp thì không làm gì; `Invoke` không bao giờ ném. 11 lệnh con, tên không trùng. |
+| B10 Đăng ký/gỡ | `tests/Stability/shell-stress.ps1` (CI, và máy dev với `-AllowRegistryChanges`) | 30 vòng đăng ký/gỡ trên máy dev: registry nhất quán sau mỗi bước, không còn `BFR.Shell.exe`, **khôi phục đúng trạng thái ban đầu của máy**. CI chạy 50 vòng. |
+| B11 Cập nhật | `tests/BFR.Core.Tests/NetworkAndStoreFailureTests.cs` | `HttpMessageHandler` giả (không cần mạng): mất mạng, máy chủ không trả lời, HTTP 403/404/429/500/503, 12 kiểu JSON hỏng/lạ, phản hồi 1 MB+, chuyển hướng sang máy chủ lạ, 7 kiểu URL bản phát hành độc hại (`javascript:`, `file:`, `http:`, đánh lừa tên miền, có user:pass), thẻ phiên bản lạ, 50 lần gọi đồng thời. Không bao giờ ném ra ngoài (trừ khi người dùng huỷ). |
+| B11 Giấy phép/Store | cùng tệp | Store ném lỗi / trả lỗi / **treo**: giữ nguyên trạng thái cục bộ, **không hạ cấp Pro đã mua** khi ngoại tuyến; người dùng huỷ vẫn truyền lên; mua thất bại hoặc ném lỗi không bao giờ cấp Pro; không có Store (bản portable) thì Free và "chưa hỗ trợ mua". |
+
+**Lỗi thật T5 đã tìm ra và sửa**
+
+| Mức | Lỗi | Sửa |
+|---|---|---|
+| S2 | **Hook chuột dồn ứ ở chuột tần số cao.** `ShakeDetector.Feed` quét lại toàn bộ cửa sổ 700 ms cho từng sự kiện: ở 8 kHz mỗi mẫu tốn trung bình **153 µs**, tức hơn 100 % một nhân trên luồng hook. Hook chuột thấp cấp xử lý đồng bộ, nên khi đang kéo tệp (nút trái đang giữ), sự kiện chuột dồn lại và chuột cả máy bị trễ. | Bỏ mẫu dày hơn 4 ms (lắc cần biên độ ≥ 40 px nên không ảnh hưởng nhận diện) và bỏ cấp phát delegate mỗi lần; 8 kHz × 20 s xử lý trong chưa đầy 50 ms. |
+| S2 | **Có thể không mua được Pro trong bản Store (chưa kiểm chứng được tại chỗ).** `MicrosoftStoreLicenseProvider.PurchaseAsync` gọi `StoreContext.RequestPurchaseAsync` nhưng **không gắn cửa sổ chủ** (`IInitializeWithWindow`), điều bắt buộc với ứng dụng desktop khi gọi API có giao diện; chỉ phần đánh giá (`StoreRatingService`) có làm. Thiếu bước này, hộp thoại mua có thể không hiện hoặc lời gọi lỗi. | Thêm tham số `ownerWindow` cho provider, gắn một lần trước `await` đầu tiên (còn ở luồng giao diện); `App` truyền HWND cửa sổ chính. Lỗi khi gắn không chặn việc mua. **Cần kiểm trên gói MSIX có package identity (sideload ký thử hoặc luồng flight của Partner Center)**: máy dev không có identity nên không chạy được tại chỗ (mục V10). |
+| S3 | Cập nhật hết thời gian chờ: `GitHubReleasesUpdateFeed` ném lại `TaskCanceledException` của `HttpClient.Timeout` như thể người dùng huỷ. `UpdateRunner` có bắt nên không sập, nhưng thông báo cho người dùng là "A task was canceled". | Phân biệt: người dùng huỷ thì ném, hết thời gian chờ thì trả kết quả thất bại "Hết thời gian chờ máy chủ cập nhật". |
+| S3 | `LicenseCoordinator.RefreshAsync` chờ Store vô hạn (WinRT `GetAppLicenseAsync` không nhận `CancellationToken`): Store treo thì tác vụ đồng bộ giấy phép lúc khởi động không bao giờ kết thúc (UI không bị chặn nhưng trạng thái giấy phép không bao giờ được làm mới). | Hết hạn sau 20 giây (`DefaultStoreTimeout`, chỉnh được), giữ trạng thái cục bộ. |
+
+**Checklist chạy tay (không tự động hoá được an toàn)**
+
+| # | Việc | Cách làm | Đạt khi |
+|---|---|---|---|
+| V10 | Mua Pro trong gói Store | Gói MSIX có package identity (sideload ký thử hoặc flight); bấm "Nâng cấp" trong cửa sổ chính | Hộp thoại mua của Store hiện đúng trước cửa sổ BFR; mua xong, trạng thái chuyển Pro; huỷ mua thì vẫn Free |
+| V11 | Store ngoại tuyến / treo | Gói Store, rút mạng hoặc chặn `*.mp.microsoft.com` bằng tường lửa rồi mở app | App mở nhanh, không treo; Pro đã mua vẫn dùng được; trạng thái làm mới khi có mạng lại |
+| V12 | Phím tắt toàn cục thật | Bật phím tắt Shelf và menu tròn trong Cài đặt; bấm tổ hợp từ ứng dụng khác | Shelf/menu hiện tại con trỏ; tổ hợp đã bị ứng dụng khác chiếm thì app báo/bỏ qua, không crash |
+| V13 | Lắc chuột thật | Bật "lắc chuột mở Shelf"; kéo tệp từ Explorer và lắc; thử kéo thanh cuộn/sắp xếp quy tắc trong chính BFR | Chỉ kéo tệp từ ngoài mới mở Shelf (không mở nhầm khi kéo trong BFR); con trỏ không giật |
+| V14 | Chuột 4–8 kHz | Chuột gaming 4/8 kHz, giữ nút trái kéo và lắc 30 giây | Con trỏ mượt, CPU của BFR thấp (bản sửa S2) |
+| V15 | Thoát/crash khi hook đang bật | Bật lắc chuột, rồi kill `BatchFileRenamer.exe` bằng Task Manager | Chuột hoạt động bình thường ngay (Windows tự gỡ hook của tiến trình đã chết) |
+| V16 | Explorer 1 giờ | Đăng ký menu, mở Explorer, chọn 10 000 tệp và bấm lệnh nhiều lần; để Explorer mở 1 giờ | Explorer không đơ/chết; mỗi lần bấm app mở đúng với 10 000 tệp |
+
 ## 5. Mức độ lỗi và tiêu chí chặn phát hành
 
 | Mức | Ví dụ | Quy tắc |

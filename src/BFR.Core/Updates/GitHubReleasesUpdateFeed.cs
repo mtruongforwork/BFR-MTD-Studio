@@ -85,9 +85,14 @@ public sealed class GitHubReleasesUpdateFeed : IUpdateFeed, IDisposable
 
             return new UpdateFeedResult(true, tag, url, body);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;   // người dùng huỷ thật
+        }
         catch (OperationCanceledException)
         {
-            throw;
+            // HttpClient.Timeout cũng ném TaskCanceledException nhưng ct chưa bị huỷ: máy chủ không trả lời kịp (mất mạng, chặn tường lửa).
+            return new UpdateFeedResult(false, Error: CoreText.Get("CoreUpdateTimeout", "Hết thời gian chờ máy chủ cập nhật"));
         }
         catch (Exception ex)
         {

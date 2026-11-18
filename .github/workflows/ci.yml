@@ -40,6 +40,9 @@ jobs:
       - name: Run UI Tests (bố cục BentoPanel/GlassTile, khoá tài nguyên mọi tổ hợp theme, STA)
         run: dotnet test tests/BFR.App.UiTests/BFR.App.UiTests.csproj -c Release --no-build --verbosity normal
 
+      - name: Run Shell Tests (COM shell extension: lựa chọn lớn, dữ liệu Explorer lỗi, khởi chạy)
+        run: dotnet test tests/BFR.Shell.Tests/BFR.Shell.Tests.csproj -c Release --no-build --verbosity normal
+
       - name: Run CLI Tests (v2.0 tool commands)
         run: dotnet test tests/BFR.Cli.Tests/BFR.Cli.Tests.csproj -c Release --no-build --verbosity normal
 
@@ -87,6 +90,12 @@ jobs:
             & "$layout/bfr.exe" context-menu unregister
             Get-Process BFR.Shell -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           }
+
+      - name: Shell stress - đăng ký/gỡ menu chuột phải 50 vòng (Phase T5 / B10)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/Stability/shell-stress.ps1 -Layout artifacts/msix-layout -Iterations 50
 
       - name: UI Smoke Test (Add to Preview to Apply to Undo + Pro dialog + Regex + Palette)
         shell: powershell

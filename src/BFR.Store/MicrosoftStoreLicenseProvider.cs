@@ -16,11 +16,35 @@ using Windows.Services.Store;
 public sealed class MicrosoftStoreLicenseProvider : IStoreLicenseProvider
 {
     private readonly string _productId;
+    private readonly Func<IntPtr>? _ownerWindow;
     private StoreContext? _context;
+    private bool _ownerInitialized;
 
-    public MicrosoftStoreLicenseProvider(string productId = LicenseService.ProProductId)
+    /// <param name="ownerWindow">
+    /// Trả về HWND cửa sổ chính (gọi trên luồng giao diện). Ứng dụng desktop (WPF/WinForms) PHẢI gắn cửa sổ chủ cho StoreContext
+    /// (IInitializeWithWindow) trước khi gọi API hiện hộp thoại như RequestPurchaseAsync, nếu không lời gọi lỗi hoặc hộp thoại mua không hiện.
+    /// </param>
+    public MicrosoftStoreLicenseProvider(string productId = LicenseService.ProProductId, Func<IntPtr>? ownerWindow = null)
     {
         _productId = productId;
+        _ownerWindow = ownerWindow;
+    }
+
+    /// <summary>Gắn cửa sổ chủ một lần. Lỗi ở đây không được chặn việc mua: ghi nhận rồi thử gọi tiếp.</summary>
+    private void EnsureOwnerWindow()
+    {
+        if (_ownerInitialized || _context is null || _ownerWindow is null) return;
+        try
+        {
+            var hwnd = _ownerWindow();
+            if (hwnd == IntPtr.Zero) return;
+            StoreWindow.Initialize(_context, hwnd);
+            _ownerInitialized = true;
+        }
+        catch (Exception)
+        {
+            // Không gắn được (không có cửa sổ, không phải luồng giao diện): vẫn thử RequestPurchaseAsync.
+        }
     }
 
     /// <summary>True nếu môi trường hiện tại có thể dùng Store IAP.</summary>
@@ -91,6 +115,7 @@ public sealed class MicrosoftStoreLicenseProvider : IStoreLicenseProvider
 
         try
         {
+            EnsureOwnerWindow();   // phải chạy trước await đầu tiên: còn ở luồng giao diện
             var result = await _context.RequestPurchaseAsync(productId);
             var status = result.Status;
 

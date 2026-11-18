@@ -19,6 +19,9 @@ public sealed class LicenseCoordinator
         _provider = provider;
     }
 
+    /// <summary>Thời gian tối đa chờ Store trả giấy phép khi khởi động. Quá hạn thì giữ trạng thái cục bộ (Free hoặc Pro đã ghi nhận).</summary>
+    public static TimeSpan DefaultStoreTimeout { get; } = TimeSpan.FromSeconds(20);
+
     public LicenseService License => _license;
 
     public LicenseStatus Status => _license.Status;
@@ -29,7 +32,7 @@ public sealed class LicenseCoordinator
     /// Đồng bộ giấy phép: nếu Store báo đã mua Pro thì ghi nhận vào bản ghi cục bộ;
     /// nếu chưa mua thì giữ nguyên trạng thái (kèm dùng thử nếu đủ điều kiện).
     /// </summary>
-    public async Task<LicenseStatus> RefreshAsync(CancellationToken ct = default)
+    public async Task<LicenseStatus> RefreshAsync(CancellationToken ct = default, TimeSpan? timeout = null)
     {
         if (_provider is null || !_provider.IsAvailable)
         {
@@ -39,10 +42,16 @@ public sealed class LicenseCoordinator
         StoreLicenseSnapshot snapshot;
         try
         {
-            snapshot = await _provider.GetLicenseAsync(ct).ConfigureAwait(false);
+            // Store ngoại tuyến hoặc treo (WinRT không nhận CancellationToken): không chờ vô hạn.
+            snapshot = await _provider.GetLicenseAsync(ct).WaitAsync(timeout ?? DefaultStoreTimeout, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {
+            // Lỗi, hết thời gian chờ (TimeoutException) hoặc Store không trả lời: giữ trạng thái cục bộ.
             return _license.Evaluate();
         }
 

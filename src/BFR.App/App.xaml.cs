@@ -210,7 +210,11 @@ public partial class App : Application
             tierOverride: devTier,
             trialEnabled: true);
 
-        var provider = packaged ? new MicrosoftStoreLicenseProvider() : null;
+        // Cửa sổ chủ cho hộp thoại mua của Store (bắt buộc với ứng dụng desktop): cửa sổ chính tạo sau nên đọc muộn.
+        var provider = packaged
+            ? new MicrosoftStoreLicenseProvider(ownerWindow: () =>
+                (Current as App)?._mainWindow is { } window ? new System.Windows.Interop.WindowInteropHelper(window).Handle : IntPtr.Zero)
+            : null;
         return new LicenseCoordinator(license, provider);
     }
 
