@@ -254,8 +254,9 @@ public class SettingsPage : PageBase
 
         // ---- Cập nhật ----
         var updates = Card(content, Loc.T("SettingsUpdates"));
-        updates.Children.Add(Toggle(Loc.T("SettingsCheckUpdates"), _settings.CheckForUpdates,
-            on => _settings.CheckForUpdates = on));
+        var autoCheck = Toggle(Loc.T("SettingsCheckUpdates"), _settings.CheckForUpdates,
+            on => _settings.CheckForUpdates = on);
+        updates.Children.Add(autoCheck);
 
         var urlCaption = Caption(Loc.T("SettingsUpdateUrl"));
         urlCaption.Margin = new Thickness(0, 12, 0, 4);
@@ -330,6 +331,18 @@ public class SettingsPage : PageBase
                 checkNow.Content = Loc.T("SettingsCheckUpdateNow");
             }
         };
+
+        // Bản Store do Store tự cập nhật: các điều khiển trên chỉ dành cho bản portable.
+        if (BFR.Core.ShellIntegration.IsPackaged)
+        {
+            foreach (var e in new UIElement[] { autoCheck, urlCaption, url, checkNow, updateStatus })
+            {
+                e.Visibility = Visibility.Collapsed;
+            }
+            var storeManaged = Caption(Loc.T("UpdateStoreManaged"));
+            AutomationProperties.SetName(storeManaged, "Updates managed by Microsoft Store");
+            updates.Children.Add(storeManaged);
+        }
 
         // ---- Giấy phép ----
         var licenseCard = Card(content, Loc.T("SettingsLicense"));

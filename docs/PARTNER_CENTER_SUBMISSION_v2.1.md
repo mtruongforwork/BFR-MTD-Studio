@@ -35,5 +35,5 @@ Bấm **Submit for certification**. Không cần nộp add-on.
 2. **Kiểm tra mua Pro:** mở hộp thoại Nâng cấp lên Pro, bấm Mua. Hộp thoại thanh toán của Microsoft Store phải hiện ra đè lên cửa sổ app. Với tài khoản đã có Pro, app phải nhận Pro ngay khi mở.
 3. Nếu hộp thoại mua không hiện, hoặc báo lỗi: tạm dừng rollout (Packages → Halt) và báo tao, kèm tệp nhật ký lỗi trong `%LOCALAPPDATA%\BatchFileRenamer`.
 
-## Đã biết, chưa sửa trong 2.1
-- Trang Cài đặt vẫn hiện ô "Update feed URL" chứa chuỗi giữ chỗ `YOUR-ORG`. Bản Store không dùng ô này (Store tự cập nhật), nên không ảnh hưởng chức năng, chỉ trông chưa hoàn thiện. Bản zip portable vì thế không tự kiểm tra cập nhật được. Lỗi có từ các bản trước.
+## Ghi chú
+- Trang Cài đặt của bản Store chỉ hiện "Bản cài từ Microsoft Store được cập nhật tự động" (không còn ô URL nguồn cập nhật). Chưa xem được tận mắt vì cần gói có package identity; kiểm tra luôn ở bước 4.

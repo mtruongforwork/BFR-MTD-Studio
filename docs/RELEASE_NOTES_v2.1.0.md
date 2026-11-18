@@ -39,4 +39,6 @@ Tài liệu ghi chú phát hành cho **Microsoft Partner Center**, bản **v2.1.
 
 **Lỗi dữ liệu đã sửa:** sau khi app chết giữa lúc Áp dụng, trước đây không có lối Hoàn tác từ giao diện (dữ liệu không mất nhờ journal ghi trước); lỗi ghi dòng "done" của journal làm Hoàn tác bỏ sót bước.
 
+**Cập nhật bản portable:** URL nguồn cập nhật mặc định trước đây là chuỗi giữ chỗ `YOUR-ORG`, nên bản zip portable không bao giờ kiểm tra cập nhật được. Nay trỏ về GitHub Releases của dự án; cài đặt cũ tự chuyển khi đọc. Bản Store ẩn hẳn phần này. Người đang dùng portable 2.0 sẽ không được báo có 2.1 (cài đặt cũ của họ vẫn trỏ sai), chỉ từ 2.1 trở đi mới được báo.
+
 **Chưa kiểm chứng tại chỗ (cần gói MSIX có package identity):** bản sửa luồng mua Pro (gắn cửa sổ chủ cho `StoreContext` trước `RequestPurchaseAsync`). Phải thử trên gói flight/sideload trước khi gửi Store.
