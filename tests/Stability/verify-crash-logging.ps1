@@ -7,7 +7,8 @@
   Kiểm chứng:
     thread    : lỗi luồng nền  -> đúng 1 mục [fatal-thread]
     task      : Task không await -> đúng 1 mục [unobserved-task]
-    ui        : lỗi luồng UI    -> đúng 1 mục [ui-thread] (+ [fatal-thread] vì app chưa có chính sách bắt lỗi)
+    ui        : lỗi luồng UI    -> đúng 1 mục [ui-thread]; app CÒN CHẠY, phản hồi, hiện hộp thoại báo lỗi (quyết định 6.1)
+    ui-storm  : 6 lỗi UI liên tiếp -> sau 3 lỗi app ngừng "nuốt" lỗi (chống vòng lặp): có mục [ui-thread-fatal], tiến trình thoát
     ui-path   : thông báo lỗi chứa đường dẫn cá nhân -> nhật ký KHÔNG chứa tên tệp hay tên người dùng, có "<path>"
     append    : hai lỗi liên tiếp ở hai lần chạy -> cả hai còn trong nhật ký (không bị ghi đè)
     hang      : watchdog (BFR_WATCHDOG=2) + chặn UI 8 s -> 1 mục [hang], 1 mục [hang-recovered], có minidump
@@ -71,6 +72,19 @@ function Run-Case([string]$name, [hashtable]$envs, [scriptblock]$ready, [int]$se
     catch { $p.Kill(); throw }
 }
 function Stop-App($p) { if ($p -and -not $p.HasExited) { $p.Kill() }; if ($p) { $p.WaitForExit(8000) | Out-Null } }
+# Hộp thoại báo lỗi (MessageBox, lớp cửa sổ #32770) thuộc tiến trình $p.
+function Find-ErrorDialog($p) {
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $AE = [System.Windows.Automation.AutomationElement]
+    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $p.Id)
+    foreach ($w in $AE::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)) {
+        if ($w.Current.ClassName -eq '#32770') { return $w }
+        $inner = $w.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, '#32770')))
+        if ($inner) { return $inner }
+    }
+    return $null
+}
+
 function Crash-Text { if (Test-Path $crash) { Get-Content $crash -Raw -Encoding UTF8 } else { '' } }
 
 try {
@@ -88,15 +102,32 @@ try {
     Check ((Count-Matches $t '\[unobserved-task\]') -eq 1) 'task: đúng 1 mục [unobserved-task]'
     Remove-Item $crash -ErrorAction SilentlyContinue
 
-    # ---- luồng UI
+    # ---- luồng UI: quyết định 6.1, app phải tiếp tục chạy và báo cho người dùng
     $p = Run-Case 'ui' @{ BFR_TEST_FAULT = 'ui' } { (Count-Matches (Crash-Text) '\[ui-thread\]') -ge 1 }
-    Start-Sleep -Milliseconds 500; $t = Crash-Text; Stop-App $p
+    $dialog = $null
+    $sawDialog = $false
+    for ($i = 0; $i -lt 20 -and -not $sawDialog; $i++) { Start-Sleep -Milliseconds 250; $dialog = Find-ErrorDialog $p; $sawDialog = $null -ne $dialog }
+    $t = Crash-Text
     Check ((Count-Matches $t '\[ui-thread\]') -eq 1) 'ui: đúng 1 mục [ui-thread]'
+    Check ((Count-Matches $t '\[ui-thread-fatal\]') -eq 0 -and (Count-Matches $t '\[fatal-thread\]') -eq 0) 'ui: không có mục fatal (lỗi đã được xử lý)'
+    Check (-not $p.HasExited) 'ui: app vẫn chạy sau lỗi luồng UI'
+    Check $sawDialog 'ui: hiện hộp thoại báo lỗi cho người dùng'
+    if ($dialog) { try { $dialog.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close() } catch { } }
+    Start-Sleep -Milliseconds 800
+    Check ((-not $p.HasExited) -and $p.Responding) 'ui: đóng hộp thoại xong app vẫn phản hồi'
+    Stop-App $p
+    Remove-Item $crash -ErrorAction SilentlyContinue
+
+    # ---- lỗi UI dồn dập: chống vòng lặp, sau 3 lỗi thì để app thoát
+    $p = Run-Case 'ui-storm' @{ BFR_TEST_FAULT = 'ui-storm' } { (Count-Matches (Crash-Text) '\[ui-thread-fatal\]') -ge 1 } 40
+    Start-Sleep -Milliseconds 500; $t = Crash-Text; Stop-App $p
+    Check ((Count-Matches $t '\[ui-thread\]') -ge 4) 'ui-storm: ghi đủ các lỗi trước khi dừng'
+    Check ((Count-Matches $t '\[ui-thread-fatal\]') -ge 1) 'ui-storm: có mục [ui-thread-fatal] (ngừng nuốt lỗi khi lặp liên tục)'
     Remove-Item $crash -ErrorAction SilentlyContinue
 
     # ---- che đường dẫn cá nhân
     $p = Run-Case 'ui-path (che đường dẫn)' @{ BFR_TEST_FAULT = 'ui-path' } { (Count-Matches (Crash-Text) '\[ui-thread\]') -ge 1 }
-    Start-Sleep -Milliseconds 500; $t = Crash-Text; Stop-App $p
+    Start-Sleep -Milliseconds 800; $t = Crash-Text; Stop-App $p
     Check ($t -notmatch 'secret-report') 'ui-path: nhật ký không chứa tên tệp'
     Check ($t -notmatch [regex]::Escape($env:USERNAME)) 'ui-path: nhật ký không chứa tên người dùng Windows'
     Check ($t -match '<path>') 'ui-path: đường dẫn được thay bằng <path>'

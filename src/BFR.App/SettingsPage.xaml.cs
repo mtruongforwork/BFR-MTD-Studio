@@ -134,6 +134,18 @@ public class SettingsPage : PageBase
         mascot.Margin = new Thickness(0, 14, 0, 0);
         look.Children.Add(mascot);
 
+        // Giảm hiệu ứng (quyết định 6.2): áp dụng ngay, không cần khởi động lại.
+        var effects = Toggle(Loc.T("SettingsReduceEffects"), _settings.ReduceEffects, on =>
+        {
+            _settings.ReduceEffects = on;
+            SettingsStore.Save(_settings);
+            ThemeManager.Apply(ThemeManager.Current);
+        });
+        effects.Margin = new Thickness(0, 12, 0, 0);
+        AutomationProperties.SetName(effects, "Reduce visual effects");
+        look.Children.Add(effects);
+        look.Children.Add(Caption(BfrTheme.NoHardwareAcceleration ? Loc.T("SettingsReduceEffectsAuto") : Loc.T("SettingsReduceEffectsHint")));
+
         // ---- Shelf & chạy nền ----
         var shelf = Card(content, Loc.T("SettingsShelf"));
         shelf.Children.Add(Toggle(

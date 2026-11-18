@@ -56,7 +56,9 @@ public static class ThemeManager
         // updateAccent: màu accent hệ thống để chữ trên nút Primary luôn đủ tương phản ở cả sáng/tối.
         // Bộ token mới (Themes/Bfr) đi cùng theme cũ trong lúc chuyển đổi từng màn hình sang giao diện mới.
         // Gọi trước để biết có đang ở tương phản cao hay không (khi đó WPF-UI dùng theme HighContrast, không Mica).
-        BfrTheme.Apply(IsDark, BfrTheme.ParseAccent(SettingsStore.Load().AccentPalette));
+        var settings = SettingsStore.Load();
+        BfrTheme.UserReduceEffects = settings.ReduceEffects;
+        BfrTheme.Apply(IsDark, BfrTheme.ParseAccent(settings.AccentPalette));
 
         Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
             BfrTheme.IsHighContrast ? Wpf.Ui.Appearance.ApplicationTheme.HighContrast
@@ -144,7 +146,7 @@ public static class ThemeManager
             DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
 
             // Tương phản cao: nền đặc của hệ thống, không Mica (Mica làm mờ độ tương phản chữ).
-            var solid = BfrTheme.IsHighContrast || BfrTheme.SafeRender;
+            var solid = !BfrTheme.GlassEffectsEnabled;
             if (solid) window.SetResourceReference(Window.BackgroundProperty, "AppBackground");
             else window.ClearValue(Window.BackgroundProperty);
 

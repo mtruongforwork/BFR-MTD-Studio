@@ -9,7 +9,8 @@ using System.Windows.Threading;
 /// Gây lỗi có chủ đích để kiểm chứng nhật ký crash và watchdog (kế hoạch test crash/hang, mục A5/A6).
 /// Chỉ hoạt động khi đặt biến môi trường <c>BFR_TEST_FAULT</c>; người dùng bình thường không bao giờ gặp.
 /// Giá trị: <c>hang:&lt;ms&gt;</c> (chặn luồng UI), <c>ui</c> (ném lỗi trên luồng UI), <c>thread</c> (ném lỗi trên luồng nền),
-/// <c>task</c> (Task lỗi không ai await), <c>ui-path</c> (như <c>ui</c> nhưng thông báo lỗi chứa đường dẫn cá nhân, để kiểm tra việc che đường dẫn). Chạy sau 6 giây để app kịp khởi động.
+/// <c>task</c> (Task lỗi không ai await), <c>ui-path</c> (như <c>ui</c> nhưng thông báo lỗi chứa đường dẫn cá nhân, để kiểm tra việc che đường dẫn),
+/// <c>ui-storm</c> (6 lỗi UI liên tiếp: kiểm chống vòng lặp lỗi, app phải thoát). Chạy sau 6 giây để app kịp khởi động.
 /// </summary>
 internal static class FaultInjection
 {
@@ -31,6 +32,14 @@ internal static class FaultInjection
             else if (spec == "ui-path")
                 _ = ui.BeginInvoke(new Action(() => throw new InvalidOperationException(
                     $"BFR_TEST_FAULT cannot open '{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}{System.IO.Path.DirectorySeparatorChar}secret-report.docx'")));
+            else if (spec == "ui-storm")
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    _ = ui.BeginInvoke(new Action(() => throw new InvalidOperationException("BFR_TEST_FAULT ui-storm")));
+                    await Task.Delay(300).ConfigureAwait(false);
+                }
+            }
             else if (spec == "thread")
                 new Thread(() => throw new InvalidOperationException("BFR_TEST_FAULT worker-thread")) { IsBackground = true }.Start();
             else if (spec == "task")

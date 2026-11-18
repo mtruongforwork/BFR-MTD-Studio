@@ -487,6 +487,11 @@
     <sys:String x:Key="HomeHistoryHint">撤销过去的更改。</sys:String>
     <sys:String x:Key="SettingsAccent">强调色</sys:String>
     <sys:String x:Key="SettingsMascot">显示吉祥物 Tem</sys:String>
+    <sys:String x:Key="SettingsReduceEffects">减少视觉效果（关闭模糊、光晕和阴影）</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsHint">如果应用运行缓慢或通过远程桌面使用，请打开此项。</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsAuto">这台电脑没有图形加速，已自动关闭效果以保持应用流畅。</sys:String>
+    <sys:String x:Key="UnexpectedErrorTitle">出现问题</sys:String>
+    <sys:String x:Key="UnexpectedErrorMessage">发生了意外错误。你的文件未受影响，应用将继续运行。详细信息已写入错误日志。</sys:String>
     <sys:String x:Key="StepFiles">选择文件</sys:String>
     <sys:String x:Key="StepOptions">选项</sys:String>
     <sys:String x:Key="StepReview">预览</sys:String>

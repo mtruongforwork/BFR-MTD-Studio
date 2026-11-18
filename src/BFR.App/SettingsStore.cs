@@ -56,6 +56,9 @@ public sealed class AppSettings
     /// <summary>Hiện linh vật Tem (trang chủ, trạng thái rỗng). Mặc định bật.</summary>
     public bool ShowMascot { get; set; } = true;
 
+    /// <summary>Giảm hiệu ứng: tắt nền mờ, đốm màu, bóng đổ và Mica. Tự áp dụng khi máy không có tăng tốc đồ hoạ. Mặc định tắt.</summary>
+    public bool ReduceEffects { get; set; } = false;
+
     /// <summary>Số lần đổi tên thành công (dùng để gợi ý đánh giá Store sau 2 lần).</summary>
     public int SuccessfulRenameCount { get; set; } = 0;
 

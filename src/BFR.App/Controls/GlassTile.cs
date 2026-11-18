@@ -86,15 +86,6 @@ public class GlassTile : HeaderedContentControl
         base.OnApplyTemplate();
         if (_shadow is not null) _shadow.SizeChanged -= OnShadowSizeChanged;
         _shadow = GetTemplateChild("PART_Shadow") as FrameworkElement;
-        if (_shadow is not null && !Infrastructure.BfrTheme.GlassEffectsEnabled)
-        {
-            // Chế độ an toàn / tương phản cao: không bóng đổ (DropShadowEffect render bằng CPU).
-            _shadow.Effect = null;
-            _shadow.Visibility = Visibility.Collapsed;
-            _shadow = null;
-            return;
-        }
-
         if (_shadow is not null)
         {
             _shadow.SizeChanged += OnShadowSizeChanged;

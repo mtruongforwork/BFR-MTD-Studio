@@ -487,6 +487,11 @@
     <sys:String x:Key="HomeHistoryHint">Annulez les changements passés.</sys:String>
     <sys:String x:Key="SettingsAccent">Palette d’accent</sys:String>
     <sys:String x:Key="SettingsMascot">Afficher la mascotte (Tem)</sys:String>
+    <sys:String x:Key="SettingsReduceEffects">Réduire les effets visuels (sans flou, halos ni ombres)</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsHint">Activez-le si l'application semble lente ou si vous l'utilisez via le Bureau à distance.</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsAuto">Ce PC n'a pas d'accélération graphique : les effets ont été désactivés automatiquement pour garder l'application fluide.</sys:String>
+    <sys:String x:Key="UnexpectedErrorTitle">Une erreur est survenue</sys:String>
+    <sys:String x:Key="UnexpectedErrorMessage">Une erreur inattendue s'est produite. Vos fichiers n'ont pas été touchés et l'application continue de fonctionner. Les détails ont été enregistrés dans le journal d'erreurs.</sys:String>
     <sys:String x:Key="StepFiles">Fichiers</sys:String>
     <sys:String x:Key="StepOptions">Options</sys:String>
     <sys:String x:Key="StepReview">Aperçu</sys:String>

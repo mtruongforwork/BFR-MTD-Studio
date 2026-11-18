@@ -257,11 +257,11 @@ Không treo (watchdog im lặng), nhưng **trên máy không có tăng tốc ph�
 
 **Điều kiện phát hành v2.1**: 0 lỗi S0/S1 mở; B1 (soak 8 h) và B6 (200 lần kill) đạt; A1–A6 xanh trên CI; B3 đạt trên ít nhất 5 cấu hình (gồm không GPU và Win10); không có dump chưa phân tích.
 
-## 6. Chính sách xử lý lỗi cần thống nhất (quyết định sản phẩm)
+## 6. Chính sách xử lý lỗi (đã chốt và đã triển khai)
 
-1. **Exception chưa bắt trên UI thread**: hiện app chết. Đề xuất: ghi nhật ký, hiện hộp thoại "Có lỗi xảy ra, dữ liệu đã được bảo vệ" và **tiếp tục** nếu không đang Apply; nếu đang Apply thì hoàn tất journal rồi mới thoát.
-2. **Lỗi kết xuất kính** (ngoại lệ trong template/effect, hoặc FPS thấp kéo dài): tự động chuyển sang chế độ không hiệu ứng (như tương phản cao) và nhớ lựa chọn; thêm công tắc "Giảm hiệu ứng" trong Cài đặt.
-3. **Treo**: tác vụ nặng phải chạy ngoài UI thread và huỷ được; không gọi API Store/mạng đồng bộ trên UI thread.
+1. **Lỗi chưa bắt trên luồng UI: ghi nhật ký, báo người dùng, TIẾP TỤC chạy.** (`CrashReporter`) Trước đây app chết và cửa sổ đơ tới khi hộp thoại lỗi của Windows đóng (đo ở T0). Áp dụng chạy ở luồng nền nên lỗi UI không cắt ngang việc ghi journal; nếu tiến trình vẫn chết giữa chừng, lần mở sau Lịch sử có mục "Bị gián đoạn" để Hoàn tác (T4). Không tiếp tục khi: lỗi không thể phục hồi (`OutOfMemory`, `AccessViolation`, `SEHException`, kể cả khi bị bọc) hoặc quá 3 lỗi trong 30 giây (chống vòng lặp hộp thoại); khi đó ghi mục `[ui-thread-fatal]` rồi để app thoát. Lỗi ở luồng nền vẫn làm tiến trình thoát (giới hạn của .NET), có nhật ký. Hộp thoại "Có lỗi xảy ra" bằng 4 ngôn ngữ. Kiểm chứng: `verify-crash-logging.ps1` (32/32: app còn chạy và phản hồi sau lỗi UI, có hộp thoại; ca `ui-storm` dừng đúng sau 3 lỗi) và `DecisionTests` (giới hạn, cửa sổ trượt, lỗi chết người bị bọc).
+2. **Tự tắt hiệu ứng kính khi không có tăng tốc phần cứng, kèm công tắc "Giảm hiệu ứng" trong Cài đặt.** (`BfrTheme.GlassEffectsEnabled` = không tương phản cao, không safe-render, người dùng không bật Giảm hiệu ứng, và `RenderCapability.Tier >> 16 != 0` và không ép kết xuất bằng CPU.) Blob và bóng của ô kính ẩn/hiện qua tài nguyên `BfrGlassEffectsVisibility` nên đổi lúc chạy, không cần khởi động lại; Mica tắt theo. Trang Cài đặt hiện chú thích "máy này không có tăng tốc đồ hoạ nên hiệu ứng đã tự tắt" khi rơi vào trường hợp đó. Căn cứ: bảng kết xuất bằng CPU ở T4 (có kính chậm khoảng gấp đôi). Kiểm chứng: `DecisionTests` (bật/tắt lúc chạy trên cùng control; kết xuất bằng CPU tự tắt), và chạy app thật (bật công tắc: hết đốm màu, bóng, Mica; cài đặt được lưu). Hạn chế: chỉ xét lúc áp dụng theme (khởi động, đổi theme/bảng màu/Giảm hiệu ứng); tier đổi giữa chừng (cắm/rút GPU, RDP vào) có hiệu lực ở lần đổi theme tiếp theo.
+3. **Treo: giữ nguyên tắc** tác vụ nặng chạy ngoài luồng UI và huỷ được; không gọi mạng/Store đồng bộ trên luồng UI. Watchdog vẫn chỉ bật trong kiểm thử (`BFR_WATCHDOG`). T3/T4 không còn treo thật nào sau khi sửa lỗi nạp bậc hai.
 
 ## 7. Lịch thực hiện
 

@@ -24,7 +24,8 @@
                 <ControlTemplate TargetType="ctl:GlassTile">
                     <Grid x:Name="Root">
                         <!-- Bóng: chỉ phần ngoài ô (GlassTile cắt phần trong) -->
-                        <Border x:Name="PART_Shadow" CornerRadius="{TemplateBinding CornerRadius}" Background="#FF000000" IsHitTestVisible="False">
+                        <Border x:Name="PART_Shadow" CornerRadius="{TemplateBinding CornerRadius}" Background="#FF000000" IsHitTestVisible="False"
+                                Visibility="{DynamicResource BfrGlassEffectsVisibility}">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Color="{DynamicResource BfrShadowColor}" Opacity="{DynamicResource BfrShadowOpacity}" />
                             </Border.Effect>

@@ -20,6 +20,8 @@ public sealed class BackdropBlobs : Grid
         _blobHost.SetResourceReference(OpacityProperty, "BfrBlobOpacity");
         IsHitTestVisible = false;
         ClipToBounds = true;
+        // Ẩn/hiện theo hiệu ứng kính (giảm hiệu ứng, không GPU, safe-render) mà không cần dựng lại.
+        SetResourceReference(VisibilityProperty, BfrTheme.EffectsVisibilityKey);
         Loaded += (_, _) => Build();
     }
 
@@ -27,7 +29,7 @@ public sealed class BackdropBlobs : Grid
     {
         Children.Clear();
         _blobHost.Children.Clear();
-        if (!BfrTheme.GlassEffectsEnabled) return;
+        if (BfrTheme.IsHighContrast) return;
 
         // Lớp phủ nền: giảm độ chói (sáng) / độ xám đục của Mica (tối); độ đậm theo token để mỗi theme tự chỉnh.
         var tint = new Rectangle { IsHitTestVisible = false };
