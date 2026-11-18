@@ -41,7 +41,7 @@ jobs:
         run: dotnet test tests/BFR.App.UiTests/BFR.App.UiTests.csproj -c Release --no-build --verbosity normal
 
       - name: Run Shell Tests (COM shell extension - lựa chọn lớn, dữ liệu Explorer lỗi, khởi chạy)
-        run: dotnet test tests/BFR.Shell.Tests/BFR.Shell.Tests.csproj -c Release --no-build --verbosity normal
+        run: dotnet test tests/BFR.Shell.Tests/BFR.Shell.Tests.csproj -c Release -p:Platform=x64 --no-build --verbosity normal
 
       - name: Run CLI Tests (v2.0 tool commands)
         run: dotnet test tests/BFR.Cli.Tests/BFR.Cli.Tests.csproj -c Release --no-build --verbosity normal
