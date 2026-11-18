@@ -205,18 +205,14 @@
 
     <!-- ============================ Thẻ / Panel ============================ -->
 
+    <!-- v2.1: thẻ dùng kính (nền trong + viền gradient) thay cho nền đặc; bỏ bóng đổ vì bóng xuyên qua nền trong làm ô bị đục. -->
     <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource CardBackground}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+        <Setter Property="Background" Value="{DynamicResource BfrGlassFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BfrGlassRim}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusTileSm}" />
         <Setter Property="Padding" Value="12" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="6" Direction="270" ShadowDepth="1" Opacity="0.06" Color="#000000" />
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <Style x:Key="InteractiveCardStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
@@ -508,12 +504,29 @@
     </Style>
 
 
+    <!-- v2.1: danh sách nằm trong khung kính bo góc (Presets, Watch, kết quả công cụ). ScrollViewer giữ ảo hoá và cuộn của ListBox. -->
     <Style x:Key="AppListBoxStyle" TargetType="ListBox">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="FontSize" Value="{StaticResource AppFontSizeBody}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="{DynamicResource BfrGlassFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BfrGlassRim}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="4" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBox">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource BfrRadiusTileSm}"
+                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <ScrollViewer Focusable="False" Padding="0">
+                            <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
     <!-- ======================= Rail điều hướng bên trái (v1.4) ======================= -->
     <Style x:Key="NavRailItemStyle" TargetType="RadioButton">
