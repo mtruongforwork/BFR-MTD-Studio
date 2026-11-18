@@ -40,7 +40,7 @@ jobs:
       - name: Run UI Tests (bố cục BentoPanel/GlassTile, khoá tài nguyên mọi tổ hợp theme, STA)
         run: dotnet test tests/BFR.App.UiTests/BFR.App.UiTests.csproj -c Release --no-build --verbosity normal
 
-      - name: Run Shell Tests (COM shell extension: lựa chọn lớn, dữ liệu Explorer lỗi, khởi chạy)
+      - name: Run Shell Tests (COM shell extension - lựa chọn lớn, dữ liệu Explorer lỗi, khởi chạy)
         run: dotnet test tests/BFR.Shell.Tests/BFR.Shell.Tests.csproj -c Release --no-build --verbosity normal
 
       - name: Run CLI Tests (v2.0 tool commands)
