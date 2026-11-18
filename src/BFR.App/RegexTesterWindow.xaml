@@ -81,8 +81,8 @@
 
             <!-- ===== Kết quả ===== -->
             <Border Grid.Row="2" Margin="22,14,22,0" CornerRadius="8" Padding="12,10"
-                    Background="{DynamicResource SurfaceSecondary}"
-                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1">
+                    Background="{DynamicResource BfrSurface2}"
+                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="1">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE946;" FontFamily="{StaticResource IconFont}" FontSize="14"
@@ -92,7 +92,7 @@
                     </StackPanel>
 
                     <TextBlock Text="{Binding ErrorMessage}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Foreground="{DynamicResource Danger}"
+                               Foreground="{DynamicResource BfrBad}"
                                Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
 
                     <TextBlock Text="{Binding ResultLabel}" Margin="0,10,0,0"
@@ -157,7 +157,7 @@
                 </ComboBox>
 
                 <TextBlock Grid.Column="2" Text="{Binding HintText}" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextTertiary}" />
+                           Foreground="{DynamicResource BfrFg3}" />
             </Grid>
         </Grid>
     </Border>

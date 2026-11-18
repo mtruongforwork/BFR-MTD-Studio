@@ -11,12 +11,19 @@ public sealed class ShakeDetector
     private readonly int _minSwingPx;
     private readonly int _reversals;
     private readonly int _cooldownMs;
+    private readonly int _minSampleGapMs;
 
     private readonly List<(int X, long T)> _samples = new();
     private long _lastTriggerT = long.MinValue / 2;
 
-    public ShakeDetector(int windowMs = 700, int minSwingPx = 40, int reversals = 3, int cooldownMs = 1000)
+    /// <param name="minSampleGapMs">
+    /// Mẫu đến dày hơn mức này bị bỏ. Hook chuột toàn cục xử lý ĐỒNG BỘ từng sự kiện: chuột 8 kHz gửi một sự kiện mỗi 125 µs, nên nếu mỗi mẫu
+    /// tốn hàng trăm µs (quét lại cả cửa sổ 700 ms) thì sự kiện dồn ứ và chuột toàn hệ thống bị trễ khi đang kéo. Một nhịp lắc cần biên độ
+    /// vài chục px trong hàng chục ms, nên lấy mẫu mỗi 4 ms không làm mất nhận diện.
+    /// </param>
+    public ShakeDetector(int windowMs = 700, int minSwingPx = 40, int reversals = 3, int cooldownMs = 1000, int minSampleGapMs = 4)
     {
+        _minSampleGapMs = minSampleGapMs;
         _windowMs = windowMs;
         _minSwingPx = minSwingPx;
         _reversals = reversals;
@@ -28,8 +35,17 @@ public sealed class ShakeDetector
     /// <summary>Đưa một mẫu vào; trả true đúng lúc phát hiện lắc.</summary>
     public bool Feed(int x, long tMs)
     {
+        // Bỏ mẫu quá dày (chỉ khi thời gian đi tới: thời gian đi lùi vẫn được nhận để không kẹt trạng thái).
+        if (_samples.Count > 0)
+        {
+            var last = _samples[^1].T;
+            if (tMs >= last && tMs - last < _minSampleGapMs) return false;
+        }
+
         _samples.Add((x, tMs));
-        _samples.RemoveAll(s => tMs - s.T > _windowMs);
+        var expired = 0;
+        while (expired < _samples.Count && tMs - _samples[expired].T > _windowMs) expired++;
+        if (expired > 0) _samples.RemoveRange(0, expired);
 
         if (tMs - _lastTriggerT < _cooldownMs) return false;
         if (CountReversals() < _reversals) return false;

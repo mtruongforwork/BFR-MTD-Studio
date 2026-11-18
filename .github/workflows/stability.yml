@@ -1,0 +1,85 @@
+name: BFR Stability (soak / stress / load / chaos)
+
+# Phase T3 của kế hoạch test crash/hang (docs/Plan/BFR_CRASH_HANG_TEST_PLAN.md).
+# Chạy tay (workflow_dispatch) hoặc hằng tuần. Các script chỉ dùng UI Automation theo PID, không tiêm chuột/bàn phím.
+#
+# Soak 8 giờ (tests/Stability/soak.ps1 -DurationMinutes 480) vượt giới hạn 6 giờ của runner GitHub: chạy tay trên máy test/VM
+# hoặc runner tự quản. Ở đây chỉ chạy bản rút gọn (soak 20 phút) để bắt hồi quy sớm.
+on:
+  workflow_dispatch:
+    inputs:
+      soak_minutes:
+        description: "Số phút soak"
+        default: "20"
+  schedule:
+    - cron: "0 20 * * 0"   # Chủ nhật, 03:00 giờ Việt Nam
+  # workflow_dispatch chỉ dùng được khi file này đã có trên nhánh mặc định: trên nhánh tính năng, chạy khi script ổn định thay đổi.
+  push:
+    branches: [ "feat/**" ]
+    paths:
+      - "tests/Stability/**"
+      - ".github/workflows/stability.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  stability:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build (Release)
+        run: dotnet build src/BFR.App/BFR.App.csproj -c Release
+
+      # Đo heap managed sau GC đầy đủ: thước đo rò rỉ chính (Private Bytes chỉ là cảnh báo, xem StabilityCommon.ps1).
+      - name: Cài dotnet-gcdump
+        run: |
+          dotnet tool install -g dotnet-gcdump
+          echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Stress theme/ngôn ngữ (500 lần)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/stress-theme.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Iterations 500 -OutDir artifacts/stability/stress-theme -KillExisting
+
+      - name: Tải 100 000 tệp
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/load.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Files 100000 -OutDir artifacts/stability/load -KillExisting
+
+      - name: Chaos 10 phút
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/chaos.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Minutes 10 -OutDir artifacts/stability/chaos -KillExisting
+
+      - name: Kill giữa lúc Áp dụng (B6, 10 vòng)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/kill-apply.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Iterations 10 -Files 1500 -OutDir artifacts/stability/kill-apply -KillExisting
+
+      - name: Đa tiến trình (B8)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/multi-instance.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -OutDir artifacts/stability/multi-instance -KillExisting
+
+      - name: Chaos khi kết xuất bằng CPU (B3, 5 phút)
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/chaos.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -Minutes 5 -SoftwareRender -OutDir artifacts/stability/chaos-software -KillExisting
+
+      - name: Soak rút gọn
+        shell: powershell
+        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File tests/Stability/soak.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -DurationMinutes ${{ github.event.inputs.soak_minutes || '20' }} -SampleSeconds 20 -Files 200 -OutDir artifacts/stability/soak -KillExisting
+
+      - name: Upload kết quả
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stability-results
+          path: artifacts/stability/
+          retention-days: 30

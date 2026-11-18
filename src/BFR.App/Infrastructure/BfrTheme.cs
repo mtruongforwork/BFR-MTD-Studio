@@ -27,6 +27,41 @@ public static class BfrTheme
 
     public static bool IsHighContrast { get; private set; }
 
+    /// <summary>
+    /// BFR_SAFE_RENDER=1: tắt blob, làm mờ, bóng và Mica để cô lập lỗi do kết xuất (treo/crash/giật trên GPU hoặc driver yếu).
+    /// Chỉ đọc một lần lúc chạy; dùng cho kiểm thử và hỗ trợ.
+    /// </summary>
+    public static bool SafeRender { get; } = Environment.GetEnvironmentVariable("BFR_SAFE_RENDER") == "1";
+
+    /// <summary>Người dùng bật "Giảm hiệu ứng" trong Cài đặt (ThemeManager đặt từ cài đặt trước mỗi lần áp dụng theme).</summary>
+    public static bool UserReduceEffects { get; set; }
+
+    /// <summary>
+    /// Không có tăng tốc phần cứng (máy không GPU, driver lỗi, một số VM/RDP) hoặc đang ép kết xuất bằng CPU.
+    /// Đo ở T4: khi đó hiệu ứng kính làm UI chậm khoảng gấp đôi (điều hướng 1,2 s, có lần mở công cụ 9,5 s); tắt kính về gần mức có GPU.
+    /// </summary>
+    public static bool NoHardwareAcceleration
+    {
+        get
+        {
+            try
+            {
+                return (System.Windows.Media.RenderCapability.Tier >> 16) == 0
+                    || System.Windows.Media.RenderOptions.ProcessRenderMode == System.Windows.Interop.RenderMode.SoftwareOnly;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>Hiệu ứng kính (blob, blur, bóng, Mica) được phép chạy. Quyết định 6.2 của kế hoạch test: tự tắt khi không có tăng tốc phần cứng.</summary>
+    public static bool GlassEffectsEnabled => !IsHighContrast && !SafeRender && !UserReduceEffects && !NoHardwareAcceleration;
+
+    /// <summary>Khoá tài nguyên Visibility cho các lớp hiệu ứng (blob, bóng của GlassTile): đổi lúc chạy không cần dựng lại control.</summary>
+    public const string EffectsVisibilityKey = "BfrGlassEffectsVisibility";
+
     /// <summary>Giảm chuyển động: Windows tắt hiệu ứng hoạt hình hoặc đang ở tương phản cao.</summary>
     public static bool ReduceMotion { get; private set; }
 
@@ -56,12 +91,15 @@ public static class BfrTheme
         {
             ReduceMotion = reduce;
             Remove(merged, "Bfr.Controls.xaml");
+            Remove(merged, "Bfr.Glass.xaml");
         }
 
         Ensure(merged, "Tokens.xaml");
         Replace(merged, "Palette.", $"Palette.{(dark ? "Dark" : "Light")}.xaml");
         Replace(merged, "Accent.", $"Accent.{accent}.xaml");
         Ensure(merged, "Bfr.Controls.xaml");
+        Ensure(merged, "Bfr.Glass.xaml");
+        app.Resources[EffectsVisibilityKey] = GlassEffectsEnabled ? Visibility.Visible : Visibility.Collapsed;
 
         // Tương phản cao nạp sau cùng để ghi đè mọi khoá Bfr; tắt thì gỡ ra.
         Remove(merged, "HighContrast.xaml");

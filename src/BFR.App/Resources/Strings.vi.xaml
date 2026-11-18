@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">Đang áp dụng...</sys:String>
     <sys:String x:Key="StatusUndoing">Đang hoàn tác...</sys:String>
     <sys:String x:Key="ApplySuccessMessage">Đã đổi tên {0}/{1} tệp.</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">{0} lần đổi tên trước bị gián đoạn giữa chừng. Bấm Hoàn tác để đưa tệp về tên cũ, hoặc mở Lịch sử.</sys:String>
     <sys:String x:Key="Cancel">Hủy</sys:String>
     <sys:String x:Key="MenuWatchFolder">Theo dõi thư mục...</sys:String>
     <sys:String x:Key="MenuContextMenu">Menu chuột phải Explorer...</sys:String>
@@ -472,6 +473,7 @@
     <sys:String x:Key="QuickUnknownPreset">Preset đổi tên nhanh không tồn tại: {0}</sys:String>
     <sys:String x:Key="NavRename">Đổi tên</sys:String>
     <sys:String x:Key="NavHome">Trang chủ</sys:String>
+    <sys:String x:Key="NavCollapseTip">Thu gọn / mở rộng thanh bên</sys:String>
     <sys:String x:Key="HomeTitle">Hôm nay mình làm gì nhỉ?</sys:String>
     <sys:String x:Key="HomeSubtitle">Thả tệp để đổi tên, hoặc vào thẳng một công cụ.</sys:String>
     <sys:String x:Key="HomeDropTitle">Thả tệp hoặc thư mục vào đây</sys:String>
@@ -485,6 +487,11 @@
     <sys:String x:Key="HomeHistoryHint">Hoàn tác các thay đổi cũ.</sys:String>
     <sys:String x:Key="SettingsAccent">Bảng màu nhấn</sys:String>
     <sys:String x:Key="SettingsMascot">Hiện linh vật Tem</sys:String>
+    <sys:String x:Key="SettingsReduceEffects">Giảm hiệu ứng (tắt nền mờ, đốm màu và bóng đổ)</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsHint">Bật nếu máy chạy chậm hoặc dùng qua Remote Desktop.</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsAuto">Máy này không có tăng tốc đồ hoạ nên hiệu ứng đã tự tắt để ứng dụng chạy mượt.</sys:String>
+    <sys:String x:Key="UnexpectedErrorTitle">Có lỗi xảy ra</sys:String>
+    <sys:String x:Key="UnexpectedErrorMessage">Đã xảy ra lỗi không mong muốn. Tệp của bạn không bị ảnh hưởng và ứng dụng vẫn tiếp tục chạy. Chi tiết đã được ghi vào nhật ký lỗi.</sys:String>
     <sys:String x:Key="StepFiles">Chọn tệp</sys:String>
     <sys:String x:Key="StepOptions">Tuỳ chọn</sys:String>
     <sys:String x:Key="StepReview">Xem trước</sys:String>
@@ -570,6 +577,7 @@
     <sys:String x:Key="CoreStatusRecovered">Đã khôi phục</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">Khôi phục (có lỗi)</sys:String>
     <sys:String x:Key="CoreStatusUndone">Đã hoàn tác</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">Bị gián đoạn</sys:String>
     <sys:String x:Key="NavTools">Công cụ</sys:String>
     <sys:String x:Key="ToolsEmptyResults">Chọn tệp, đặt tuỳ chọn rồi bấm Xem trước.</sys:String>
     <sys:String x:Key="ToolsNothingToShow">Không có gì để hiển thị.</sys:String>

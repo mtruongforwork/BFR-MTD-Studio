@@ -96,10 +96,10 @@ public sealed class ShelfPage : PageBase
         zone.Children.Add(_hint);
         var card = new Border
         {
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
             BorderThickness = new Thickness(1),
-            BorderBrush = (Brush)Application.Current.FindResource("Divider"),
-            Background = (Brush)Application.Current.FindResource("SurfaceBackground"),
+            BorderBrush = (Brush)Application.Current.FindResource("BfrGlassRim"),
+            Background = (Brush)Application.Current.FindResource("BfrGlassFill"),
             Child = zone
         };
         Grid.SetRow(card, 1);

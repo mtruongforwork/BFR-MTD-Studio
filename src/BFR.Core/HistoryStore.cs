@@ -30,6 +30,7 @@ public sealed class HistoryEntry
         "recovered" => CoreText.Get("CoreStatusRecovered", "Đã khôi phục"),
         "recovered-with-errors" => CoreText.Get("CoreStatusRecoveredErrors", "Khôi phục (có lỗi)"),
         "undone" => CoreText.Get("CoreStatusUndone", "Đã hoàn tác"),
+        "interrupted" => CoreText.Get("CoreStatusInterrupted", "Bị gián đoạn"),
         _ => Status
     };
 
@@ -78,6 +79,75 @@ public sealed class HistoryStore
         {
             return Array.Empty<HistoryEntry>();
         }
+    }
+
+    /// <summary>
+    /// Đưa các lần Áp dụng bị gián đoạn (tiến trình chết giữa chừng: journal không có footer, không thuộc tiến trình nào còn chạy,
+    /// chưa có trong lịch sử) vào lịch sử với trạng thái "interrupted", để người dùng Hoàn tác được từ giao diện.
+    /// KHÔNG đụng vào tệp nào. Gọi khi khởi động và khi mở trang Lịch sử. Trả về các mục vừa thêm.
+    /// </summary>
+    public IReadOnlyList<HistoryEntry> RegisterInterrupted()
+    {
+        var dir = JournalDirectory;
+        if (!_fs.DirectoryExists(dir)) return Array.Empty<HistoryEntry>();
+
+        var list = LoadAll().ToList();
+        var referenced = new HashSet<string>(
+            list.Select(e => e.JournalPath).Where(p => !string.IsNullOrEmpty(p)).Select(NormalizePath),
+            StringComparer.OrdinalIgnoreCase);
+
+        var added = new List<HistoryEntry>();
+        foreach (var file in _fs.GetFiles(dir, "*.jsonl", false))
+        {
+            if (referenced.Contains(NormalizePath(file))) continue;
+
+            List<JournalEntry> entries;
+            try { entries = UndoService.ReadSteps(file, _fs); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+
+            if (entries.Any(e => e.Type == "footer")) continue;           // đã kết thúc (kể cả đã khôi phục/hoàn tác)
+            var header = entries.FirstOrDefault(e => e.Type == "header");
+            var started = header?.StartedUtc is { } s
+                && DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var t)
+                ? t.ToUniversalTime()
+                : _fs.GetLastWriteTimeUtc(file);
+            if (IsOwnerRunning(header?.Pid, started)) continue;          // đang chạy ở tiến trình khác hoặc chính tiến trình này
+
+            var steps = entries.Where(e => e.Type == "step").ToList();
+            if (steps.Count == 0) continue;                               // chết trước khi làm gì: không có gì để hoàn tác
+            var done = steps.Where(e => e.Status == "done").Select(e => e.Seq).Distinct().Count();
+
+            var entry = new HistoryEntry
+            {
+                Id = header?.Id ?? Path.GetFileNameWithoutExtension(file),
+                StartedUtc = started,
+                Total = header?.TotalSteps ?? steps.Select(e => e.Seq).Distinct().Count(),
+                Succeeded = done,
+                Failed = 0,
+                Status = "interrupted",
+                JournalPath = file
+            };
+            list.Insert(0, entry);
+            added.Add(entry);
+        }
+
+        if (added.Count > 0) Save(list.OrderByDescending(e => e.StartedUtc));
+        return added;
+    }
+
+    private static bool IsOwnerRunning(int? pid, DateTime journalStartedUtc)
+    {
+        if (pid is null or <= 0) return false;
+        if (pid == Environment.ProcessId) return true;
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid.Value);
+            if (p.HasExited) return false;
+            // PID có thể đã được tái sử dụng: tiến trình khởi động SAU khi journal bắt đầu thì không phải chủ của nó.
+            return p.StartTime.ToUniversalTime() <= journalStartedUtc.AddSeconds(5);
+        }
+        catch (ArgumentException) { return false; }                      // không còn tiến trình nào có PID này
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { return true; } // không đọc được: coi như còn chạy (an toàn)
     }
 
     public void Add(HistoryEntry entry)

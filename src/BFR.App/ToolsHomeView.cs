@@ -6,7 +6,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using BFR.App.Controls;
 using BFR.Presentation.Tools;
+using BFR.Core;
 
 /// <summary>
 /// Trang chủ của Công cụ: thẻ cho từng công cụ và vùng thả tệp. Tệp thả vào đây (hoặc gửi từ danh sách Đổi tên)
@@ -56,58 +58,59 @@ internal sealed class ToolsHomeView : UserControl
         _banner.Visibility = Visibility.Collapsed;
         root.Children.Add(_banner);
 
-        var wrap = new WrapPanel();
-        foreach (var tool in tools)
+        var bento = new BentoPanel { RowHeight = 76, CollapseWidth = 760 };
+        void AddTile(string key, string icon, string title, string description)
         {
-            var key = tool.Key;
-            var card = new Border
+            var tile = new GlassTile
             {
-                Style = (Style)Application.Current.FindResource("BfrInteractiveCard"),
-                Width = 250,
-                Margin = new Thickness(0, 0, 12, 12),
-                Padding = new Thickness(14),
-                Cursor = Cursors.Hand,
-                Focusable = true
+                IsInteractive = true,
+                CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
+                Padding = new Thickness(18, 14, 18, 12)
             };
+            BentoPanel.SetColSpan(tile, 4);
+            BentoPanel.SetRowSpan(tile, 2);
 
             var panel = new StackPanel();
             var head = new StackPanel { Orientation = Orientation.Horizontal };
             head.Children.Add(new TextBlock
             {
-                Text = tool.Icon,
+                Text = icon,
                 FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                FontSize = 18,
-                Margin = new Thickness(0, 0, 8, 0),
-                Foreground = (Brush)Application.Current.FindResource("Accent")
+                FontSize = 20,
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Brush)Application.Current.FindResource("BfrAccFg")
             });
             head.Children.Add(new TextBlock
             {
-                Text = Loc.T(tool.TitleKey),
+                Text = title,
                 FontFamily = (FontFamily)Application.Current.FindResource("BfrFontHeading"),
+                FontSize = 15,
                 Foreground = (Brush)Application.Current.FindResource("BfrFg"),
+                VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
             panel.Children.Add(head);
             panel.Children.Add(new TextBlock
             {
-                Text = Loc.T(tool.DescriptionKey),
+                Text = description,
                 Style = (Style)Application.Current.FindResource("CaptionTextStyle"),
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 6, 0, 0),
-                MaxHeight = 64,
+                Margin = new Thickness(0, 8, 0, 0),
+                MaxHeight = 66,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
-            card.Child = panel;
+            tile.Content = panel;
 
-            card.MouseLeftButtonUp += (_, _) => open(key);
-            card.KeyDown += (_, e) =>
-            {
-                if (e.Key is Key.Enter or Key.Space) { open(key); e.Handled = true; }
-            };
-            System.Windows.Automation.AutomationProperties.SetName(card, "Open " + Loc.T(tool.TitleKey));
-            wrap.Children.Add(card);
+            tile.Invoked += (_, _) => open(key);
+            System.Windows.Automation.AutomationProperties.SetName(tile, "Open " + title);
+            bento.Children.Add(tile);
         }
-        root.Children.Add(wrap);
+
+        foreach (var tool in tools)
+            AddTile(tool.Key, tool.Icon, Loc.T(tool.TitleKey), Loc.T(tool.DescriptionKey));
+        AddTile("quarantine", "", Loc.T("ToolQuarantineTitle"), Loc.F("ToolQuarantineDesc", QuarantineStore.DefaultRetentionDays));
+        root.Children.Add(bento);
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         SetPending(0);

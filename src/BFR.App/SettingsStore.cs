@@ -15,8 +15,20 @@ public sealed class AppSettings
     /// </summary>
     public bool CheckForUpdates { get; set; } = false;
 
+    /// <summary>Nguồn cập nhật mặc định: bản phát hành mới nhất trên GitHub của dự án.</summary>
+    public const string DefaultUpdateFeedUrl = "https://api.github.com/repos/mtruongforwork/Release-Batch-File-Renamer/releases/latest";
+
     /// <summary>URL nguồn kiểm tra phiên bản (API latest release của GitHub).</summary>
-    public string UpdateFeedUrl { get; set; } = "https://api.github.com/repos/YOUR-ORG/BatchFileRenamer/releases/latest";
+    public string UpdateFeedUrl { get; set; } = DefaultUpdateFeedUrl;
+
+    /// <summary>
+    /// Các bản trước 2.1 lưu sẵn URL giữ chỗ <c>YOUR-ORG</c> (hoặc để trống); đổi thành nguồn mặc định.
+    /// URL người dùng tự nhập khác thì giữ nguyên.
+    /// </summary>
+    public static string NormalizeUpdateFeedUrl(string? url) =>
+        string.IsNullOrWhiteSpace(url) || url.Contains("YOUR-ORG", StringComparison.OrdinalIgnoreCase)
+            ? DefaultUpdateFeedUrl
+            : url;
 
     /// <summary>Thư mục Watch Folder đang dùng (để mở lại).</summary>
     public string? WatchFolder { get; set; }
@@ -56,6 +68,9 @@ public sealed class AppSettings
     /// <summary>Hiện linh vật Tem (trang chủ, trạng thái rỗng). Mặc định bật.</summary>
     public bool ShowMascot { get; set; } = true;
 
+    /// <summary>Giảm hiệu ứng: tắt nền mờ, đốm màu, bóng đổ và Mica. Tự áp dụng khi máy không có tăng tốc đồ hoạ. Mặc định tắt.</summary>
+    public bool ReduceEffects { get; set; } = false;
+
     /// <summary>Số lần đổi tên thành công (dùng để gợi ý đánh giá Store sau 2 lần).</summary>
     public int SuccessfulRenameCount { get; set; } = 0;
 
@@ -90,7 +105,9 @@ public static class SettingsStore
         try
         {
             if (!File.Exists(SettingsPath)) return new AppSettings();
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
+            settings.UpdateFeedUrl = AppSettings.NormalizeUpdateFeedUrl(settings.UpdateFeedUrl);
+            return settings;
         }
         catch
         {

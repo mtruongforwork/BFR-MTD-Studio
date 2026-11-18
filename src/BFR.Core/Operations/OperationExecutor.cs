@@ -53,7 +53,7 @@ public sealed class OperationExecutor
         Append(journalPath, new JournalEntry
         {
             Type = "header", Id = journalId, StartedUtc = DateTime.UtcNow.ToString("O"),
-            TotalSteps = operations.Count, AppVersion = appVersion, Schema = JournalSchema
+            TotalSteps = operations.Count, AppVersion = appVersion, Schema = JournalSchema, Pid = Environment.ProcessId
         });
 
         for (var i = 0; i < operations.Count; i++)
@@ -83,12 +83,12 @@ public sealed class OperationExecutor
 
             Append(journalPath, pending);
 
+            var applied = false;
             try
             {
                 CheckNotProtected(pending);
                 Apply(_fs, pending);
-                Append(journalPath, pending.WithStatus("done"));
-                result.Succeeded++;
+                applied = true;
             }
             catch (Exception ex) when (IsExpected(ex))
             {
@@ -98,6 +98,20 @@ public sealed class OperationExecutor
                 result.Failed++;
                 result.Errors.Add((op.From, ex.Message));
                 // Tiếp tục các thao tác độc lập; thao tác phụ thuộc sẽ tự thất bại.
+            }
+
+            if (applied)
+            {
+                // Thao tác đã có hiệu lực: lỗi ghi journal KHÔNG được biến nó thành "failed" (Hoàn tác sẽ bỏ sót bước này).
+                result.Succeeded++;
+                if (!TryAppend(journalPath, pending.WithStatus("done")))
+                {
+                    // Không ghi nhận được nữa thì dừng ngay và không ghi footer: journal dang dở sẽ được khôi phục lần mở sau.
+                    result.JournalWriteFailed = true;
+                    result.Errors.Add((op.From, CoreText.Get("CoreJournalWriteFailed", "Không ghi được nhật ký (journal)")));
+                    progress?.Report(i + 1);
+                    return result;
+                }
             }
 
             progress?.Report(i + 1);
@@ -262,6 +276,24 @@ public sealed class OperationExecutor
     {
         var parent = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(parent)) fs.EnsureDirectory(parent);
+    }
+
+    /// <summary>Ghi một dòng journal, thử lại vài lần khi gặp lỗi IO thoáng qua. Trả về false nếu vẫn thất bại.</summary>
+    private bool TryAppend(string path, JournalEntry entry)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                Append(path, entry);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt < 2) Thread.Sleep(25);
+            }
+        }
+        return false;
     }
 
     private void Append(string path, JournalEntry entry) =>

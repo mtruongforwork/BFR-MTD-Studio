@@ -41,6 +41,16 @@ public sealed class MainViewModel : ObservableObject
     private readonly LicenseTier _metadataTier;
 
     private readonly List<string> _sources = new();
+
+    /// <summary>Chỉ mục kiểm trùng cho <see cref="_sources"/>: kiểm bằng List.Contains là O(n) mỗi đường dẫn, nạp 20 000 tệp mất hơn 10 s (bậc hai).</summary>
+    private readonly HashSet<string> _sourceSet = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool TryAddSource(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !_sourceSet.Add(path)) return false;
+        _sources.Add(path);
+        return true;
+    }
     private readonly HashSet<string> _excludedPaths = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
     private Preset _preset = new();
@@ -80,6 +90,18 @@ public sealed class MainViewModel : ObservableObject
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         ClearSelectionCommand = new RelayCommand(() => SetAllSelected(false));
 
+        // Lần Áp dụng trước bị gián đoạn (app chết/bị tắt giữa chừng): đưa vào Lịch sử để Hoàn tác được và báo cho người dùng.
+        // Không tự đổi tệp nào: người dùng chọn Hoàn tác (nút trên thông báo hoặc trang Lịch sử).
+        try
+        {
+            var interrupted = _history.RegisterInterrupted();
+            if (interrupted.Count > 0) SuccessMessage = _strings.F("InterruptedRunNotice", interrupted.Count);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            // Không đọc được journal/lịch sử: không chặn việc mở app.
+        }
+
         if (initialPayload is not null)
         {
             var paths = new List<string>(initialPayload.Paths);
@@ -95,13 +117,7 @@ public sealed class MainViewModel : ObservableObject
                 if (preset is not null) SelectedPreset = preset;
             }
 
-            foreach (var path in paths)
-            {
-                if (!string.IsNullOrWhiteSpace(path) && !_sources.Contains(path, StringComparer.OrdinalIgnoreCase))
-                {
-                    _sources.Add(path);
-                }
-            }
+            foreach (var path in paths) TryAddSource(path);
         }
     }
 
@@ -275,10 +291,7 @@ public sealed class MainViewModel : ObservableObject
         var changed = false;
         foreach (var path in paths)
         {
-            if (string.IsNullOrWhiteSpace(path)) continue;
-            if (_sources.Contains(path, StringComparer.OrdinalIgnoreCase)) continue;
-            _sources.Add(path);
-            changed = true;
+            if (TryAddSource(path)) changed = true;
         }
 
         if (changed) _ = RebuildAsync();
@@ -287,6 +300,7 @@ public sealed class MainViewModel : ObservableObject
     public void ClearList()
     {
         _sources.Clear();
+        _sourceSet.Clear();
         _excludedPaths.Clear();
         foreach (var r in Rows) r.PropertyChanged -= OnRowPropertyChanged;
         Rows.Clear();
@@ -776,6 +790,7 @@ public sealed class MainViewModel : ObservableObject
     {
         var path = row.File.FullPath;
         _sources.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        _sourceSet.Remove(path);
         _excludedPaths.Add(path);
         row.PropertyChanged -= OnRowPropertyChanged;
         Rows.Remove(row);

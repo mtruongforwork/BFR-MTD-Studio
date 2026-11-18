@@ -1,0 +1,107 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ctl="clr-namespace:BFR.App.Controls;assembly=BatchFileRenamer"
+                    xmlns:infra="clr-namespace:BFR.App.Infrastructure;assembly=BatchFileRenamer">
+    <!--
+        Bộ thành phần kính + bento (v2.1): GlassTile, thanh kính, thanh nổi.
+        Chỉ dùng token Bfr* (DynamicResource) nên đổi sáng/tối/bảng màu nhấn là cập nhật tức thì;
+        tương phản cao ghi đè BfrGlass* thành nền đặc + viền đặc, bóng = 0.
+    -->
+
+    <Style TargetType="ctl:GlassTile">
+        <Setter Property="Padding" Value="{DynamicResource BfrPadCard}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusTile}" />
+        <Setter Property="Foreground" Value="{DynamicResource BfrFg}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TranslateTransform Y="0" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ctl:GlassTile">
+                    <Grid x:Name="Root">
+                        <!-- Bóng: chỉ phần ngoài ô (GlassTile cắt phần trong) -->
+                        <Border x:Name="PART_Shadow" CornerRadius="{TemplateBinding CornerRadius}" Background="#FF000000" IsHitTestVisible="False"
+                                Visibility="{DynamicResource BfrGlassEffectsVisibility}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Color="{DynamicResource BfrShadowColor}" Opacity="{DynamicResource BfrShadowOpacity}" />
+                            </Border.Effect>
+                        </Border>
+                        <Border Background="{DynamicResource BfrGlassFill}" CornerRadius="{TemplateBinding CornerRadius}" />
+                        <Border Background="{DynamicResource BfrGlassSheen}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+                        <Border BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+                        <DockPanel Margin="{TemplateBinding Padding}">
+                            <StackPanel x:Name="HeaderRow" DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
+                                <TextBlock x:Name="IconText" Text="{TemplateBinding Icon}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="16" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                           />
+                                <ContentPresenter ContentSource="Header" TextElement.FontFamily="{DynamicResource BfrFontHeading}"
+                                                  TextElement.FontSize="{DynamicResource BfrSizeHeading}" TextElement.Foreground="{DynamicResource BfrFg}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ContentPresenter />
+                        </DockPanel>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasHeader" Value="True">
+                            <Setter TargetName="HeaderRow" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="Icon" Value="">
+                            <Setter TargetName="IconText" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsInteractive" Value="True">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="True" />
+                <Setter Property="IsTabStop" Value="True" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsInteractive" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
+                <MultiTrigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-2" Duration="{infra:Dur Fast}" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiTrigger.EnterActions>
+                <MultiTrigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="{infra:Dur Fast}" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiTrigger.ExitActions>
+            </MultiTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Thanh kính (ô tìm kiếm, thanh công cụ): nền đậm hơn ô thường -->
+    <Style x:Key="BfrGlassPanel" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource BfrGlassFillStrong}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BfrGlassRim}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusTile}" />
+    </Style>
+
+    <!-- Thanh bên: kính đậm, không bo, chỉ có đường kẻ bên phải -->
+    <Style x:Key="BfrGlassSidebar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource BfrGlassFillStrong}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BfrLine}" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
+    </Style>
+
+    <!-- Thanh nổi dưới cùng (trạng thái + Áp dụng) -->
+    <Style x:Key="BfrFloatingBar" TargetType="Border" BasedOn="{StaticResource BfrGlassPanel}">
+        <Setter Property="CornerRadius" Value="{DynamicResource BfrRadiusTileSm}" />
+        <Setter Property="Padding" Value="20,10" />
+    </Style>
+</ResourceDictionary>

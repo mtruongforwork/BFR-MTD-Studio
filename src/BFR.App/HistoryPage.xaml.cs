@@ -39,6 +39,10 @@ public partial class HistoryPage : PageBase
 
     private void Refresh()
     {
+        // Lần Áp dụng bị gián đoạn (kể cả của CLI hoặc một phiên trước) hiện ra ở đây để Hoàn tác được.
+        try { _history.RegisterInterrupted(); }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+
         // Pro: giữ lịch sử 30 ngày; Free: chỉ 1 lần gần nhất.
         var entries = _history.LoadAll()
             .Take(_license.MaxUndoEntries == int.MaxValue ? int.MaxValue : _license.MaxUndoEntries)

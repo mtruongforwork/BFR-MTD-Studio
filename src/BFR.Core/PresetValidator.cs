@@ -48,8 +48,9 @@ public static class PresetValidator
         {
             preset = JsonSerializer.Deserialize<Preset>(json, Options);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
         {
+            // ArgumentException: chuỗi chứa nửa cặp surrogate lẻ (không phải UTF-16 hợp lệ) không chuyển được sang JSON.
             throw new InvalidDataException("Preset không hợp lệ.", ex);
         }
 

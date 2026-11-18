@@ -27,6 +27,12 @@
     <!-- Hình khối: lưới 4 px -->
     <CornerRadius x:Key="BfrRadiusCard">20</CornerRadius>
     <CornerRadius x:Key="BfrRadiusControl">12</CornerRadius>
+    <!-- v2.1 bento + kính -->
+    <CornerRadius x:Key="BfrRadiusTile">24</CornerRadius>
+    <CornerRadius x:Key="BfrRadiusTileSm">18</CornerRadius>
+    <sys:Double x:Key="BfrBentoGap">12</sys:Double>
+    <sys:Double x:Key="BfrPagePad">20</sys:Double>
+    <sys:Double x:Key="BfrSizeLargeTitle">28</sys:Double>
     <CornerRadius x:Key="BfrRadiusPill">999</CornerRadius>
     <sys:Double x:Key="BfrSpace1">4</sys:Double>
     <sys:Double x:Key="BfrSpace2">8</sys:Double>

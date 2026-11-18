@@ -14,6 +14,13 @@ internal interface IInitializeWithWindow
     void Initialize(IntPtr hwnd);
 }
 
+/// <summary>Gắn cửa sổ chủ cho StoreContext (bắt buộc với ứng dụng desktop khi gọi API có giao diện).</summary>
+internal static class StoreWindow
+{
+    public static void Initialize(StoreContext context, IntPtr hwnd) =>
+        ((IInitializeWithWindow)(object)context).Initialize(hwnd);
+}
+
 /// <summary>
 /// Dịch vụ gọi In-App Rating & Review của Microsoft Store (v1.0.2).
 /// Hỗ trợ cả gói cài MSIX và mở fallback trình duyệt nếu chạy bản portable.
@@ -33,8 +40,7 @@ public static class StoreRatingService
 
             if (hwnd != IntPtr.Zero)
             {
-                var init = (IInitializeWithWindow)(object)context;
-                init.Initialize(hwnd);
+                StoreWindow.Initialize(context, hwnd);
             }
 
             var result = await context.RequestRateAndReviewAppAsync();

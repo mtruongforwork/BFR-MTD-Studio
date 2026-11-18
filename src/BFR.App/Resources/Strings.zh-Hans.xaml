@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">正在应用…</sys:String>
     <sys:String x:Key="StatusUndoing">正在撤销…</sys:String>
     <sys:String x:Key="ApplySuccessMessage">已重命名 {0}/{1} 个文件。</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">之前有 {0} 次重命名被中断。点击撤销可恢复原名称，或打开历史记录。</sys:String>
     <sys:String x:Key="Cancel">取消</sys:String>
     <sys:String x:Key="MenuWatchFolder">监视文件夹…</sys:String>
     <sys:String x:Key="MenuContextMenu">资源管理器右键菜单…</sys:String>
@@ -472,6 +473,7 @@
     <sys:String x:Key="QuickUnknownPreset">未知的快速重命名预设：{0}</sys:String>
     <sys:String x:Key="NavRename">重命名</sys:String>
     <sys:String x:Key="NavHome">主页</sys:String>
+    <sys:String x:Key="NavCollapseTip">折叠 / 展开侧边栏</sys:String>
     <sys:String x:Key="HomeTitle">今天要整理什么？</sys:String>
     <sys:String x:Key="HomeSubtitle">拖入文件进行重命名，或直接打开某个工具。</sys:String>
     <sys:String x:Key="HomeDropTitle">将文件或文件夹拖到这里</sys:String>
@@ -485,6 +487,11 @@
     <sys:String x:Key="HomeHistoryHint">撤销过去的更改。</sys:String>
     <sys:String x:Key="SettingsAccent">强调色</sys:String>
     <sys:String x:Key="SettingsMascot">显示吉祥物 Tem</sys:String>
+    <sys:String x:Key="SettingsReduceEffects">减少视觉效果（关闭模糊、光晕和阴影）</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsHint">如果应用运行缓慢或通过远程桌面使用，请打开此项。</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsAuto">这台电脑没有图形加速，已自动关闭效果以保持应用流畅。</sys:String>
+    <sys:String x:Key="UnexpectedErrorTitle">出现问题</sys:String>
+    <sys:String x:Key="UnexpectedErrorMessage">发生了意外错误。你的文件未受影响，应用将继续运行。详细信息已写入错误日志。</sys:String>
     <sys:String x:Key="StepFiles">选择文件</sys:String>
     <sys:String x:Key="StepOptions">选项</sys:String>
     <sys:String x:Key="StepReview">预览</sys:String>
@@ -570,6 +577,7 @@
     <sys:String x:Key="CoreStatusRecovered">已恢复</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">已恢复（有错误）</sys:String>
     <sys:String x:Key="CoreStatusUndone">已撤销</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">已中断</sys:String>
     <sys:String x:Key="NavTools">工具</sys:String>
     <sys:String x:Key="ToolsEmptyResults">添加文件、设置选项,然后点击“预览”。</sys:String>
     <sys:String x:Key="ToolsNothingToShow">没有可显示的内容。</sys:String>

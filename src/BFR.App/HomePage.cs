@@ -33,7 +33,7 @@ internal sealed class HomePage : PageBase
 
     private UIElement Build()
     {
-        var root = new StackPanel { Margin = new Thickness(32, 24, 32, 24), MaxWidth = 1040, HorizontalAlignment = HorizontalAlignment.Left };
+        var root = new StackPanel { Margin = new Thickness(32, 24, 32, 24), MaxWidth = 1400, HorizontalAlignment = HorizontalAlignment.Stretch };
 
         var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
         if (SettingsStore.Load().ShowMascot) header.Children.Add(new TemMascot { Width = 64, Height = 67, Margin = new Thickness(0, 0, 16, 0) });
@@ -49,16 +49,12 @@ internal sealed class HomePage : PageBase
         header.Children.Add(radial);
         root.Children.Add(header);
 
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(16) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var grid = new BentoPanel { RowHeight = 80, CollapseWidth = 820 };
 
         // Ô lớn: thả tệp để đổi tên.
-        var hero = new Border { Style = S("BfrHeroCard"), Padding = new Thickness(16) };
+        var hero = new GlassTile { Padding = new Thickness(16) };
+        BentoPanel.SetColSpan(hero, 8);
+        BentoPanel.SetRowSpan(hero, 4);
         var dropContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         dropContent.Children.Add(new TextBlock { Text = Loc.T("HomeDropTitle"), Style = S("BfrHeadingText"), HorizontalAlignment = HorizontalAlignment.Center });
         dropContent.Children.Add(new TextBlock { Text = Loc.T("HomeDropHint"), Style = S("BfrBodyText"), Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("BfrFg2"), Margin = new Thickness(0, 4, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
@@ -66,7 +62,7 @@ internal sealed class HomePage : PageBase
         go.Click += (_, _) => _navigate("Rename");
         dropContent.Children.Add(go);
 
-        _drop = new ContentControl { Style = S("BfrDropZone"), MinHeight = 200, Content = dropContent, Focusable = false, IsTabStop = false };
+        _drop = new ContentControl { Style = S("BfrDropZone"), MinHeight = 200, Content = dropContent, Focusable = false, IsTabStop = false, VerticalAlignment = VerticalAlignment.Stretch };
         System.Windows.Automation.AutomationProperties.SetName(_drop, Loc.T("HomeDropTitle"));
         _drop.DragEnter += (_, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) _drop.Tag = "drag"; };
         _drop.DragLeave += (_, _) => _drop.Tag = null;
@@ -77,16 +73,14 @@ internal sealed class HomePage : PageBase
             if (e.Data.GetData(DataFormats.FileDrop) is string[] dropped && dropped.Length > 0) _dropFiles(dropped);
             e.Handled = true;
         };
-        hero.Child = _drop;
-        Grid.SetColumn(hero, 0);
-        Grid.SetRow(hero, 0);
-        Grid.SetRowSpan(hero, 3);
+        hero.Content = _drop;
         grid.Children.Add(hero);
 
         // Công cụ nhanh.
-        var tools = new Border { Style = S("BfrCard") };
+        var tools = new GlassTile { Header = Loc.T("HomeToolsTitle"), Icon = "\uE90F", Padding = new Thickness(18, 16, 18, 14) };
+        BentoPanel.SetColSpan(tools, 4);
+        BentoPanel.SetRowSpan(tools, 4);
         var toolsStack = new StackPanel();
-        toolsStack.Children.Add(new TextBlock { Text = Loc.T("HomeToolsTitle"), Style = S("BfrHeadingText"), Margin = new Thickness(0, 0, 0, 10) });
         foreach (var (key, title) in new[] { ("organize", "ToolOrganizeTitle"), ("duplicates", "ToolDuplicatesTitle"), ("images", "ToolImagesTitle"), ("analyze", "ToolAnalyzeTitle") })
         {
             var toolKey = key;
@@ -98,36 +92,25 @@ internal sealed class HomePage : PageBase
         var more = new Button { Content = Loc.T("HomeToolsAll"), Style = S("BfrGhostButton"), HorizontalAlignment = HorizontalAlignment.Left };
         more.Click += (_, _) => _navigate("Tools");
         toolsStack.Children.Add(more);
-        tools.Child = toolsStack;
-        Grid.SetColumn(tools, 2);
-        Grid.SetRow(tools, 0);
+        tools.Content = toolsStack;
         grid.Children.Add(tools);
 
         // Theo dõi thư mục và Lịch sử.
-        var side = new UniformGrid { Columns = 2 };
-        side.Children.Add(LinkCard("HomeWatchTitle", "HomeWatchHint", "Watch", new Thickness(0, 0, 8, 0)));
-        side.Children.Add(LinkCard("HomeHistoryTitle", "HomeHistoryHint", "History", new Thickness(8, 0, 0, 0)));
-        Grid.SetColumn(side, 2);
-        Grid.SetRow(side, 2);
-        grid.Children.Add(side);
+        grid.Children.Add(LinkCard("HomeWatchTitle", "HomeWatchHint", "Watch", "\uE7B3"));
+        grid.Children.Add(LinkCard("HomeHistoryTitle", "HomeHistoryHint", "History", "\uE81C"));
 
         root.Children.Add(grid);
         return root;
     }
 
-    private Border LinkCard(string titleKey, string hintKey, string page, Thickness margin)
+    private GlassTile LinkCard(string titleKey, string hintKey, string page, string icon)
     {
-        var card = new Border { Style = S("BfrInteractiveCard"), Margin = margin, Padding = new Thickness(14) };
-        var stack = new StackPanel();
-        stack.Children.Add(new TextBlock { Text = Loc.T(titleKey), Style = S("BfrBodyText"), FontFamily = (System.Windows.Media.FontFamily)Application.Current.FindResource("BfrFontBodySemi") });
-        stack.Children.Add(new TextBlock { Text = Loc.T(hintKey), Style = S("BfrCaptionText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
-        card.Child = stack;
+        var card = new GlassTile { Header = Loc.T(titleKey), Icon = icon, IsInteractive = true, CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"), Padding = new Thickness(18, 14, 18, 12) };
+        BentoPanel.SetColSpan(card, 6);
+        BentoPanel.SetRowSpan(card, 2);
+        card.Content = new TextBlock { Text = Loc.T(hintKey), Style = S("BfrCaptionText"), TextWrapping = TextWrapping.Wrap };
         System.Windows.Automation.AutomationProperties.SetName(card, Loc.T(titleKey));
-        card.MouseLeftButtonUp += (_, _) => _navigate(page);
-        card.KeyDown += (_, e) =>
-        {
-            if (e.Key is Key.Enter or Key.Space) { _navigate(page); e.Handled = true; }
-        };
+        card.Invoked += (_, _) => _navigate(page);
         return card;
     }
 }

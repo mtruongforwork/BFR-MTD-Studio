@@ -168,6 +168,7 @@
     <sys:String x:Key="StatusApplying">Applying...</sys:String>
     <sys:String x:Key="StatusUndoing">Undoing...</sys:String>
     <sys:String x:Key="ApplySuccessMessage">Renamed {0}/{1} files.</sys:String>
+    <sys:String x:Key="InterruptedRunNotice">{0} earlier rename run(s) were interrupted. Click Undo to restore the original names, or open History.</sys:String>
     <sys:String x:Key="Cancel">Cancel</sys:String>
     <sys:String x:Key="MenuWatchFolder">Watch folder...</sys:String>
     <sys:String x:Key="MenuContextMenu">Explorer context menu...</sys:String>
@@ -472,6 +473,7 @@
     <sys:String x:Key="QuickUnknownPreset">Unknown quick-rename preset: {0}</sys:String>
     <sys:String x:Key="NavRename">Rename</sys:String>
     <sys:String x:Key="NavHome">Home</sys:String>
+    <sys:String x:Key="NavCollapseTip">Collapse / expand sidebar</sys:String>
     <sys:String x:Key="HomeTitle">What are we sorting today?</sys:String>
     <sys:String x:Key="HomeSubtitle">Drop files to rename, or jump straight to a tool.</sys:String>
     <sys:String x:Key="HomeDropTitle">Drop files or folders here</sys:String>
@@ -485,6 +487,11 @@
     <sys:String x:Key="HomeHistoryHint">Undo past changes.</sys:String>
     <sys:String x:Key="SettingsAccent">Accent palette</sys:String>
     <sys:String x:Key="SettingsMascot">Show the mascot (Tem)</sys:String>
+    <sys:String x:Key="SettingsReduceEffects">Reduce visual effects (no blur, glow or shadows)</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsHint">Turn on if the app feels slow or you use it over Remote Desktop.</sys:String>
+    <sys:String x:Key="SettingsReduceEffectsAuto">This PC has no graphics acceleration, so effects were turned off automatically to keep the app responsive.</sys:String>
+    <sys:String x:Key="UnexpectedErrorTitle">Something went wrong</sys:String>
+    <sys:String x:Key="UnexpectedErrorMessage">An unexpected error occurred. Your files were not affected and the app keeps running. Details were written to the error log.</sys:String>
     <sys:String x:Key="StepFiles">Choose files</sys:String>
     <sys:String x:Key="StepOptions">Options</sys:String>
     <sys:String x:Key="StepReview">Review</sys:String>
@@ -570,6 +577,7 @@
     <sys:String x:Key="CoreStatusRecovered">Recovered</sys:String>
     <sys:String x:Key="CoreStatusRecoveredErrors">Recovered with errors</sys:String>
     <sys:String x:Key="CoreStatusUndone">Undone</sys:String>
+    <sys:String x:Key="CoreStatusInterrupted">Interrupted</sys:String>
     <sys:String x:Key="NavTools">Tools</sys:String>
     <sys:String x:Key="ToolsEmptyResults">Add files, set the options, then click Preview.</sys:String>
     <sys:String x:Key="ToolsNothingToShow">Nothing to show.</sys:String>

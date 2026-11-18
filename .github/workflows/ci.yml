@@ -37,6 +37,12 @@ jobs:
       - name: Run ViewModel Tests (UI layer, không phụ thuộc WPF)
         run: dotnet test tests/BFR.Presentation.Tests/BFR.Presentation.Tests.csproj -c Release --no-build --verbosity normal
 
+      - name: Run UI Tests (bố cục BentoPanel/GlassTile, khoá tài nguyên mọi tổ hợp theme, STA)
+        run: dotnet test tests/BFR.App.UiTests/BFR.App.UiTests.csproj -c Release --no-build --verbosity normal
+
+      - name: Run Shell Tests (COM shell extension - lựa chọn lớn, dữ liệu Explorer lỗi, khởi chạy)
+        run: dotnet test tests/BFR.Shell.Tests/BFR.Shell.Tests.csproj -c Release -p:Platform=x64 --no-build --verbosity normal
+
       - name: Run CLI Tests (v2.0 tool commands)
         run: dotnet test tests/BFR.Cli.Tests/BFR.Cli.Tests.csproj -c Release --no-build --verbosity normal
 
@@ -85,11 +91,31 @@ jobs:
             Get-Process BFR.Shell -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           }
 
+      - name: Shell stress - đăng ký/gỡ menu chuột phải 50 vòng (Phase T5 / B10)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/Stability/shell-stress.ps1 -Layout artifacts/msix-layout -Iterations 50
+
       - name: UI Smoke Test (Add to Preview to Apply to Undo + Pro dialog + Regex + Palette)
         shell: powershell
         continue-on-error: true
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/smoke-ui.ps1 | Tee-Object -FilePath artifacts/smoke-ui.log
+
+      - name: UI Walk - đi qua mọi trang x 4 cấu hình (dark/light/safe-render/high-contrast), đo phản hồi, chụp ảnh
+        shell: powershell
+        # Bước mới (Phase T2): chạy ở chế độ báo cáo cho tới khi có vài lần chạy xanh trên runner, rồi bỏ continue-on-error để chặn.
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          powershell -ExecutionPolicy Bypass -File tests/Stability/walk-pages.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -OutDir artifacts/ui-walk -KillExisting
+
+      - name: Verify crash and hang logging (fault injection)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/Stability/verify-crash-logging.ps1 -Exe "src/BFR.App/bin/Release/net8.0-windows10.0.19041.0/BatchFileRenamer.exe" -KillExisting | Tee-Object -FilePath artifacts/crash-logging.log
 
       - name: Capture UI Screenshots (Upgrade states + Regex tester)
         shell: powershell
@@ -128,5 +154,6 @@ jobs:
             artifacts/*.json
             artifacts/*.md
             artifacts/msix-layout/
+            artifacts/ui-walk/
             docs/ui-upgrade/
           retention-days: 14
