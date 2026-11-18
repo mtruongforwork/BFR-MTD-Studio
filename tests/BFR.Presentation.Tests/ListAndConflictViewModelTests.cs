@@ -269,11 +269,14 @@ public class ListAndConflictViewModelTests : IDisposable
         var vm = await DuplicateSetup();
         vm.ResolveConflictsCommand.Execute(null);
         await vm.RebuildAsync();
+        // Từng fail một lần trên runner GitHub (2026-11-18, tệp còn nguyên, không tái hiện được trên máy dev): ghi lại trạng thái để lần sau biết lý do.
+        var before = string.Join("; ", vm.Rows.Select(r => $"{r.OldName}->{r.NewName} {r.Status} sel={r.IsSelected}"));
 
         await vm.ApplyAsync();
 
         var onDisk = Directory.GetFiles(_files).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "same (2).txt", "same.txt" }, onDisk);
+        Assert.True(onDisk.SequenceEqual(new[] { "same (2).txt", "same.txt" }),
+            $"Trên đĩa: [{string.Join(", ", onDisk)}]. Trước khi áp dụng: {before}. Kết quả: {vm.SuccessMessage}");
     }
 
     // ------------------------------------------------------------------ va chạm với tệp NGOÀI lô (lỗi có sẵn đã sửa)
