@@ -68,7 +68,8 @@ public class BentoLayoutTests
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var cells = BentoLayout.Place(12, items, out _);
-        Assert.True(sw.ElapsedMilliseconds < 1500, $"Xếp 5000 ô mất {sw.ElapsedMilliseconds} ms");
+        // Máy dev ~0,8 s, runner GitHub tới ~1,7 s. Ngưỡng chỉ để bắt kiểu quét lại từ hàng 0 (bình phương), app thật có ~10 ô.
+        Assert.True(sw.ElapsedMilliseconds < 5000, $"Xếp 5000 ô mất {sw.ElapsedMilliseconds} ms");
 
         var taken = new System.Collections.Generic.HashSet<(int, int)>();
         foreach (var c in cells)
