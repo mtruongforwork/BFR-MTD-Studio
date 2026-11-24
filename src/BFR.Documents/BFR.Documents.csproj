@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <PackageReference Include="PdfSharpCore" Version="1.3.65" />
+    <!-- PDFsharp 6.2.x (MIT) chỉ dùng để GHI/ĐỌC mã hóa AES (PdfSharpCore không hỗ trợ AES). KHÔNG nâng lên 6.5+: từ 6.5 giấy phép là AGPL-3.0. -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="PdfPig" Version="0.1.9" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
     <PackageReference Include="ClosedXML" Version="0.104.2" />

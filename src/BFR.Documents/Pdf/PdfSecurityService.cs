@@ -22,7 +22,7 @@ public sealed record PdfMetadataStripResult(
     int UnsafeActionsRemoved);
 
 /// <summary>
-/// Offline PDF security service: Protect (User/Owner password + permissions), Unlock,
+/// Offline PDF security service: Protect (User/Owner password + permissions, AES-128), Unlock (RC4 / AES-128 / AES-256),
 /// StripMetadata (Author/Title/Subject/Keywords/Creator/Producer/XMP), and StripUnsafeActions (/Launch, /JavaScript, /AA).
 /// </summary>
 public sealed class PdfSecurityService
@@ -57,22 +57,8 @@ public sealed class PdfSecurityService
         {
             ct.ThrowIfCancellationRequested();
             var readable = DocumentSafety.EnsureReadablePath(inputPath, out snapshot, out var usedSnapshot);
-            using var doc = string.IsNullOrEmpty(options.ExistingPassword)
-                ? PdfReader.Open(readable, PdfDocumentOpenMode.Modify)
-                : PdfReader.Open(readable, options.ExistingPassword, PdfDocumentOpenMode.Modify);
-
-            var sec = doc.SecuritySettings;
-            if (!string.IsNullOrEmpty(options.UserPassword)) sec.UserPassword = options.UserPassword;
-            sec.OwnerPassword = string.IsNullOrEmpty(options.OwnerPassword) ? options.UserPassword! : options.OwnerPassword;
-            sec.PermitPrint = options.PermitPrint;
-            sec.PermitFullQualityPrint = options.PermitPrint;
-            sec.PermitExtractContent = options.PermitExtractContent;
-            sec.PermitModifyDocument = options.PermitModifyDocument;
-            sec.PermitAnnotations = options.PermitAnnotations;
-            sec.PermitAssembleDocument = options.PermitModifyDocument;
-            sec.PermitFormsFill = options.PermitAnnotations;
-
-            doc.Save(tempOut);
+            // AES-128 thật (PDFsharp 6.2, MIT). Trước đây dùng PdfSharpCore chỉ ghi được RC4-128 trong khi giao diện/Store ghi "AES".
+            var pages = PdfAesEncryption.Protect(readable, tempOut, options);
             var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, options.RecordJournal, options.JournalDir);
             tempOut = string.Empty;
 
@@ -80,7 +66,7 @@ public sealed class PdfSecurityService
                 outputPath: finalOut,
                 inputBytes: inputBytes,
                 outputBytes: DocumentSafety.SafeFileLength(finalOut),
-                pagesProcessed: doc.PageCount,
+                pagesProcessed: pages,
                 usedSnapshotCopy: usedSnapshot,
                 journalPath: journal);
         }
@@ -88,7 +74,7 @@ public sealed class PdfSecurityService
         {
             return DocumentResult.Fail(DocumentErrorCode.Cancelled, "Protect operation cancelled.");
         }
-        catch (PdfReaderException ex) when (PdfOrganizer.IsPasswordError(ex))
+        catch (Exception ex) when ((ex is PdfReaderException || ex is PdfSharp.Pdf.IO.PdfReaderException) && PdfAesEncryption.IsPasswordError(ex))
         {
             return DocumentResult.Fail(DocumentErrorCode.PasswordRequired, "Source PDF requires a password.");
         }
@@ -134,16 +120,28 @@ public sealed class PdfSecurityService
         {
             ct.ThrowIfCancellationRequested();
             var readable = DocumentSafety.EnsureReadablePath(inputPath, out snapshot, out var usedSnapshot);
-            using var src = PdfReader.Open(readable, password, PdfDocumentOpenMode.Import);
-            using var dst = new PdfDocument();
-
-            for (var i = 0; i < src.PageCount; i++)
+            int pages;
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                dst.AddPage(src.Pages[i]);
+                using var src = PdfReader.Open(readable, password, PdfDocumentOpenMode.Import);
+                using var dst = new PdfDocument();
+
+                for (var i = 0; i < src.PageCount; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    dst.AddPage(src.Pages[i]);
+                }
+
+                dst.Save(tempOut);
+                pages = dst.PageCount;
+            }
+            catch (InvalidOperationException) when (PdfAesEncryption.ContainsAes256Marker(readable))
+            {
+                // PdfSharpCore không đọc được AES-256 (Acrobat, Word "Mã hoá bằng mật khẩu"...) và báo "không phải PDF hợp lệ".
+                // Tệp không hỏng: để PDFsharp 6 mở nó.
+                pages = PdfAesEncryption.UnlockToFile(readable, password, tempOut, ct);
             }
 
-            dst.Save(tempOut);
             var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, recordJournal, journalDir);
             tempOut = string.Empty;
 
@@ -151,7 +149,7 @@ public sealed class PdfSecurityService
                 outputPath: finalOut,
                 inputBytes: inputBytes,
                 outputBytes: DocumentSafety.SafeFileLength(finalOut),
-                pagesProcessed: dst.PageCount,
+                pagesProcessed: pages,
                 usedSnapshotCopy: usedSnapshot,
                 journalPath: journal);
         }
@@ -159,7 +157,7 @@ public sealed class PdfSecurityService
         {
             return DocumentResult.Fail(DocumentErrorCode.Cancelled, "Unlock cancelled.");
         }
-        catch (PdfReaderException ex) when (PdfOrganizer.IsPasswordError(ex))
+        catch (Exception ex) when ((ex is PdfReaderException || ex is PdfSharp.Pdf.IO.PdfReaderException) && PdfAesEncryption.IsPasswordError(ex))
         {
             return DocumentResult.Fail(DocumentErrorCode.PasswordRequired, "Incorrect password for PDF.");
         }
