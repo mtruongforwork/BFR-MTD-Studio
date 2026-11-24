@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\BFR.Documents\BFR.Documents.csproj" />
     <ProjectReference Include="..\..\src\BFR.Core\BFR.Core.csproj" />
     <ProjectReference Include="..\..\src\BFR.Media\BFR.Media.csproj" />
+    <ProjectReference Include="..\..\src\BFR.Presentation\BFR.Presentation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
