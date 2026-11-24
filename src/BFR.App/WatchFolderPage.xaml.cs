@@ -67,6 +67,19 @@ public class WatchFolderPage : PageBase
     private bool _loading;
     private WatchRule? Selected => _ruleList.SelectedItem as WatchRule;
 
+    /// <summary>True khi dịch vụ Watch Folder đang chạy nền.</summary>
+    public bool IsRunning => _manager is not null;
+
+    /// <summary>Số quy tắc đang bật.</summary>
+    public int EnabledRuleCount => _rules.Count(r => r.Enabled);
+
+    /// <summary>Bật/tắt nhanh dịch vụ theo dõi (dùng từ thẻ HomePage).</summary>
+    public void ToggleRunning()
+    {
+        if (_manager is not null) Stop();
+        else Start();
+    }
+
     public WatchFolderPage(PresetStore presetStore, LicenseService license)
     {
         _presetStore = presetStore;
@@ -355,9 +368,14 @@ public class WatchFolderPage : PageBase
             _settleBox.Text = rule.SettleDelayMs.ToString();
             _includeBox.Text = rule.IncludeGlob ?? string.Empty;
             _excludeBox.Text = rule.ExcludeGlob ?? string.Empty;
+            _workflowFileBox.Text = rule.WorkflowFilePath ?? string.Empty;
 
-            // Suy ra kiểu quy trình từ các bước đã lưu.
-            if (rule.Steps is [RenameStep rename])
+            // Suy ra kiểu quy trình từ tệp workflow đã lưu hoặc danh sách bước.
+            if (!string.IsNullOrWhiteSpace(rule.WorkflowFilePath))
+            {
+                _kindCombo.SelectedIndex = 3;
+            }
+            else if (rule.Steps is [RenameStep rename])
             {
                 _kindCombo.SelectedIndex = 0;
                 var presets = _presetCombo.ItemsSource as List<PresetChoice>;
@@ -412,12 +430,14 @@ public class WatchFolderPage : PageBase
         {
             case "photos":
             case "tidy":
+                rule.WorkflowFilePath = null;
                 rule.Steps = WorkflowTool.Templates().First(t => t.Value == kind).Definition.Steps.ToList();
                 break;
             case "file":
-                // Tệp workflow được nạp và kiểm tra khi bắt đầu theo dõi.
+                rule.WorkflowFilePath = string.IsNullOrWhiteSpace(_workflowFileBox.Text) ? null : _workflowFileBox.Text.Trim();
                 break;
             default:
+                rule.WorkflowFilePath = null;
                 if (_presetCombo.SelectedItem is PresetChoice choice) rule.Steps = new List<WorkflowStep> { new RenameStep(choice.Preset) };
                 break;
         }
@@ -449,13 +469,14 @@ public class WatchFolderPage : PageBase
             {
                 Id = rule.Id, Name = rule.Name, Enabled = rule.Enabled, Folder = rule.Folder, Recursive = rule.Recursive,
                 IncludeGlob = rule.IncludeGlob, ExcludeGlob = rule.ExcludeGlob, SettleDelayMs = rule.SettleDelayMs,
-                MaxFilesPerBatch = rule.MaxFilesPerBatch, DryRun = rule.DryRun, Steps = rule.Steps.ToList()
+                MaxFilesPerBatch = rule.MaxFilesPerBatch, DryRun = rule.DryRun, WorkflowFilePath = rule.WorkflowFilePath,
+                Steps = rule.Steps.ToList()
             };
 
-            // Quy tắc dùng tệp workflow: nạp và kiểm tra ngay để báo lỗi rõ ràng trước khi chạy nền.
-            if (rule.Enabled && IsFileKind(rule))
+            // Quy tắc dùng tệp workflow: nạp theo đường dẫn lưu riêng trên từng rule để chạy song song nhiều rule.
+            if (rule.Enabled && !string.IsNullOrWhiteSpace(rule.WorkflowFilePath))
             {
-                try { copy.Steps = WorkflowSerializer.Parse(File.ReadAllText(_workflowFileBox.Text)).Steps; }
+                try { copy.Steps = WorkflowSerializer.Parse(File.ReadAllText(rule.WorkflowFilePath)).Steps; }
                 catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidDataException or ArgumentException or IOException)
                 {
                     _status.Text = Loc.F("CoreToolWorkflowBad", ex.Message);
@@ -466,9 +487,6 @@ public class WatchFolderPage : PageBase
         }
         return rules;
     }
-
-    private bool IsFileKind(WatchRule rule) =>
-        ReferenceEquals(rule, Selected) && (_kindCombo.SelectedItem as KindChoice)?.Value == "file";
 
     private void Start()
     {

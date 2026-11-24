@@ -91,6 +91,7 @@ public static class ArchiveExtractor
             }
 
             var work = $"{tempRoot.TrimEnd('\\', '/')}{sep}{index:D4}";
+            var keepWork = false;
             try
             {
                 var archiveOps = new List<Operation>();
@@ -98,25 +99,27 @@ public static class ArchiveExtractor
                 if (reason is not null)
                 {
                     rejected.Add(new RejectedArchive(zipPath, reason));
-                    CleanDir(fs, work);
                     continue;
                 }
 
-                if (archiveOps.Count == 0) { CleanDir(fs, work); continue; }
+                if (archiveOps.Count == 0) continue;
 
                 if (options.Layout == ExtractLayout.OwnFolder || !fs.DirectoryExists(destFolder)) ops.Add(Operation.CreateDir(destFolder));
                 ops.AddRange(archiveOps);
                 total += written;
+                keepWork = true;
             }
             catch (OperationCanceledException)
             {
-                CleanDir(fs, work);
                 throw;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
             {
                 rejected.Add(new RejectedArchive(zipPath, ex.Message));
-                CleanDir(fs, work);
+            }
+            finally
+            {
+                if (!keepWork) CleanDir(fs, work);
             }
         }
 
@@ -146,11 +149,16 @@ public static class ArchiveExtractor
                 return 0;
             }
 
-            long declared = entries.Sum(e => e.Length);
-            if (declared > options.MaxTotalBytes)
+            long declared = 0;
+            foreach (var entry in entries)
             {
-                reason = CoreText.Get("CoreZipTooLarge", "ZIP giải nén ra quá lớn (nghi zip bomb)");
-                return 0;
+                var len = entry.Length;
+                if (len < 0 || len > options.MaxTotalBytes - declared)
+                {
+                    reason = CoreText.Get("CoreZipTooLarge", "ZIP giải nén ra quá lớn (nghi zip bomb)");
+                    return 0;
+                }
+                declared += len;
             }
             if (declared > RatioCheckFloor && declared / zipLength > options.MaxRatio)
             {

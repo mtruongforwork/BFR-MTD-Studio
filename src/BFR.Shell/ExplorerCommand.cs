@@ -149,19 +149,20 @@ public static class ExplorerCommandLauncher
 
     public static string? FindAppExecutable()
     {
+#if DEBUG
         var overridePath = Environment.GetEnvironmentVariable("BFR_APP_PATH");
-        var candidates = new[]
+        if (!string.IsNullOrWhiteSpace(overridePath) && File.Exists(overridePath))
         {
-            overridePath,
-            Path.Combine(AppContext.BaseDirectory, AppExecutableName),
-            Path.Combine(Path.GetDirectoryName(typeof(ExplorerCommand).Assembly.Location) ?? string.Empty, AppExecutableName)
-        };
-
-        foreach (var candidate in candidates)
+            return Path.GetFullPath(overridePath);
+        }
+#endif
+        var candidate = Path.Combine(AppContext.BaseDirectory, AppExecutableName);
+        if (File.Exists(candidate))
         {
-            if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
+            var full = Path.GetFullPath(candidate);
+            if (string.Equals(Path.GetFileName(full), AppExecutableName, StringComparison.OrdinalIgnoreCase))
             {
-                return Path.GetFullPath(candidate);
+                return full;
             }
         }
 
@@ -188,10 +189,12 @@ public static class ExplorerCommandLauncher
 
     /// <param name="quickKey">Khoá preset đổi tên nhanh; null = mở BFR bình thường.</param>
     /// <param name="toolKey">Khoá công cụ tệp (organize, duplicates...); mở trang Công cụ với các tệp đã chọn.</param>
-    public static int Launch(IReadOnlyCollection<string> paths, string? quickKey = null, string? toolKey = null)
+    public static int Launch(IReadOnlyCollection<string> paths, string? quickKey = null, string? toolKey = null) =>
+        LaunchCore(paths, quickKey, toolKey, FindAppExecutable());
+
+    internal static int LaunchCore(IReadOnlyCollection<string> paths, string? quickKey, string? toolKey, string? app)
     {
-        var app = FindAppExecutable();
-        if (app is null) return HResult.E_FILE_NOT_FOUND;
+        if (string.IsNullOrWhiteSpace(app) || !File.Exists(app)) return HResult.E_FILE_NOT_FOUND;
 
         // Đổi tên nhanh mà không có tệp nào được chọn (ví dụ bấm vào nền thư mục): không làm gì.
         if ((quickKey is not null || toolKey is not null) && paths.Count == 0) return HResult.S_OK;
@@ -225,7 +228,7 @@ public static class ExplorerCommandLauncher
                 startInfo.ArgumentList.Add(toolKey);
             }
 
-            Process.Start(startInfo);
+            using var proc = Process.Start(startInfo);
             return HResult.S_OK;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)

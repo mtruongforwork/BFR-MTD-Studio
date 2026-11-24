@@ -13,6 +13,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Tiêu đề -->
@@ -25,39 +26,79 @@
 
         <!-- Bảng + trạng thái rỗng -->
         <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{DynamicResource BfrRadiusTile}" Padding="12">
-        <Grid>
-            <DataGrid x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                      CanUserAddRows="False" HeadersVisibility="Column"
-                      Style="{StaticResource PreviewDataGridStyle}"
-                      ColumnHeaderStyle="{StaticResource PreviewHeaderStyle}"
-                      CellStyle="{StaticResource PreviewCellStyle}"
-                      RowStyle="{StaticResource PreviewRowStyle}"
-                      AutomationProperties.Name="Rename Runs History Table">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{Binding Id}" Width="90" Header="{DynamicResource HistoryColId}" />
-                    <DataGridTextColumn Binding="{Binding StartedUtc, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="160" Header="{DynamicResource HistoryColTime}" />
-                    <DataGridTextColumn Binding="{Binding Total}" Width="70" Header="{DynamicResource HistoryColTotal}" />
-                    <DataGridTextColumn Binding="{Binding Succeeded}" Width="70" Header="{DynamicResource HistoryColOk}" />
-                    <DataGridTextColumn Binding="{Binding Failed}" Width="70" Header="{DynamicResource HistoryColFailed}" />
-                    <DataGridTextColumn Binding="{Binding StatusText}" Width="110" Header="{DynamicResource HistoryColStatus}" />
-                    <DataGridTextColumn Binding="{Binding PresetText}" Width="*" Header="{DynamicResource HistoryColPreset}" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Grid>
+                <DataGrid x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserAddRows="False" HeadersVisibility="Column"
+                          SelectionMode="Single"
+                          SelectionChanged="HistoryGrid_SelectionChanged"
+                          Style="{StaticResource PreviewDataGridStyle}"
+                          ColumnHeaderStyle="{StaticResource PreviewHeaderStyle}"
+                          CellStyle="{StaticResource PreviewCellStyle}"
+                          RowStyle="{StaticResource PreviewRowStyle}"
+                          AutomationProperties.Name="Rename Runs History Table">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Binding="{Binding Id}" Width="90" Header="{DynamicResource HistoryColId}" />
+                        <DataGridTextColumn Binding="{Binding TimeDisplay}" Width="190" Header="{DynamicResource HistoryColTime}" />
+                        <DataGridTextColumn Binding="{Binding Total}" Width="66" Header="{DynamicResource HistoryColTotal}" />
+                        <DataGridTextColumn Binding="{Binding Succeeded}" Width="66" Header="{DynamicResource HistoryColOk}" />
+                        <DataGridTextColumn Binding="{Binding Failed}" Width="66" Header="{DynamicResource HistoryColFailed}" />
+                        <DataGridTextColumn Binding="{Binding StatusText}" Width="110" Header="{DynamicResource HistoryColStatus}" />
+                        <DataGridTextColumn Binding="{Binding PresetText}" Width="*" Header="{DynamicResource HistoryColPreset}" />
+                    </DataGrid.Columns>
+                </DataGrid>
 
-            <HeaderedContentControl x:Name="EmptyText" Style="{StaticResource BfrEmptyState}" Header="{DynamicResource HistoryEmptyTitle}"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                                    AutomationProperties.Name="History Empty">
-                <TextBlock Text="{DynamicResource HistoryEmpty}" TextWrapping="Wrap" TextAlignment="Center" />
-            </HeaderedContentControl>
-        </Grid>
+                <HeaderedContentControl x:Name="EmptyText" Style="{StaticResource BfrEmptyState}" Header="{DynamicResource HistoryEmptyTitle}"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        AutomationProperties.Name="History Empty">
+                    <TextBlock Text="{DynamicResource HistoryEmpty}" TextWrapping="Wrap" TextAlignment="Center" />
+                </HeaderedContentControl>
+            </Grid>
+        </Border>
+
+        <!-- Ngăn xem trước Hoàn tác (Current -> Original) -->
+        <Border x:Name="PreviewDrawer" Grid.Row="2" Margin="0,10,0,0" Visibility="Collapsed"
+                Background="{DynamicResource BfrGlassFillStrong}" BorderBrush="{DynamicResource BfrGlassRim}"
+                BorderThickness="1" CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                    <ui:Button DockPanel.Dock="Right" Content="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               Appearance="Transparent" Padding="6,2" Click="ClosePreview_Click"
+                               AutomationProperties.Name="Close Undo Preview" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="PreviewTitle" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="PreviewSummary" Margin="10,0,0,0" Foreground="{DynamicResource TextSecondary}" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                </DockPanel>
+
+                <DataGrid x:Name="PreviewPairsGrid" Grid.Row="1" MaxHeight="170"
+                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                          HeadersVisibility="Column"
+                          Style="{StaticResource PreviewDataGridStyle}"
+                          ColumnHeaderStyle="{StaticResource PreviewHeaderStyle}"
+                          CellStyle="{StaticResource PreviewCellStyle}"
+                          RowStyle="{StaticResource PreviewRowStyle}"
+                          AutomationProperties.Name="Undo Preview Pairs">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn x:Name="ColCurrentName" Binding="{Binding CurrentName}" Width="*" />
+                        <DataGridTextColumn Binding="{Binding Arrow}" Width="34" />
+                        <DataGridTextColumn x:Name="ColOriginalName" Binding="{Binding OriginalName}" Width="*" />
+                        <DataGridTextColumn x:Name="ColState" Binding="{Binding StateText}" Width="110" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
         </Border>
 
         <!-- Thanh hành động -->
-        <DockPanel Grid.Row="2" Margin="0,12,0,0" LastChildFill="False">
+        <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="False">
             <ui:Button Content="{DynamicResource RefreshHistory}" Click="Refresh_Click"
                     Appearance="Secondary" Margin="0,0,8,0"
                     AutomationProperties.Name="Refresh History List" />
-            <ui:Button Content="{DynamicResource UndoSelected}" Click="Undo_Click"
+            <ui:Button x:Name="UndoButton" Content="{DynamicResource UndoSelected}" Click="Undo_Click"
                     Appearance="Primary" FontWeight="SemiBold"
                     AutomationProperties.Name="Undo Selected Run" />
         </DockPanel>

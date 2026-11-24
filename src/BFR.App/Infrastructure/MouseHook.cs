@@ -21,12 +21,16 @@ public sealed class MouseHook : IDisposable
     private const int WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
     private const int WM_QUIT = 0x0012;
     private const int VK_LBUTTON = 0x01;
-    private const uint GA_ROOT = 2;
+    private const uint PM_NOREMOVE = 0x0000;
 
     private delegate nint HookProc(int nCode, nint wParam, nint lParam);
+    private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MSLLHOOKSTRUCT { public POINT Pt; public uint MouseData, Flags, Time; public nint ExtraInfo; }
@@ -40,9 +44,13 @@ public sealed class MouseHook : IDisposable
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern nint GetModuleHandle(string? name);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] private static extern int GetMessage(out MSG msg, nint hWnd, uint min, uint max);
+    [DllImport("user32.dll")] private static extern bool PeekMessage(out MSG msg, nint hWnd, uint min, uint max, uint removeMsg);
     [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint threadId, int msg, nint w, nint l);
-    [DllImport("user32.dll")] private static extern nint WindowFromPoint(POINT pt);
-    [DllImport("user32.dll")] private static extern nint GetAncestor(nint hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool IsIconic(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(nint hwnd, out RECT rect);
+    [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
 
@@ -92,7 +100,9 @@ public sealed class MouseHook : IDisposable
         nint handle = 0;
         try
         {
-            handle = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(Process.GetCurrentProcess().MainModule?.ModuleName), 0);
+            // Tạo sẵn message queue trước _ready.Set() để Dispose() gọi PostThreadMessage(WM_QUIT) không bao giờ hụt.
+            PeekMessage(out _, 0, 0, 0, PM_NOREMOVE);
+            handle = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(null), 0);
             if (handle == 0) _startError = new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
             _threadId = GetCurrentThreadId();
         }
@@ -161,12 +171,31 @@ public sealed class MouseHook : IDisposable
 
     private bool IsOwnWindow(POINT pt)
     {
-        var hwnd = WindowFromPoint(pt);
-        if (hwnd == 0) return false;
-        var root = GetAncestor(hwnd, GA_ROOT);
-        GetWindowThreadProcessId(root != 0 ? root : hwnd, out var pid);
-        return pid == _ownPid;
+        // Không gọi WindowFromPoint trong WH_MOUSE_LL vì nó gửi WM_NCHITTEST đồng bộ sang tiến trình khác (gây khựng chuột nếu cửa sổ đó đang treo).
+        // Chỉ đọc trực tiếp rect & PID từ win32k: nhanh và không bao giờ chờ tiến trình khác.
+        var fg = GetForegroundWindow();
+        if (fg != 0 && IsWindowVisible(fg) && !IsIconic(fg) && GetWindowRect(fg, out var fgRect) && Contains(fgRect, pt))
+        {
+            GetWindowThreadProcessId(fg, out var fgPid);
+            if (fgPid == _ownPid) return true;
+        }
+
+        var hitOwn = false;
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) return true;
+            if (!GetWindowRect(hwnd, out var r) || r.Right <= r.Left || r.Bottom <= r.Top) return true;
+            if (!Contains(r, pt)) return true;
+
+            GetWindowThreadProcessId(hwnd, out var pid);
+            hitOwn = pid == _ownPid;
+            return false; // dừng tại cửa sổ trên cùng theo Z-order chứa điểm bấm
+        }, 0);
+        return hitOwn;
     }
+
+    private static bool Contains(RECT r, POINT pt) =>
+        pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom;
 
     public void Dispose()
     {

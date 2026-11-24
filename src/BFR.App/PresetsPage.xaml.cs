@@ -92,7 +92,28 @@ public class PresetsPage : PageBase
         _list = new ListBox
         {
             Style = (Style)Application.Current.FindResource("AppListBoxStyle"),
-            DisplayMemberPath = nameof(Preset.DisplayName)
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
+                <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+                  <Grid Margin="2,4">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding DisplayDescription}" FontSize="11.5"
+                                 Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <Border Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Padding="7,2" CornerRadius="6"
+                            Background="{DynamicResource ChipBackground}" BorderBrush="{DynamicResource ChipBorder}" BorderThickness="1">
+                      <TextBlock Text="{Binding Rules.Count, StringFormat={}{0} rules}" FontSize="11"
+                                 Foreground="{DynamicResource TextSecondary}" />
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+                """)
         };
         _list.SelectionChanged += (_, _) => UpdateStatus();
         AutomationProperties.SetName(_list, "Saved presets");
@@ -181,7 +202,8 @@ public class PresetsPage : PageBase
 
     private void UpdateStatus()
     {
-        var count = _store.LoadAll().Count;
+        // Dùng _all.Count đã cache trong bộ nhớ, không đọc đĩa lại mỗi lần đổi lựa chọn.
+        var count = _all.Count;
         if (count == 0)
         {
             _status.Text = Loc.T("LibraryEmpty");
@@ -225,6 +247,14 @@ public class PresetsPage : PageBase
     private void DeleteSelected()
     {
         if (_list.SelectedItem is not Preset preset) return;
+
+        var confirmTemplate = Application.Current?.TryFindResource("PresetDeleteConfirm") as string
+            ?? "Delete preset \"{0}\"?";
+        var owner = Window.GetWindow(this);
+        var answer = owner is not null
+            ? MessageBox.Show(owner, string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+            : MessageBox.Show(string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
 
         _store.Delete(preset.Name);
         Refresh();

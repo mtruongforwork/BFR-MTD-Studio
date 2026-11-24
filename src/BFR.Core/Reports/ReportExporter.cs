@@ -80,13 +80,23 @@ public static class ReportExporter
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
-    private static string Csv(string? value)
+    /// <summary>
+    /// Escape ô CSV theo RFC 4180 đồng thời trung hoà CSV Formula Injection (CWE-1236, SEC-4):
+    /// chuỗi bắt đầu bằng <c>=</c>, <c>+</c>, <c>-</c>, <c>@</c>, <c>\t</c>, <c>\r</c> được thêm tiền tố <c>'</c>.
+    /// </summary>
+    public static string EscapeCsv(string? value)
     {
         var text = value ?? string.Empty;
+        if (text.Length > 0 && text[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+        {
+            text = "'" + text;
+        }
         if (text.Contains('"') || text.Contains(',') || text.Contains('\n') || text.Contains('\r'))
         {
             return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
         return text;
     }
+
+    private static string Csv(string? value) => EscapeCsv(value);
 }

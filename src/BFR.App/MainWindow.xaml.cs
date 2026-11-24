@@ -99,19 +99,82 @@ public partial class MainWindow : FluentWindow
         };
         Closed += (_, _) =>
         {
+            Loc.LanguageChanged -= OnLanguageChanged;
+            _collectorTimer.Stop();
             _shakeHook?.Dispose();
             _hotkey?.Dispose();
+            _radialHotkey?.Dispose();
+            _radial?.Close();
             foreach (var page in _pages.Values) page.Shutdown();
             _shakeHook = null;
+            _hotkey = null;
+            _radialHotkey = null;
+            _radial = null;
             _shelf?.Close();
         };
         ShelfButtonText.Text = Loc.T("ShelfButton");
         ShelfButton.ToolTip = Loc.T("ShelfTooltip");
 
+        Loc.LanguageChanged += OnLanguageChanged;
         _vm.ProLimitReached += (_, feature) => ShowUpgradeDialog(feature);
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
         Loaded += (_, _) => (Application.Current as App)?.ApplyBackgroundSetting();
 
         if (_vm.IsEmptyStateVisible) _ = _vm.RebuildAsync();
+    }
+
+    private void OnLanguageChanged(string _)
+    {
+        ShelfButtonText.Text = Loc.T("ShelfButton");
+        ShelfButton.ToolTip = Loc.T("ShelfTooltip");
+        UpdateLicenseState();
+        NameTitleBarButtons();
+
+        // Huỷ cache các trang cũ để áp dụng ngôn ngữ mới ngay lập tức không cần khởi động lại.
+        foreach (var page in _pages.Values)
+        {
+            page.Shutdown();
+            PageHost.Children.Remove(page);
+        }
+        _pages.Clear();
+
+        if (_currentPage != "Rename")
+        {
+            var rebuilt = GetPage(_currentPage);
+            rebuilt.Visibility = Visibility.Visible;
+            rebuilt.OnShown();
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.IsBusy)
+            or nameof(MainViewModel.HasSuccessMessage)
+            or nameof(MainViewModel.ErrorCount)
+            or nameof(MainViewModel.Rows))
+        {
+            SyncMascotMood();
+        }
+        else if (e.PropertyName == nameof(MainViewModel.Filter))
+        {
+            SyncFilterUi();
+        }
+    }
+
+    private void SyncMascotMood()
+    {
+        var state = _vm.IsBusy
+            ? Controls.TemState.Working
+            : _vm.HasSuccessMessage
+                ? Controls.TemState.Happy
+                : _vm.ErrorCount > 0
+                    ? Controls.TemState.Oops
+                    : Controls.TemState.Idle;
+        EmptyMascot.SetMood(state);
+        if (_pages.TryGetValue("Home", out var hp) && hp is HomePage home)
+        {
+            home.Mascot?.SetMood(state);
+        }
     }
 
     // ----------------------------------------------------------------- API cho App
@@ -143,6 +206,7 @@ public partial class MainWindow : FluentWindow
         TierBadgeText.Text = status.IsTrial ? Loc.T("TierTrial") : Loc.T(status.IsPro ? "TierPro" : "TierFree");
         UpgradeButton.Visibility = status.IsPro ? Visibility.Collapsed : Visibility.Visible;
         TierBadge.ToolTip = status.IsPro ? Loc.T("LicenseInfoTitle") : Loc.T("UpgradeHeader");
+        _vm.RefreshLicenseState();
     }
 
     /// <summary>Bấm badge cấp: nếu đã là Pro thì mở màn hình thông tin license.</summary>
@@ -414,12 +478,53 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private bool _syncingFilter;
+
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {
+        if (_syncingFilter) return;
         if (sender is RadioButton { Tag: string tag }
             && Enum.TryParse<PreviewFilter>(tag, out var filter))
         {
             _vm.Filter = filter;
+            SyncFilterUi();
+        }
+    }
+
+    private void KpiTile_Invoked(object? sender, EventArgs e)
+    {
+        if (sender is Controls.GlassTile { Tag: string tag }
+            && Enum.TryParse<PreviewFilter>(tag, out var filter))
+        {
+            // Bấm lại ô đang chọn sẽ quay về "Tất cả".
+            _vm.Filter = _vm.Filter == filter ? PreviewFilter.All : filter;
+            SyncFilterUi();
+        }
+    }
+
+    private void SyncFilterUi()
+    {
+        _syncingFilter = true;
+        try
+        {
+            var f = _vm.Filter;
+            FilterAll.IsChecked = f == PreviewFilter.All;
+            FilterWillChange.IsChecked = f == PreviewFilter.WillChange;
+            FilterUnchanged.IsChecked = f == PreviewFilter.Unchanged;
+            FilterProblems.IsChecked = f == PreviewFilter.Problems;
+
+            var accent = TryFindResource("BfrAccFg") as Brush ?? Brushes.DeepSkyBlue;
+            var bad = TryFindResource("BfrBad") as Brush ?? accent;
+            KpiWillChange.IsActive = f == PreviewFilter.WillChange;
+            KpiUnchanged.IsActive = f == PreviewFilter.Unchanged;
+            KpiProblems.IsActive = f == PreviewFilter.Problems;
+            KpiWillChangeRing.BorderBrush = f == PreviewFilter.WillChange ? accent : Brushes.Transparent;
+            KpiUnchangedRing.BorderBrush = f == PreviewFilter.Unchanged ? accent : Brushes.Transparent;
+            KpiProblemsRing.BorderBrush = f == PreviewFilter.Problems ? bad : Brushes.Transparent;
+        }
+        finally
+        {
+            _syncingFilter = false;
         }
     }
 
@@ -433,6 +538,15 @@ public partial class MainWindow : FluentWindow
     {
         var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
 
+        menu.Items.Add(MenuItem(Loc.T("MenuCopyNamesClipboard"), CopyNamesClipboard_Click));
+        menu.Items.Add(MenuItem(Loc.T("MenuExportNamesCsv"), ExportNamesCsv_Click));
+        menu.Items.Add(MenuItem(Loc.T("MenuPasteNamesClipboard"), PasteNamesClipboard_Click));
+        menu.Items.Add(MenuItem(Loc.T("MenuImportNamesCsv"), ImportNamesCsv_Click));
+        if (_vm.HasManualOverrides)
+        {
+            menu.Items.Add(MenuItem(Loc.T("MenuClearManualNames"), ClearManualNames_Click));
+        }
+        menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem(Loc.T("MenuWatchFolder"), WatchFolder_Click));
         menu.Items.Add(MenuItem(Loc.T("MenuContextMenu"), ContextMenu_Click));
         menu.Items.Add(new Separator());
@@ -447,6 +561,67 @@ public partial class MainWindow : FluentWindow
         menu.PlacementTarget = (FrameworkElement)sender;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen = true;
+    }
+
+    private void CopyNamesClipboard_Click(object sender, RoutedEventArgs e)
+    {
+        var csv = _vm.ExportNamesToCsvText();
+        if (string.IsNullOrWhiteSpace(csv)) return;
+        Clipboard.SetText(csv);
+        StatusText.Text = Loc.F("NamesCopiedClipboard", _vm.Rows.Count);
+    }
+
+    private void ExportNamesCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.Rows.Count == 0) return;
+        var dialog = new SaveFileDialog
+        {
+            Filter = "CSV (*.csv)|*.csv|Text (*.txt)|*.txt",
+            FileName = "bfr-names-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, _vm.ExportNamesToCsvText(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            StatusText.Text = Loc.F("NamesExportedCsv", dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void PasteNamesClipboard_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Clipboard.ContainsText()) return;
+        var applied = _vm.ImportNewNamesFromCsvText(Clipboard.GetText());
+        StatusText.Text = Loc.F("NamesImportedCount", applied);
+    }
+
+    private void ImportNamesCsv_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "CSV / Text (*.csv;*.txt;*.tsv)|*.csv;*.txt;*.tsv|All files (*.*)|*.*",
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var text = File.ReadAllText(dialog.FileName);
+            var applied = _vm.ImportNewNamesFromCsvText(text);
+            StatusText.Text = Loc.F("NamesImportedCount", applied);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ClearManualNames_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.ClearAllManualOverrides();
+        StatusText.Text = Loc.T("ManualNamesCleared");
     }
 
     private static MenuItem MenuItem(string header, RoutedEventHandler handler)
@@ -515,9 +690,39 @@ public partial class MainWindow : FluentWindow
         if (chosen is not null) _vm.AddRule(chosen);
     }
 
+    /// <summary>Gắn thanh chọn TokenPickerBar ngay dưới ô nhập Template.</summary>
+    private void TokenPickerHost_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContentControl host) return;
+        if (host.DataContext is not RuleParameterViewModel param || !string.Equals(param.Key, "template", StringComparison.Ordinal))
+        {
+            host.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (host.Content is null && VisualTreeHelper.GetParent(host) is StackPanel panel)
+        {
+            var targetBox = FindVisualChild<TextBox>(panel, "ParamTextBox");
+            if (targetBox is not null)
+            {
+                host.Content = new Controls.TokenPickerBar(targetBox);
+            }
+        }
+        host.Visibility = Visibility.Visible;
+    }
+
     private void RuleToggleExpand_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: RuleCardViewModel card }) card.IsExpanded = !card.IsExpanded;
+    }
+
+    private void RuleHeader_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: RuleCardViewModel card })
+        {
+            card.IsExpanded = !card.IsExpanded;
+            e.Handled = true;
+        }
     }
 
     private void RuleDelete_Click(object sender, RoutedEventArgs e)
@@ -539,6 +744,24 @@ public partial class MainWindow : FluentWindow
         System.Windows.Automation.AutomationProperties.SetName(expandItem, "Rule menu expand");
         expandItem.Click += (_, _) => card.IsExpanded = !card.IsExpanded;
         menu.Items.Add(expandItem);
+
+        var cloneItem = new MenuItem
+        {
+            Header = Loc.T("RuleClone"),
+            Style = (Style)FindResource("AppMenuItemStyle")
+        };
+        cloneItem.Click += (_, _) => _vm.CloneRule(card);
+        menu.Items.Add(cloneItem);
+
+        var resetItem = new MenuItem
+        {
+            Header = Loc.T("RuleReset"),
+            Style = (Style)FindResource("AppMenuItemStyle")
+        };
+        resetItem.Click += (_, _) => _vm.ResetRule(card);
+        menu.Items.Add(resetItem);
+
+        menu.Items.Add(new Separator());
 
         var upItem = new MenuItem
         {
@@ -594,26 +817,72 @@ public partial class MainWindow : FluentWindow
         if (element.DataContext is not RuleCardViewModel card) return;
         if (e.ChangedButton != MouseButton.Left) return;
 
-        var data = new DataObject(typeof(RuleCardViewModel), card);
-        DragDrop.DoDragDrop(element, data, DragDropEffects.Move);
+        var cardBorder = FindVisualAncestor<Border>(element, "CardBorder");
+        if (cardBorder is not null) cardBorder.Opacity = 0.55;
+        try
+        {
+            var data = new DataObject(typeof(RuleCardViewModel), card);
+            DragDrop.DoDragDrop(element, data, DragDropEffects.Move);
+        }
+        finally
+        {
+            if (cardBorder is not null) cardBorder.Opacity = 1.0;
+        }
+    }
+
+    private void RuleCard_DragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(RuleCardViewModel)) && sender is Border border)
+        {
+            SetDropIndicator(border, Visibility.Visible);
+        }
+    }
+
+    private void RuleCard_DragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            SetDropIndicator(border, Visibility.Collapsed);
+        }
     }
 
     private void RuleCard_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(typeof(RuleCardViewModel))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+        var isRule = e.Data.GetDataPresent(typeof(RuleCardViewModel));
+        e.Effects = isRule ? DragDropEffects.Move : DragDropEffects.None;
+        if (isRule && sender is Border border) SetDropIndicator(border, Visibility.Visible);
         e.Handled = true;
     }
 
     private void RuleCard_Drop(object sender, DragEventArgs e)
     {
+        if (sender is Border border) SetDropIndicator(border, Visibility.Collapsed);
         if (e.Data.GetData(typeof(RuleCardViewModel)) is not RuleCardViewModel dragged) return;
         if (sender is not FrameworkElement { DataContext: RuleCardViewModel target }) return;
         if (ReferenceEquals(dragged, target)) return;
 
         _vm.MoveRuleTo(dragged, _vm.Rules.IndexOf(target));
         e.Handled = true;
+    }
+
+    private static void SetDropIndicator(Border cardBorder, Visibility visibility)
+    {
+        if (VisualTreeHelper.GetParent(cardBorder) is StackPanel parent)
+        {
+            var indicator = FindVisualChild<Border>(parent, "DropIndicator");
+            if (indicator is not null) indicator.Visibility = visibility;
+        }
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject child, string name) where T : FrameworkElement
+    {
+        var current = VisualTreeHelper.GetParent(child);
+        while (current is not null)
+        {
+            if (current is T typed && typed.Name == name) return typed;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------- Trình thử Regex
@@ -808,35 +1077,82 @@ public partial class MainWindow : FluentWindow
     private CommandRegistry BuildCommandRegistry()
     {
         var registry = new CommandRegistry();
+        var strings = new LocStringProvider();
+        var pages = Loc.T("CommandCategoryPages");
+        var tools = Loc.T("CommandCategoryTools");
+        var presets = Loc.T("CommandCategoryPresets");
+        var addRules = Loc.T("CommandCategoryAddRule");
         var files = Loc.T("CommandCategoryFile");
         var rules = Loc.T("CommandCategoryRules");
-        var tools = Loc.T("CommandCategoryTools");
         var app = Loc.T("CommandCategoryApp");
 
-        registry.Register(Loc.T("CommandAddFiles"), files, () => AddFiles_Click(this, new RoutedEventArgs()), "Ctrl+O");
-        registry.Register(Loc.T("CommandAddFolder"), files, () => AddFolder_Click(this, new RoutedEventArgs()), "Ctrl+Shift+O");
-        registry.Register(Loc.T("ShelfCommand"), files, () => OpenShelf(), "Ctrl+Shift+S");
-        registry.Register(Loc.T("CommandClearList"), files, () => ClearList_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandSendToTools"), files, () => SendToTools_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandRadial"), tools, () => ShowRadialAtCursor());
+        // 1. Pages
+        registry.Register(Loc.T("NavHome"), pages, () => NavigateTo("Home"), icon: "\uE80F");
+        registry.Register(Loc.T("NavRename"), pages, () => NavigateTo("Rename"), icon: "\uE70F");
+        registry.Register(Loc.T("NavTools"), pages, () => NavigateTo("Tools"), icon: "\uE90F");
+        registry.Register(Loc.T("NavShelf"), pages, () => NavigateTo("Shelf"), icon: "\uE8A1");
+        registry.Register(Loc.T("NavHistory"), pages, () => NavigateTo("History"), icon: "\uE81C");
+        registry.Register(Loc.T("NavPresets"), pages, () => NavigateTo("Presets"), icon: "\uE8F1");
+        registry.Register(Loc.T("NavWatch"), pages, () => NavigateTo("Watch"), icon: "\uE7B3");
+        registry.Register(Loc.T("NavSettings"), pages, () => NavigateTo("Settings"), icon: "\uE713");
 
-        // Gallery của giao diện mới: chỉ có khi dev đặt BFR_GALLERY=1 (không hiện với người dùng).
+        // 2. All 10 Tools
+        foreach (var tool in ToolCatalog.Create())
+        {
+            var toolKey = tool.Key;
+            var toolTitle = Loc.T(tool.TitleKey);
+            registry.Register(toolTitle, tools, () => OpenTool(toolKey, Array.Empty<string>()), icon: "\uE90F");
+        }
+
+        // 3. All Presets
+        foreach (var preset in _vm.Presets)
+        {
+            var p = preset;
+            registry.Register(p.DisplayName, presets, () =>
+            {
+                NavigateTo("Rename");
+                PresetCombo.SelectedItem = p;
+            }, icon: "\uE8F1");
+        }
+
+        // 4. All Add-Rule actions
+        foreach (var ruleType in RuleCardViewModel.AllRuleTypes)
+        {
+            var rt = ruleType;
+            var label = Loc.F("CommandAddRuleFormat", RuleTitles.Get(rt, null, strings));
+            registry.Register(label, addRules, () =>
+            {
+                NavigateTo("Rename");
+                _vm.AddRule(rt);
+            }, icon: "\uE710");
+        }
+
+        // 5. Core Actions
+        registry.Register(Loc.T("CommandAddFiles"), files, () => AddFiles_Click(this, new RoutedEventArgs()), "Ctrl+O", "\uE710");
+        registry.Register(Loc.T("CommandAddFolder"), files, () => AddFolder_Click(this, new RoutedEventArgs()), "Ctrl+Shift+O", "\uE8B7");
+        registry.Register(Loc.T("ShelfCommand"), files, () => OpenShelf(), "Ctrl+Shift+S", "\uE8A1");
+        registry.Register(Loc.T("CommandClearList"), files, () => ClearList_Click(this, new RoutedEventArgs()), icon: "\uE74D");
+        registry.Register(Loc.T("CommandSendToTools"), files, () => SendToTools_Click(this, new RoutedEventArgs()), icon: "\uE90F");
+        registry.Register(Loc.T("MenuCopyNamesClipboard"), files, () => CopyNamesClipboard_Click(this, new RoutedEventArgs()), icon: "\uE8C8");
+        registry.Register(Loc.T("MenuExportNamesCsv"), files, () => ExportNamesCsv_Click(this, new RoutedEventArgs()), icon: "\uEDE1");
+        registry.Register(Loc.T("MenuPasteNamesClipboard"), files, () => PasteNamesClipboard_Click(this, new RoutedEventArgs()), icon: "\uE77F");
+        registry.Register(Loc.T("MenuImportNamesCsv"), files, () => ImportNamesCsv_Click(this, new RoutedEventArgs()), icon: "\uE8B5");
+        registry.Register(Loc.T("CommandApply"), files, () => Apply_Click(this, new RoutedEventArgs()), "Ctrl+Enter", "\uE768");
+        registry.Register(Loc.T("CommandUndo"), files, () => Undo_Click(this, new RoutedEventArgs()), "Ctrl+Z", "\uE7A7");
+
+        registry.Register(Loc.T("CommandSavePreset"), rules, () => SavePreset_Click(this, new RoutedEventArgs()), "Ctrl+S", "\uE74E");
+        registry.Register(Loc.T("CommandImportExportPreset"), rules, () => ImportExportPreset_Click(this, new RoutedEventArgs()), icon: "\uE8F1");
+        registry.Register(Loc.T("CommandRegexTester"), rules, () => OpenRegexTester(), icon: "\uE946");
+
+        registry.Register(Loc.T("CommandRadial"), tools, () => ShowRadialAtCursor(), icon: "\uE700");
         if (Environment.GetEnvironmentVariable("BFR_GALLERY") == "1")
             registry.Register("Gallery (dev)", tools, () => new BfrGalleryWindow { Owner = this }.Show());
-        registry.Register(Loc.T("CommandApply"), files, () => Apply_Click(this, new RoutedEventArgs()), "Ctrl+Enter");
-        registry.Register(Loc.T("CommandUndo"), files, () => Undo_Click(this, new RoutedEventArgs()), "Ctrl+Z");
-        registry.Register(Loc.T("CommandSavePreset"), rules, () => SavePreset_Click(this, new RoutedEventArgs()), "Ctrl+S");
-        registry.Register(Loc.T("CommandImportExportPreset"), rules, () => ImportExportPreset_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandPresetLibrary"), rules, () => PresetLibrary_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandHistory"), tools, () => History_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandWatchFolder"), tools, () => WatchFolder_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandContextMenu"), tools, () => ContextMenu_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandExportReport"), tools, () => ExportReport_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandRegexTester"), tools, () => OpenRegexTester());
-        registry.Register(Loc.T("CommandSettings"), app, () => Settings_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandUpgrade"), app, () => ShowUpgradeDialog(contextFeature: null));
-        registry.Register(Loc.T("CommandCheckUpdate"), app, () => CheckUpdate_Click(this, new RoutedEventArgs()));
-        registry.Register(Loc.T("CommandToggleTheme"), app, ToggleTheme);
+
+        registry.Register(Loc.T("CommandContextMenu"), app, () => ContextMenu_Click(this, new RoutedEventArgs()), icon: "\uE712");
+        registry.Register(Loc.T("CommandExportReport"), app, () => ExportReport_Click(this, new RoutedEventArgs()), icon: "\uEDE1");
+        registry.Register(Loc.T("CommandUpgrade"), app, () => ShowUpgradeDialog(contextFeature: null), icon: "\uE734");
+        registry.Register(Loc.T("CommandCheckUpdate"), app, () => CheckUpdate_Click(this, new RoutedEventArgs()), icon: "\uE895");
+        registry.Register(Loc.T("CommandToggleTheme"), app, ToggleTheme, icon: "\uE793");
 
         return registry;
     }
@@ -902,12 +1218,31 @@ public partial class MainWindow : FluentWindow
 
     // ----------------------------------------------------------------- Điều hướng (v1.4)
 
-    /// <summary>Thu gọn / mở rộng thanh bên: 220 px có nhãn ↔ 72 px chỉ icon (nhãn ẩn qua Tag của NavRail).</summary>
+    /// <summary>Thu gọn / mở rộng thanh bên: 220 px có nhãn ↔ 72 px chỉ icon (hoạt ảnh 200ms CubicEase).</summary>
     private void NavCollapse_Click(object sender, RoutedEventArgs e)
     {
         var collapse = NavRail.Tag as string != "Collapsed";
         NavRail.Tag = collapse ? "Collapsed" : "Expanded";
-        NavRail.Width = collapse ? 72 : 220;
+        var targetWidth = collapse ? 72.0 : 220.0;
+
+        NavRail.BeginAnimation(WidthProperty, null);
+        if (BfrTheme.ReduceMotion)
+        {
+            NavRail.Width = targetWidth;
+            return;
+        }
+
+        var fromWidth = NavRail.ActualWidth > 0 ? NavRail.ActualWidth : NavRail.Width;
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(fromWidth, targetWidth, TimeSpan.FromMilliseconds(200))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        anim.Completed += (_, _) =>
+        {
+            NavRail.BeginAnimation(WidthProperty, null);
+            NavRail.Width = targetWidth;
+        };
+        NavRail.BeginAnimation(WidthProperty, anim);
     }
 
     private void Nav_Checked(object sender, RoutedEventArgs e)
@@ -997,14 +1332,33 @@ public partial class MainWindow : FluentWindow
         Walk(this);
     }
 
-    /// <summary>Chuyển trang: hiện dần trong 220 ms; tắt khi giảm chuyển động.</summary>
+    /// <summary>Chuyển trang: trượt dọc nhẹ + hiện dần trong 200 ms; tắt khi giảm chuyển động.</summary>
     private static void FadeIn(UIElement element)
     {
         element.BeginAnimation(OpacityProperty, null);
-        if (BfrTheme.ReduceMotion) return;
-        element.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220))
+        if (BfrTheme.ReduceMotion)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+            element.Opacity = 1;
+            if (element.RenderTransform is TranslateTransform existing) existing.Y = 0;
+            return;
+        }
+
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(200);
+        element.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration)
+        {
+            EasingFunction = ease
+        });
+
+        var translate = element.RenderTransform as TranslateTransform;
+        if (translate is null || translate.IsFrozen)
+        {
+            translate = new TranslateTransform();
+            element.RenderTransform = translate;
+        }
+        translate.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(10, 0, duration)
+        {
+            EasingFunction = ease
         });
     }
 
@@ -1021,11 +1375,21 @@ public partial class MainWindow : FluentWindow
         switch (key)
         {
             case "Home":
-                page = new HomePage(
+                var home = new HomePage(
                     NavigateTo,
                     dropped => { NavigateTo("Rename"); EnqueuePaths(dropped); },
                     toolKey => OpenTool(toolKey, Array.Empty<string>()),
                     ShowRadialAtCursor);
+                home.SetWatchStateProvider(
+                    () => _pages.TryGetValue("Watch", out var wp) && wp is WatchFolderPage watchPage
+                        ? (watchPage.EnabledRuleCount, watchPage.IsRunning)
+                        : (0, false),
+                    () =>
+                    {
+                        if (!EnsurePro(ProFeature.UnlimitedRecursion)) return;
+                        if (GetPage("Watch") is WatchFolderPage watchPage) watchPage.ToggleRunning();
+                    });
+                page = home;
                 break;
             case "Shelf":
                 page = new ShelfPage(_shelfModel, batch => { NavigateTo("Rename"); EnqueuePaths(batch); }, feature => ShowUpgradeDialog(feature));
@@ -1289,14 +1653,34 @@ public partial class MainWindow : FluentWindow
         _vm.SelectedRow = PreviewGrid.SelectedItem as PreviewRowViewModel;
     }
 
+    private void Window_DragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            DropOverlay.Visibility = Visibility.Visible;
+        }
+    }
+
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        var hasFiles = e.Data.GetDataPresent(DataFormats.FileDrop);
+        e.Effects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
+        if (hasFiles) DropOverlay.Visibility = Visibility.Visible;
         e.Handled = true;
+    }
+
+    private void Window_DragLeave(object sender, DragEventArgs e)
+    {
+        var pos = e.GetPosition(this);
+        if (pos.X <= 0 || pos.Y <= 0 || pos.X >= ActualWidth || pos.Y >= ActualHeight)
+        {
+            DropOverlay.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void Window_Drop(object sender, DragEventArgs e)
     {
+        DropOverlay.Visibility = Visibility.Collapsed;
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
         {
             NavigateTo("Rename");
@@ -1306,11 +1690,20 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindow_KeyDown(object sender, KeyEventArgs e)
     {
-        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.S)
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
-            OpenShelf();
-            e.Handled = true;
-            return;
+            if (e.Key == Key.S)
+            {
+                OpenShelf();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.O)
+            {
+                AddFolder_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
         }
 
         if (Keyboard.Modifiers == ModifierKeys.Control)
@@ -1318,9 +1711,27 @@ public partial class MainWindow : FluentWindow
             switch (e.Key)
             {
                 case Key.O:
-                    if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) AddFolder_Click(this, new RoutedEventArgs());
-                    else AddFiles_Click(this, new RoutedEventArgs());
+                    AddFiles_Click(this, new RoutedEventArgs());
                     e.Handled = true;
+                    break;
+                case Key.V:
+                    if (Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
+                        && Clipboard.ContainsFileDropList())
+                    {
+                        var dropped = Clipboard.GetFileDropList();
+                        var list = new List<string>(dropped.Count);
+                        foreach (var p in dropped)
+                        {
+                            if (!string.IsNullOrWhiteSpace(p)) list.Add(p);
+                        }
+                        if (list.Count > 0)
+                        {
+                            NavigateTo("Rename");
+                            _vm.AddPaths(list);
+                            StatusText.Text = Loc.F("ClipboardPastedFiles", list.Count);
+                            e.Handled = true;
+                        }
+                    }
                     break;
                 case Key.Z:
                     Undo_Click(this, new RoutedEventArgs());
@@ -1426,11 +1837,12 @@ public partial class MainWindow : FluentWindow
         if (GetContextMenuRow(sender) is not { } row) return;
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "explorer.exe",
+                FileName = explorer,
                 Arguments = $"/select,\"{row.File.FullPath}\"",
-                UseShellExecute = true
+                UseShellExecute = false
             });
         }
         catch (Exception ex)
@@ -1452,6 +1864,100 @@ public partial class MainWindow : FluentWindow
         if (GetContextMenuRow(sender) is { } row)
         {
             Clipboard.SetText(row.NewName);
+        }
+    }
+
+    private void ContextMenu_ManualRename_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextMenuRow(sender) is { } row) BeginInlineEdit(row);
+    }
+
+    private void ContextMenu_ResetManualName_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextMenuRow(sender) is { } row) _vm.ClearManualOverride(row);
+    }
+
+    private void PreviewGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2 && PreviewGrid.SelectedItem is PreviewRowViewModel row)
+        {
+            BeginInlineEdit(row);
+            e.Handled = true;
+        }
+    }
+
+    private void NewNameCell_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2 && sender is FrameworkElement { DataContext: PreviewRowViewModel row })
+        {
+            BeginInlineEdit(row);
+            e.Handled = true;
+        }
+    }
+
+    private void BeginInlineEdit(PreviewRowViewModel row)
+    {
+        PreviewGrid.SelectedItem = row;
+        PreviewGrid.ScrollIntoView(row);
+        PreviewGrid.UpdateLayout();
+
+        if (PreviewGrid.ItemContainerGenerator.ContainerFromItem(row) is not DataGridRow dgr) return;
+        var box = FindVisualChild<TextBox>(dgr, "InlineRenameBox");
+        var segments = FindVisualChild<ItemsControl>(dgr, "NewNameSegments");
+        if (box is null || segments is null) return;
+
+        box.Tag = row;
+        box.Text = row.NewName;
+        segments.Visibility = Visibility.Collapsed;
+        box.Visibility = Visibility.Visible;
+        box.Focus();
+
+        var dot = row.NewName.LastIndexOf('.');
+        if (dot > 0) box.Select(0, dot);
+        else box.SelectAll();
+    }
+
+    private void InlineRenameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        if (e.Key == Key.Enter)
+        {
+            CommitInlineEdit(box, commit: true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CommitInlineEdit(box, commit: false);
+            e.Handled = true;
+        }
+    }
+
+    private void InlineRenameBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox box && box.Visibility == Visibility.Visible)
+        {
+            CommitInlineEdit(box, commit: true);
+        }
+    }
+
+    private void CommitInlineEdit(TextBox box, bool commit)
+    {
+        if (box.Visibility != Visibility.Visible) return;
+        var row = box.Tag as PreviewRowViewModel;
+        var newText = box.Text;
+        box.Visibility = Visibility.Collapsed;
+
+        var parent = VisualTreeHelper.GetParent(box);
+        if (parent is not null)
+        {
+            var segments = FindVisualChild<ItemsControl>(parent, "NewNameSegments");
+            if (segments is not null) segments.Visibility = Visibility.Visible;
+        }
+
+        if (commit && row is not null && !string.IsNullOrWhiteSpace(newText)
+            && !string.Equals(newText, row.NewName, StringComparison.Ordinal))
+        {
+            _vm.SetManualOverride(row, newText);
         }
     }
 

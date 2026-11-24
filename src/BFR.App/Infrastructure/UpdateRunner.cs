@@ -79,11 +79,12 @@ public static class UpdateRunner
 
             if (!result.UpdateAvailable)
             {
-                var message = string.IsNullOrWhiteSpace(result.Error)
-                    ? Loc.F("UpdateNone", result.CurrentVersion)
-                    : Loc.F("UpdateFailed", result.Error!);
+                if (!string.IsNullOrWhiteSpace(result.Error))
+                {
+                    return new UpdateCheckResult(UpdateCheckStatus.Failed, Loc.F("UpdateFailed", result.Error!));
+                }
 
-                return new UpdateCheckResult(UpdateCheckStatus.UpToDate, message);
+                return new UpdateCheckResult(UpdateCheckStatus.UpToDate, Loc.F("UpdateNone", result.CurrentVersion));
             }
 
             return new UpdateCheckResult(

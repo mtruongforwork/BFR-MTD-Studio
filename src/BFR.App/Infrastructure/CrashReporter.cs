@@ -103,8 +103,9 @@ internal static class CrashReporter
         try { tier = (RenderCapability.Tier >> 16).ToString(); }
         catch { tier = "?"; }
 
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
         return $"v{AppVersion.Current} | {Environment.OSVersion.VersionString} | {(Environment.Is64BitProcess ? "x64" : "x86")} | " +
                $"render-tier={tier} software-render={System.Windows.Media.RenderOptions.ProcessRenderMode} safe-render={BfrTheme.SafeRender} effects={BfrTheme.GlassEffectsEnabled} high-contrast={BfrTheme.IsHighContrast} | " +
-               $"working-set={Environment.WorkingSet / (1024 * 1024)}MB threads={System.Diagnostics.Process.GetCurrentProcess().Threads.Count}";
+               $"working-set={Environment.WorkingSet / (1024 * 1024)}MB threads={process.Threads.Count}";
     }
 }

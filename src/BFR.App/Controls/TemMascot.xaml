@@ -27,7 +27,10 @@
     <Viewbox Stretch="Uniform">
         <Canvas Width="100" Height="104" ClipToBounds="False">
             <Canvas.RenderTransform>
-                <TranslateTransform x:Name="Bob" Y="0" />
+                <TransformGroup>
+                    <RotateTransform x:Name="Wiggle" Angle="0" CenterX="50" CenterY="55" />
+                    <TranslateTransform x:Name="Bob" Y="0" />
+                </TransformGroup>
             </Canvas.RenderTransform>
 
             <!-- Dây xỏ -->

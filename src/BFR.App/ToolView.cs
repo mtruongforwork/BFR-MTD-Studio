@@ -75,6 +75,9 @@ internal sealed class ToolView : UserControl
     private readonly ItemsControl _messages = new();
     private readonly ListBox _results = new();
     private readonly BFR.App.Controls.TreemapView _treemap = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 10) };
+    private readonly Border _filterChipBar = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _filterChipText = new() { VerticalAlignment = VerticalAlignment.Center };
+    private string? _treemapFilter;
     private readonly TextBlock _empty = new();
     private readonly ProgressBar _progress = new() { IsIndeterminate = true, Height = 3, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Ui.Button _previewButton = new();
@@ -90,6 +93,9 @@ internal sealed class ToolView : UserControl
     private CancellationTokenSource? _cts;
     private string? _lastJournal;
     private bool _busy;
+
+    /// <summary>Phát ra khi người dùng chọn "Gửi sang Rename" từ menu chuột phải.</summary>
+    public event Action<IReadOnlyList<string>>? SendToRenameRequested;
 
     public ToolView(
         ITool tool,
@@ -164,7 +170,7 @@ internal sealed class ToolView : UserControl
         {
             Content = top,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = _tool.ReadOnly ? 250 : 330
+            MaxHeight = _tool.ReadOnly ? 300 : 360
         };
         DockPanel.SetDock(topScroll, Dock.Top);
         root.Children.Add(topScroll);
@@ -182,8 +188,38 @@ internal sealed class ToolView : UserControl
         DockPanel.SetDock(info, Dock.Top);
         root.Children.Add(info);
 
+        _treemap.ItemClicked += OnTreemapItemClicked;
+        _treemap.ContextMenuFactory = BuildTreemapContextMenu;
         DockPanel.SetDock(_treemap, Dock.Top);
         root.Children.Add(_treemap);
+
+        // Chip lọc đang hoạt động khi bấm vào ô Treemap
+        var chipRow = new StackPanel { Orientation = Orientation.Horizontal };
+        _filterChipText.Foreground = Res("BfrAccFg");
+        _filterChipText.FontWeight = FontWeights.SemiBold;
+        _filterChipText.FontSize = 12;
+        var clearFilter = new Button
+        {
+            Content = "×",
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(5, 0, 5, 0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = Res("BfrAccFg"),
+            FontWeight = FontWeights.Bold,
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+        clearFilter.Click += (_, _) => ClearTreemapFilter();
+        chipRow.Children.Add(_filterChipText);
+        chipRow.Children.Add(clearFilter);
+        _filterChipBar.Background = Res("ChipSelectedBackground");
+        _filterChipBar.BorderBrush = Res("ChipSelectedBorder");
+        _filterChipBar.BorderThickness = new Thickness(1);
+        _filterChipBar.CornerRadius = new CornerRadius(12);
+        _filterChipBar.Padding = new Thickness(10, 3, 6, 3);
+        _filterChipBar.Child = chipRow;
+        DockPanel.SetDock(_filterChipBar, Dock.Top);
+        root.Children.Add(_filterChipBar);
 
         // Danh sách kết quả
         _results.Style = AppStyle("AppListBoxStyle");
@@ -192,6 +228,7 @@ internal sealed class ToolView : UserControl
         ScrollViewer.SetHorizontalScrollBarVisibility(_results, ScrollBarVisibility.Disabled);
         VirtualizingPanel.SetIsVirtualizing(_results, true);
         _results.SelectionChanged += OnRowSelected;
+        _results.ContextMenuOpening += OnResultsContextMenuOpening;
         AutomationHelper(_results, "Tool results");
 
         _empty.Text = Loc.T("ToolsEmptyResults");
@@ -223,13 +260,13 @@ internal sealed class ToolView : UserControl
         };
         var panel = new StackPanel();
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var buttons = new WrapPanel { Orientation = Orientation.Horizontal };
         var hint = new TextBlock
         {
             Text = Loc.T(_tool.AcceptsFiles ? "ToolsDropFilesHint" : "ToolsDropFolderHint"),
             Foreground = Res("TextSecondary"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
+            Margin = new Thickness(0, 4, 12, 4),
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 380
         };
@@ -328,9 +365,8 @@ internal sealed class ToolView : UserControl
             {
                 Text = Loc.T(option.HintKey),
                 Style = AppStyle("CaptionTextStyle"),
-                Margin = new Thickness(option.Kind == OptionKind.Toggle ? 24 : 190, 2, 0, 0),
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 520
+                Margin = new Thickness(option.Kind == OptionKind.Toggle ? 24 : 190, 2, 0, 2),
+                TextWrapping = TextWrapping.Wrap
             });
         }
 
@@ -423,6 +459,16 @@ internal sealed class ToolView : UserControl
                 };
                 box.TextChanged += (_, _) => SetValue(option.Key, box.Text);
                 _setters[option.Key] = v => box.Text = v;
+
+                if (_tool.Key == "organize" && option.Key == "customTemplate")
+                {
+                    var stack = new StackPanel { MaxWidth = 420 };
+                    box.HorizontalAlignment = HorizontalAlignment.Left;
+                    stack.Children.Add(box);
+                    stack.Children.Add(new BFR.App.Controls.TokenPickerBar(box));
+                    return stack;
+                }
+
                 return box;
             }
         }
@@ -550,6 +596,8 @@ internal sealed class ToolView : UserControl
         if (_busy) return;
         DisposePlan();
         _plan = null;
+        _treemapFilter = null;
+        _filterChipBar.Visibility = Visibility.Collapsed;
         _results.ItemsSource = null;
         _treemap.Visibility = Visibility.Collapsed;
         _messages.ItemsSource = null;
@@ -603,6 +651,8 @@ internal sealed class ToolView : UserControl
     private void ShowPlan(ToolPlan plan)
     {
         _plan = plan;
+        _treemapFilter = null;
+        _filterChipBar.Visibility = Visibility.Collapsed;
         _results.ItemsSource = plan.Rows;
         _treemap.SetItems(plan.Treemap ?? Array.Empty<BFR.Presentation.Design.TreemapItem>());
         _treemap.Visibility = plan.Treemap is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
@@ -611,6 +661,147 @@ internal sealed class ToolView : UserControl
         _empty.Visibility = plan.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         _empty.Text = plan.Rows.Count == 0 ? Loc.T("ToolsNothingToShow") : string.Empty;
         UpdateButtons();
+    }
+
+    private static string TryLoc(string key, string fallback)
+    {
+        var value = Application.Current?.TryFindResource(key) as string;
+        return string.IsNullOrEmpty(value) ? fallback : value;
+    }
+
+    private static string ExtractFilterToken(string label)
+    {
+        var text = label.Trim();
+        var paren = text.IndexOf(" (", StringComparison.Ordinal);
+        if (paren > 0) text = text[..paren].Trim();
+        var sep = text.IndexOf(" — ", StringComparison.Ordinal);
+        if (sep > 0) text = text[..sep].Trim();
+        return text;
+    }
+
+    private void OnTreemapItemClicked(BFR.Presentation.Design.TreemapItem item)
+    {
+        if (_plan is null) return;
+        var token = ExtractFilterToken(item.Label);
+        if (string.Equals(_treemapFilter, token, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearTreemapFilter();
+            return;
+        }
+
+        _treemapFilter = token;
+        _filterChipText.Text = string.Format(TryLoc("TreemapFiltering", "Filtering: {0}"), token);
+        _filterChipBar.Visibility = Visibility.Visible;
+
+        var filtered = _plan.Rows.Where(r =>
+            r.State == ToolRowState.Header
+            || r.Primary.Contains(token, StringComparison.OrdinalIgnoreCase)
+            || r.Secondary.Contains(token, StringComparison.OrdinalIgnoreCase)
+            || (r.Detail?.Contains(token, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+        _results.ItemsSource = filtered;
+        _empty.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ClearTreemapFilter()
+    {
+        _treemapFilter = null;
+        _filterChipBar.Visibility = Visibility.Collapsed;
+        if (_plan is not null)
+        {
+            _results.ItemsSource = _plan.Rows;
+            _empty.Visibility = _plan.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private string? ResolvePathFromText(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return null;
+        var trimmed = candidate.Trim();
+        if (File.Exists(trimmed) || Directory.Exists(trimmed)) return trimmed;
+        foreach (var root in _paths)
+        {
+            if (Directory.Exists(root))
+            {
+                var combined = Path.Combine(root, trimmed.TrimStart('\\', '/'));
+                if (File.Exists(combined) || Directory.Exists(combined)) return combined;
+            }
+        }
+        return null;
+    }
+
+    private string? ResolvePath(ToolRow row) =>
+        ResolvePathFromText(row.Detail) ?? ResolvePathFromText(row.Primary);
+
+    private ContextMenu? BuildPathContextMenu(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var menu = new ContextMenu();
+
+        var reveal = new MenuItem { Header = TryLoc("ContextRevealExplorer", "Reveal in File Explorer") };
+        reveal.Click += (_, _) => RevealInExplorer(path);
+        menu.Items.Add(reveal);
+
+        var copy = new MenuItem { Header = TryLoc("ContextCopyPath", "Copy path") };
+        copy.Click += (_, _) => { try { Clipboard.SetText(path); } catch { } };
+        menu.Items.Add(copy);
+
+        var send = new MenuItem { Header = TryLoc("ContextSendToRename", "Send to Rename") };
+        send.Click += (_, _) => DispatchSendToRename(path);
+        menu.Items.Add(send);
+
+        return menu;
+    }
+
+    private ContextMenu? BuildTreemapContextMenu(BFR.Presentation.Design.TreemapItem item)
+    {
+        var token = ExtractFilterToken(item.Label);
+        var path = ResolvePathFromText(token) ?? (_paths.Count > 0 ? _paths[0] : null);
+        return BuildPathContextMenu(path);
+    }
+
+    private void OnResultsContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (_results.SelectedItem is ToolRow row && ResolvePath(row) is { } path)
+        {
+            _results.ContextMenu = BuildPathContextMenu(path);
+        }
+        else
+        {
+            _results.ContextMenu = null;
+            e.Handled = true;
+        }
+    }
+
+    private static void RevealInExplorer(string path)
+    {
+        try
+        {
+            var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            var args = File.Exists(path) ? $"/select,\"{path}\"" : $"\"{path}\"";
+            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = explorer,
+                Arguments = args,
+                UseShellExecute = false
+            });
+        }
+        catch { }
+    }
+
+    private void DispatchSendToRename(string path)
+    {
+        var list = new[] { path };
+        if (SendToRenameRequested is not null)
+        {
+            SendToRenameRequested.Invoke(list);
+            return;
+        }
+
+        if (Application.Current?.MainWindow is MainWindow main)
+        {
+            main.EnqueuePaths(list);
+        }
     }
 
     private void OnRowSelected(object sender, SelectionChangedEventArgs e)
@@ -719,13 +910,16 @@ internal sealed class ToolView : UserControl
         return strip;
     }
 
-    /// <summary>Bước hiện tại suy ra từ trạng thái: chưa có tệp → 1; chưa xem trước → 2; đã có kế hoạch → 3; đã áp dụng → 4 (xong).</summary>
+    /// <summary>Bước hiện tại suy ra từ trạng thái: chưa có tệp → 1; đã áp dụng → 4 (xong); chưa xem trước → 2; đã có kế hoạch → 3.</summary>
     private void UpdateStepper()
     {
         if (_stepDots.Count == 0) return;
 
         var hasInput = _paths.Count > 0 || NeedsNoInput();
-        var current = !hasInput ? 0 : _plan is null ? 1 : _lastJournal is not null && !_tool.ReadOnly ? _stepDots.Count : 2;
+        var current = !hasInput ? 0
+            : (_lastJournal is not null && !_tool.ReadOnly) ? _stepDots.Count
+            : _plan is null ? 1
+            : 2;
 
         for (var i = 0; i < _stepDots.Count; i++)
         {

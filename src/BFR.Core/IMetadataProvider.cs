@@ -36,18 +36,28 @@ public static class MetadataRequirement
         return false;
     }
 
-    /// <summary>True nếu văn bản chứa token cần đọc metadata ({taken} hoặc {media}).</summary>
+    /// <summary>True nếu văn bản chứa token cần đọc metadata ({taken}, {media}, {width}, {height}, {camera}, tag nhạc).</summary>
     public static bool HasMetadataToken(string? text) =>
-        HasTakenToken(text) || HasMediaToken(text) || HasAudioTagToken(text);
+        HasTakenToken(text) || HasMediaToken(text) || HasExifDetailToken(text) || HasAudioTagToken(text);
 
-    /// <summary>True nếu chứa token tag nhạc ({artist}, {album}, {title}, {track}).</summary>
+    /// <summary>True nếu chứa token thông số ảnh EXIF ({width}, {height}, {camera}).</summary>
+    public static bool HasExifDetailToken(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        return text.Contains("{width", System.StringComparison.OrdinalIgnoreCase)
+            || text.Contains("{height", System.StringComparison.OrdinalIgnoreCase)
+            || text.Contains("{camera", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>True nếu chứa token tag nhạc ({artist}, {album}, {title}, {track}, {year}).</summary>
     public static bool HasAudioTagToken(string? text)
     {
         if (string.IsNullOrEmpty(text)) return false;
         return text.Contains("{artist", System.StringComparison.OrdinalIgnoreCase)
             || text.Contains("{album", System.StringComparison.OrdinalIgnoreCase)
             || text.Contains("{title", System.StringComparison.OrdinalIgnoreCase)
-            || text.Contains("{track", System.StringComparison.OrdinalIgnoreCase);
+            || text.Contains("{track", System.StringComparison.OrdinalIgnoreCase)
+            || text.Contains("{year", System.StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool HasTakenToken(string? text) =>

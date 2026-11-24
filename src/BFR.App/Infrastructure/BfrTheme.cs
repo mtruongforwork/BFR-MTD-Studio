@@ -21,6 +21,9 @@ public static class BfrTheme
 
     private static bool _hooked;
 
+    /// <summary>Phát ra mỗi khi đổi sáng/tối, bảng màu nhấn, giảm hiệu ứng hoặc tương phản cao.</summary>
+    public static event Action? ThemeChanged;
+
     public static Accent CurrentAccent { get; private set; } = Accent.Aurora;
 
     public static bool IsDark { get; private set; } = true;
@@ -104,6 +107,8 @@ public static class BfrTheme
         // Tương phản cao nạp sau cùng để ghi đè mọi khoá Bfr; tắt thì gỡ ra.
         Remove(merged, "HighContrast.xaml");
         if (IsHighContrast) merged.Add(Load("HighContrast.xaml"));
+
+        ThemeChanged?.Invoke();
 
         if (_hooked) return;
         _hooked = true;

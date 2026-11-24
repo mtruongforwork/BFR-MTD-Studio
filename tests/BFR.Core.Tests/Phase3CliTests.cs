@@ -1,6 +1,7 @@
 namespace BFR.Core.Tests;
 
 using BFR.Core;
+using BFR.Core.Licensing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -116,29 +117,66 @@ public class Phase3CliTests
 
     private static (int ExitCode, string StdOut, string StdErr) RunCli(string cliDll, string[] args, string? devTier)
     {
-        var psi = new ProcessStartInfo
+        // Sao lưu tệp license.json mặc định (nếu có), thiết lập trạng thái Free/Pro cho bài kiểm thử
+        // bằng LicenseStore DPAPI thật (không phụ thuộc BFR_DEV_TIER đã khoá trong #if DEBUG theo SEC-2),
+        // rồi khôi phục nguyên trạng trong finally.
+        var fs = new RealFileSystem();
+        var defaultStore = new LicenseStore(fs);
+        var licensePath = defaultStore.FilePath;
+        var backupPath = licensePath + ".bak";
+        var savedLicense = File.Exists(licensePath) ? File.ReadAllBytes(licensePath) : null;
+        var savedBackup = File.Exists(backupPath) ? File.ReadAllBytes(backupPath) : null;
+
+        try
         {
-            FileName = "dotnet",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            WorkingDirectory = Path.GetDirectoryName(cliDll) ?? Environment.CurrentDirectory,
-            // CLI ghi tiếng Việt ra UTF-8: đọc kết quả bằng đúng encoding.
-            StandardOutputEncoding = System.Text.Encoding.UTF8,
-            StandardErrorEncoding = System.Text.Encoding.UTF8
-        };
+            if (string.Equals(devTier, "pro", StringComparison.OrdinalIgnoreCase))
+            {
+                var service = new LicenseService(defaultStore, trialEnabled: false);
+                var err = service.TryActivateKey(LicenseKey.Generate("cli-test-pro"));
+                Assert.Equal(LicenseKey.KeyError.None, err);
+            }
+            else
+            {
+                if (File.Exists(licensePath)) File.Delete(licensePath);
+            }
 
-        psi.ArgumentList.Add(cliDll);
-        foreach (var a in args) psi.ArgumentList.Add(a);
+            var psi = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(cliDll) ?? Environment.CurrentDirectory,
+                // CLI ghi tiếng Việt ra UTF-8: đọc kết quả bằng đúng encoding.
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8
+            };
 
-        if (devTier is not null) psi.Environment["BFR_DEV_TIER"] = devTier;
+            psi.ArgumentList.Add(cliDll);
+            foreach (var a in args) psi.ArgumentList.Add(a);
 
-        using var process = Process.Start(psi)!;
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
-        process.WaitForExit(60_000);
+            using var process = Process.Start(psi)!;
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
+            process.WaitForExit(60_000);
 
-        return (process.ExitCode, stdout, stderr);
+            return (process.ExitCode, stdout, stderr);
+        }
+        finally
+        {
+            try
+            {
+                if (savedLicense is not null) File.WriteAllBytes(licensePath, savedLicense);
+                else if (File.Exists(licensePath)) File.Delete(licensePath);
+
+                if (savedBackup is not null) File.WriteAllBytes(backupPath, savedBackup);
+                else if (File.Exists(backupPath)) File.Delete(backupPath);
+            }
+            catch (IOException)
+            {
+                // Bỏ qua lỗi khôi phục thoáng qua.
+            }
+        }
     }
 
     private static string? FindCliDll()

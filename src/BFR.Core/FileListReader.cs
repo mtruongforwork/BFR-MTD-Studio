@@ -9,12 +9,17 @@ using System.IO;
 /// </summary>
 public static class FileListReader
 {
+    /// <summary>Giới hạn kích thước tệp danh sách (4 MB) để tránh OOM khi đọc tệp bất thường (SEC-6).</summary>
+    public const long MaxFileBytes = 4L * 1024 * 1024;
+
     public static IReadOnlyList<string> Read(string filePath, IFileSystem? fs = null)
     {
         if (string.IsNullOrWhiteSpace(filePath)) return Array.Empty<string>();
 
         var fileSystem = fs ?? new RealFileSystem();
         if (!fileSystem.FileExists(filePath)) return Array.Empty<string>();
+
+        if (fileSystem.GetLength(filePath) > MaxFileBytes) return Array.Empty<string>();
 
         var content = fileSystem.ReadAllText(filePath);
         var results = new List<string>();
@@ -23,6 +28,8 @@ public static class FileListReader
         string? line;
         while ((line = reader.ReadLine()) != null)
         {
+            if (results.Count >= PathGuard.MaxPaths) break;
+
             line = line.Trim();
             if (string.IsNullOrEmpty(line)) continue;
             if (line.StartsWith("#")) continue; // Bỏ qua ghi chú nếu có

@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # Script đóng gói MSIX và Portable ZIP cho Batch File Renamer (Phase 2)
 # ==============================================================================
 
@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $artifactsPath = Join-Path $repoRoot $OutputDir
 $layoutDir = Join-Path $artifactsPath "msix-layout"
-$version = "2.1.0"
+$version = "2.2.0"
 $msixOutput = Join-Path $artifactsPath "BatchFileRenamer-$version.msix"
 $zipOutput = Join-Path $artifactsPath "BatchFileRenamer-$version-portable-win-x64.zip"
 

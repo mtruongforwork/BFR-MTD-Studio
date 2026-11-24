@@ -24,6 +24,7 @@ public sealed class WatchRule
     public int SettleDelayMs { get; set; } = 1500;
     public int MaxFilesPerBatch { get; set; } = 500;
     public bool DryRun { get; set; }
+    public string? WorkflowFilePath { get; set; }
     public List<WorkflowStep> Steps { get; set; } = new();
 
     /// <summary>Lỗi cấu hình (rỗng = hợp lệ). Không chạm đĩa.</summary>

@@ -98,17 +98,34 @@ public class SettingsPage : PageBase
         look.Children.Add(themeCaption);
         look.Children.Add(theme);
 
-        // Bảng màu nhấn: áp dụng ngay, giữ theme sáng/tối hiện tại.
+        // Bảng màu nhấn: áp dụng ngay, giữ theme sáng/tối hiện tại, kèm chấm màu minh họa.
         var accentCaption = Caption(Loc.T("SettingsAccent"));
         accentCaption.Margin = new Thickness(0, 12, 0, 4);
         look.Children.Add(accentCaption);
         var accentTrack = new Border { Style = (Style)Application.Current.FindResource("BfrSegmentedTrack"), HorizontalAlignment = HorizontalAlignment.Left };
         var accentRow = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var name in new[] { "Aurora", "Mint", "Sunset" })
+        foreach (var (name, c1, c2) in new[]
         {
+            ("Aurora", Color.FromRgb(0x63, 0x66, 0xF1), Color.FromRgb(0xA8, 0x55, 0xF7)),
+            ("Mint", Color.FromRgb(0x10, 0xB9, 0x81), Color.FromRgb(0x14, 0xB8, 0xA6)),
+            ("Sunset", Color.FromRgb(0xF9, 0x73, 0x16), Color.FromRgb(0xEC, 0x48, 0x99))
+        })
+        {
+            var swatch = new System.Windows.Shapes.Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = new LinearGradientBrush(c1, c2, 45)
+            };
+            var labelRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            labelRow.Children.Add(swatch);
+            labelRow.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+
             var option = new RadioButton
             {
-                Content = name,
+                Content = labelRow,
                 GroupName = "accent",
                 Style = (Style)Application.Current.FindResource("BfrSegmentedItem"),
                 IsChecked = string.Equals(_settings.AccentPalette, name, StringComparison.OrdinalIgnoreCase)
@@ -130,6 +147,7 @@ public class SettingsPage : PageBase
         {
             _settings.ShowMascot = on;
             SettingsStore.Save(_settings);
+            SettingsStore.NotifyMascotVisibilityChanged(on);
         });
         mascot.Margin = new Thickness(0, 14, 0, 0);
         look.Children.Add(mascot);
@@ -286,11 +304,18 @@ public class SettingsPage : PageBase
         AutomationProperties.SetName(updateStatus, "Update check result");
         updates.Children.Add(updateStatus);
 
+        Ui.Button? downloadButton = null;
         checkNow.Click += async (_, _) =>
         {
             checkNow.IsEnabled = false;
             checkNow.Content = Loc.T("SettingsUpdateChecking");
             updateStatus.Text = Loc.T("SettingsUpdateChecking");
+
+            if (downloadButton is not null)
+            {
+                updates.Children.Remove(downloadButton);
+                downloadButton = null;
+            }
 
             try
             {
@@ -300,14 +325,14 @@ public class SettingsPage : PageBase
                 if (result.Status == UpdateCheckStatus.UpdateAvailable
                     && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
                 {
-                    var open = new Ui.Button
+                    downloadButton = new Ui.Button
                     {
                         Content = Loc.T("UpdateDownload"),
                         Appearance = Ui.ControlAppearance.Primary,
                         HorizontalAlignment = HorizontalAlignment.Left,
                         Margin = new Thickness(0, 8, 0, 0)
                     };
-                    open.Click += (_, _) =>
+                    downloadButton.Click += (_, _) =>
                     {
                         try
                         {
@@ -322,7 +347,7 @@ public class SettingsPage : PageBase
                             // Bỏ qua nếu không mở được trình duyệt.
                         }
                     };
-                    updates.Children.Add(open);
+                    updates.Children.Add(downloadButton);
                 }
             }
             finally
@@ -447,27 +472,58 @@ public class SettingsPage : PageBase
         Content = root;
     }
 
-    /// <summary>Thêm một Card có tiêu đề vào <paramref name="parent"/> và trả về StackPanel bên trong.</summary>
-    /// <summary>Hai cột ô kính xếp xen kẽ (masonry): ô cao thấp khác nhau nên không dùng lưới hàng cố định.</summary>
+    /// <summary>Hai cột ô kính xếp xen kẽ (masonry); tự gập về 1 cột khi chiều rộng nhỏ hơn 740px.</summary>
     private sealed class TileColumns
     {
         private readonly StackPanel _left = new() { Margin = new Thickness(0, 0, 6, 0) };
         private readonly StackPanel _right = new() { Margin = new Thickness(6, 0, 0, 0) };
-        private int _count;
+        private readonly ColumnDefinition _rightCol = new();
+        private readonly System.Collections.Generic.List<UIElement> _tiles = new();
+        private bool _singleColumn;
 
         public TileColumns()
         {
             Root = new Grid { Margin = new Thickness(28, 4, 28, 16), MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Stretch };
             Root.ColumnDefinitions.Add(new ColumnDefinition());
-            Root.ColumnDefinitions.Add(new ColumnDefinition());
+            Root.ColumnDefinitions.Add(_rightCol);
             Grid.SetColumn(_right, 1);
             Root.Children.Add(_left);
             Root.Children.Add(_right);
+            Root.SizeChanged += (_, e) => UpdateLayout(e.NewSize.Width < 740);
         }
 
         public Grid Root { get; }
 
-        public void Add(UIElement tile) => (_count++ % 2 == 0 ? _left : _right).Children.Add(tile);
+        public void Add(UIElement tile)
+        {
+            _tiles.Add(tile);
+            if (_singleColumn || (_tiles.Count - 1) % 2 == 0) _left.Children.Add(tile);
+            else _right.Children.Add(tile);
+        }
+
+        private void UpdateLayout(bool single)
+        {
+            if (single == _singleColumn) return;
+            _singleColumn = single;
+            _left.Children.Clear();
+            _right.Children.Clear();
+
+            if (_singleColumn)
+            {
+                _rightCol.Width = new GridLength(0);
+                _left.Margin = new Thickness(0);
+                _right.Visibility = Visibility.Collapsed;
+                foreach (var t in _tiles) _left.Children.Add(t);
+            }
+            else
+            {
+                _rightCol.Width = new GridLength(1, GridUnitType.Star);
+                _left.Margin = new Thickness(0, 0, 6, 0);
+                _right.Visibility = Visibility.Visible;
+                for (var i = 0; i < _tiles.Count; i++)
+                    (i % 2 == 0 ? _left : _right).Children.Add(_tiles[i]);
+            }
+        }
     }
 
     /// <summary>Thêm một ô kính có tiêu đề vào <paramref name="parent"/> và trả về StackPanel bên trong.</summary>

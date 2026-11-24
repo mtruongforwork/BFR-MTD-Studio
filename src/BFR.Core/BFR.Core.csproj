@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="BFR.Core.Tests" />
+    <InternalsVisibleTo Include="BFR.Presentation.Tests" />
   </ItemGroup>
 
   <ItemGroup>

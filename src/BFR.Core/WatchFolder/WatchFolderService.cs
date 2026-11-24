@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Một dòng nhật ký của Watch Folder.
@@ -32,18 +33,27 @@ public sealed record WatchFolderLogEntry(
 /// </summary>
 public sealed class WatchFolderService : IDisposable
 {
+    /// <summary>Giới hạn số đường dẫn lưu trong bộ nhớ đệm chống lặp (STAB-5).</summary>
+    public const int MaxTrackedPaths = 50_000;
+
     private readonly WatchFolderOptions _options;
     private readonly string _label;
     private readonly Func<IReadOnlyList<string>, WatchFolderResult> _process;
     private readonly IFileSystem _fs;
     private readonly Action<WatchFolderLogEntry>? _logger;
     private readonly WatchFolderPlanner _planner = new();
-    private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _produced = new(StringComparer.OrdinalIgnoreCase);
+    private readonly BoundedPathSet _seen = new(MaxTrackedPaths);
+    private readonly BoundedPathSet _produced = new(MaxTrackedPaths);
     private readonly object _gate = new();
 
     private FileSystemWatcher? _watcher;
     private Timer? _timer;
+    private CancellationTokenSource? _seedCts;
+    private volatile bool _isRunning;
+    private int _seeding;
+    private int _ticking;
+    private int _processedBatches;
+    private int _renamedFiles;
     private bool _disposed;
 
     public WatchFolderService(
@@ -79,33 +89,27 @@ public sealed class WatchFolderService : IDisposable
     }
 
     /// <summary>True khi đang theo dõi.</summary>
-    public bool IsRunning { get; private set; }
+    public bool IsRunning => _isRunning;
 
     /// <summary>Số tệp đang chờ ổn định.</summary>
     public int PendingCount => _planner.PendingCount;
 
     /// <summary>Số lô đã xử lý.</summary>
-    public int ProcessedBatches { get; private set; }
+    public int ProcessedBatches => Volatile.Read(ref _processedBatches);
 
     /// <summary>Số tệp đã đổi tên.</summary>
-    public int RenamedFiles { get; private set; }
+    public int RenamedFiles => Volatile.Read(ref _renamedFiles);
 
     public event EventHandler<WatchFolderLogEntry>? Logged;
 
     public event EventHandler<WatchFolderResult>? BatchProcessed;
 
-    /// <summary>Bắt đầu theo dõi thư mục.</summary>
+    /// <summary>Bắt đầu theo dõi thư mục (seeding chạy nền ngoài UI thread — STAB-5).</summary>
     public void Start()
     {
-        if (IsRunning) return;
+        if (_isRunning) return;
         if (string.IsNullOrWhiteSpace(_options.Folder) || !Directory.Exists(_options.Folder))
             throw new DirectoryNotFoundException($"Thư mục không tồn tại: {_options.Folder}");
-
-        // Tệp đã có sẵn trước khi bắt đầu không phải "tệp mới" -> bỏ qua.
-        foreach (var file in Directory.EnumerateFiles(_options.Folder, "*", SearchOption.AllDirectories))
-        {
-            _seen.Add(file);
-        }
 
         _watcher = new FileSystemWatcher(_options.Folder, "*.*")
         {
@@ -120,19 +124,64 @@ public sealed class WatchFolderService : IDisposable
         _watcher.Deleted += OnDeleted;
         _watcher.Error += OnError;
 
-        _timer = new Timer(_ => OnTick(), null, _options.Debounce, _options.Debounce);
+        _seedCts?.Cancel();
+        _seedCts?.Dispose();
+        var seedCts = new CancellationTokenSource();
+        _seedCts = seedCts;
+        Interlocked.Exchange(ref _seeding, 1);
 
         _watcher.EnableRaisingEvents = true;
-        IsRunning = true;
+        _isRunning = true;
+        _timer = new Timer(_ => OnTick(), null, _options.Debounce, _options.Debounce);
+
+        // Tệp đã có sẵn trước khi bắt đầu không phải "tệp mới" -> bỏ qua (chạy nền, tôn trọng Recursive & IgnoreInaccessible).
+        // Chờ tối đa 100ms để thư mục nhỏ/vừa hoàn tất seeding trước khi Start() trả về mà không chặn UI với thư mục lớn.
+        var seedTask = Task.Run(() => SeedExistingFiles(seedCts.Token));
+        try { seedTask.Wait(100); } catch (AggregateException) { /* handled inside SeedExistingFiles */ }
+
         Log("info", CoreText.Get("CoreWatchStart", "Đang theo dõi: {0} (preset: {1})", _options.Folder, _label));
+    }
+
+    private void SeedExistingFiles(CancellationToken ct)
+    {
+        try
+        {
+            var enumOptions = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = _options.Recursive
+            };
+
+            foreach (var file in Directory.EnumerateFiles(_options.Folder, "*", enumOptions))
+            {
+                if (ct.IsCancellationRequested || !_isRunning) break;
+                if (_planner.Contains(file)) continue;
+                lock (_gate) { _seen.Add(file); }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            // Bỏ qua lỗi duyệt thư mục nền.
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _seeding, 0);
+        }
     }
 
     /// <summary>Dừng theo dõi.</summary>
     public void Stop()
     {
-        if (!IsRunning) return;
+        if (!_isRunning) return;
 
-        IsRunning = false;
+        _isRunning = false;
+
+        var cts = Interlocked.Exchange(ref _seedCts, null);
+        if (cts is not null)
+        {
+            try { cts.Cancel(); } catch { /* ignore */ }
+            cts.Dispose();
+        }
 
         var watcher = _watcher;
         if (watcher is not null)
@@ -174,10 +223,12 @@ public sealed class WatchFolderService : IDisposable
 
     private void OnTick()
     {
-        if (!IsRunning) return;
+        if (!_isRunning || Volatile.Read(ref _seeding) != 0) return;
+        if (Interlocked.CompareExchange(ref _ticking, 1, 0) != 0) return;
 
         try
         {
+            if (!_isRunning) return;
             var ready = _planner.TakeReady(DateTime.UtcNow, _options.SettleDelay);
             if (ready.Count == 0) return;
 
@@ -202,8 +253,8 @@ public sealed class WatchFolderService : IDisposable
             Log("info", CoreText.Get("CoreWatchDetected", "Phát hiện {0} tệp mới, đang áp dụng preset…", batch.Count));
 
             var result = _process(batch);
-            ProcessedBatches++;
-            RenamedFiles += result.Renamed;
+            Interlocked.Increment(ref _processedBatches);
+            Interlocked.Add(ref _renamedFiles, result.Renamed);
 
             foreach (var (path, error) in result.Errors)
             {
@@ -225,6 +276,34 @@ public sealed class WatchFolderService : IDisposable
         {
             Log("error", CoreText.Get("CoreWatchBatchError", "Lỗi khi xử lý lô: {0}", ex.Message));
         }
+        finally
+        {
+            Interlocked.Exchange(ref _ticking, 0);
+        }
+    }
+
+    private sealed class BoundedPathSet
+    {
+        private readonly int _capacity;
+        private readonly HashSet<string> _set = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Queue<string> _order = new();
+
+        public BoundedPathSet(int capacity) => _capacity = capacity;
+
+        public bool Contains(string path) => _set.Contains(path);
+
+        public void Add(string path)
+        {
+            if (!_set.Add(path)) return;
+            _order.Enqueue(path);
+            while (_set.Count > _capacity && _order.Count > 0)
+            {
+                var oldest = _order.Dequeue();
+                _set.Remove(oldest);
+            }
+        }
+
+        public void Remove(string path) => _set.Remove(path);
     }
 
     private void Log(string level, string message, string? path = null)

@@ -4,6 +4,7 @@ using BFR.Core.Licensing;
 using BFR.Presentation;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -37,10 +38,16 @@ public partial class ShelfWindow : Wpf.Ui.Controls.FluentWindow
         RenameButton.Content = Loc.T("ShelfRename");
         HintText.Text = Loc.T("ShelfHint");
 
-        _model.Items.CollectionChanged += (_, _) => Refresh();
-        Closed += (_, _) => _autoClose?.Stop();
+        _model.Items.CollectionChanged += OnItemsCollectionChanged;
+        Closed += (_, _) =>
+        {
+            _model.Items.CollectionChanged -= OnItemsCollectionChanged;
+            _autoClose?.Stop();
+        };
         Refresh();
     }
+
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
 
     private System.Windows.Threading.DispatcherTimer? _autoClose;
 

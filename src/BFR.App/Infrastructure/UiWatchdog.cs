@@ -23,6 +23,7 @@ internal sealed class UiWatchdog : IDisposable
     private readonly bool _dump;
     private readonly Timer _timer;
     private int _dumps;
+    private int _inTick;
 
     private UiWatchdog(Dispatcher ui, bool dump)
     {
@@ -39,6 +40,7 @@ internal sealed class UiWatchdog : IDisposable
 
     private void Tick()
     {
+        if (Interlocked.CompareExchange(ref _inTick, 1, 0) != 0) return;
         try
         {
             // Nhịp ở ưu tiên Normal: nghẽn hàng đợi tin nhắn hoặc bị chặn đều làm nhịp trễ.
@@ -60,6 +62,10 @@ internal sealed class UiWatchdog : IDisposable
         catch
         {
             // Giám sát không được làm sập app.
+        }
+        finally
+        {
+            Volatile.Write(ref _inTick, 0);
         }
     }
 

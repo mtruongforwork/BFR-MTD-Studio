@@ -95,6 +95,9 @@ public sealed class AppSettings
 /// </summary>
 public static class SettingsStore
 {
+    /// <summary>Phát ra khi cài đặt hiển thị linh vật Tem thay đổi để ẩn/hiện ngay không cần khởi động lại.</summary>
+    public static event Action<bool>? MascotVisibilityChanged;
+
     private static readonly string Directory_ = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BatchFileRenamer");
 
@@ -129,4 +132,6 @@ public static class SettingsStore
             // Cài đặt không phải dữ liệu quan trọng; bỏ qua lỗi ghi.
         }
     }
+
+    public static void NotifyMascotVisibilityChanged(bool visible) => MascotVisibilityChanged?.Invoke(visible);
 }

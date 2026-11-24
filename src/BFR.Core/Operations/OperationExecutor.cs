@@ -176,7 +176,7 @@ public sealed class OperationExecutor
         return entry;
     }
 
-    /// <summary>Lớp bảo vệ cuối (C10): dù phía trên đã chặn, không bao giờ chạm vùng hệ thống. Khu cách ly của BFR được miễn.</summary>
+    /// <summary>Lớp bảo vệ cuối (C10 + SEC-3): dù phía trên đã chặn, không bao giờ chạm vùng hệ thống (kể cả qua junction/symlink). Khu cách ly của BFR được miễn.</summary>
     private void CheckNotProtected(JournalEntry e)
     {
         foreach (var path in new[] { e.From, e.To, e.Backup })
@@ -185,6 +185,17 @@ public sealed class OperationExecutor
             if (ProtectedZones.Default.IsProtected(path))
             {
                 throw new UnauthorizedAccessException(CoreText.Get("CoreProtectedZone", "Nằm trong vùng hệ thống được bảo vệ"));
+            }
+
+            if (_fs is RealFileSystem)
+            {
+                var resolved = PathGuard.ResolveRealPath(path);
+                if (!string.Equals(resolved, path, StringComparison.OrdinalIgnoreCase) &&
+                    !_quarantine.IsInside(resolved) &&
+                    ProtectedZones.Default.IsProtected(resolved))
+                {
+                    throw new UnauthorizedAccessException(CoreText.Get("CoreProtectedZone", "Nằm trong vùng hệ thống được bảo vệ"));
+                }
             }
         }
     }

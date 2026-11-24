@@ -103,8 +103,11 @@ public sealed class ProtectedZones
         if (string.IsNullOrWhiteSpace(path)) return string.Empty;
         try
         {
-            if (!Path.IsPathFullyQualified(path)) return string.Empty;
-            return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
+            var cleaned = PathGuard.StripDevicePrefix(path);
+            if (!Path.IsPathFullyQualified(cleaned)) return string.Empty;
+            var full = Path.GetFullPath(cleaned);
+            full = PathGuard.StripDevicePrefix(full);
+            return full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {

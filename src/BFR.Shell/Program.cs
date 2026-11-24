@@ -27,6 +27,9 @@ public sealed class ExplorerCommandFactory : IClassFactoryServer
 {
     private int _locks;
 
+    /// <summary>Số khóa server COM đang hoạt động (LockServer(true) chưa được giải phóng).</summary>
+    public int ActiveLocks => Volatile.Read(ref _locks);
+
     public int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject)
     {
         ppvObject = IntPtr.Zero;
@@ -141,9 +144,9 @@ public static class ComServerLifetime
         Log($"registered cookie={cookie} resume=0x{hr:X8}");
         Touch();
 
-        // Tự thoát sau 60 giây không có lời gọi. Explorer sẽ khởi động lại
-        // server khi người dùng mở menu lần sau.
-        while (IdleTime < TimeSpan.FromSeconds(60))
+        // Tự thoát sau 60 giây không có lời gọi VÀ không còn lock từ client COM.
+        // Explorer sẽ khởi động lại server khi người dùng mở menu lần sau.
+        while (!ShouldExit(IdleTime, factory.ActiveLocks, TimeSpan.FromSeconds(60)))
         {
             Thread.Sleep(500);
         }
@@ -153,6 +156,9 @@ public static class ComServerLifetime
         CoUninitialize();
         return 0;
     }
+
+    internal static bool ShouldExit(TimeSpan idleTime, int activeLocks, TimeSpan idleTimeout) =>
+        activeLocks <= 0 && idleTime >= idleTimeout;
 
     [DllImport("ole32.dll")]
     private static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);

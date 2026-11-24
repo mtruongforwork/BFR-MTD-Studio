@@ -135,7 +135,7 @@ public partial class App : Application
         {
             // Đã có phiên ứng dụng chạy trước đó. Gửi danh sách tệp qua Named Pipe rồi thoát.
             await SingleInstanceClient.TrySendAsync(payload, timeoutMs: 3000).ConfigureAwait(false);
-            Dispatcher.Invoke(() => Shutdown(0));
+            _ = Dispatcher.BeginInvoke(() => Shutdown(0));
             return;
         }
 
@@ -363,22 +363,28 @@ public partial class App : Application
     }
 
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
+        _tray?.Dispose();
+        _tray = null;
+
         if (_server != null)
         {
             try
             {
-                await _server.DisposeAsync().ConfigureAwait(false);
+                _server.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(1));
             }
             catch
             {
                 // ignore
             }
+            _server = null;
         }
 
         _watchdog?.Dispose();
+        _watchdog = null;
         _lock?.Dispose();
+        _lock = null;
         base.OnExit(e);
     }
 }

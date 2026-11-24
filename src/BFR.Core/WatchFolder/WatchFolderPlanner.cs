@@ -22,21 +22,34 @@ public sealed class WatchFolderPlanner
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Số tệp đang chờ.</summary>
-    public int PendingCount => _pending.Count;
+    public int PendingCount
+    {
+        get { lock (_pending) { return _pending.Count; } }
+    }
+
+    /// <summary>True nếu đường dẫn đang có trong hàng đợi chờ ổn định.</summary>
+    public bool Contains(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        lock (_pending) { return _pending.ContainsKey(path); }
+    }
 
     /// <summary>Ghi nhận một sự kiện của hệ thống tệp cho đường dẫn.</summary>
     public void Notify(string path, DateTime eventTimeUtc)
     {
         if (string.IsNullOrWhiteSpace(path)) return;
 
-        if (_pending.TryGetValue(path, out var pending))
+        lock (_pending)
         {
-            pending.LastEventUtc = eventTimeUtc;
-            pending.Events++;
-        }
-        else
-        {
-            _pending[path] = new Pending { LastEventUtc = eventTimeUtc, Events = 1 };
+            if (_pending.TryGetValue(path, out var pending))
+            {
+                pending.LastEventUtc = eventTimeUtc;
+                pending.Events++;
+            }
+            else
+            {
+                _pending[path] = new Pending { LastEventUtc = eventTimeUtc, Events = 1 };
+            }
         }
     }
 
@@ -47,19 +60,28 @@ public sealed class WatchFolderPlanner
     {
         var ready = new List<string>();
 
-        foreach (var entry in _pending.ToList())
+        lock (_pending)
         {
-            if (nowUtc - entry.Value.LastEventUtc < settleDelay) continue;
+            foreach (var entry in _pending.ToList())
+            {
+                if (nowUtc - entry.Value.LastEventUtc < settleDelay) continue;
 
-            ready.Add(entry.Key);
-            _pending.Remove(entry.Key);
+                ready.Add(entry.Key);
+                _pending.Remove(entry.Key);
+            }
         }
 
         return ready;
     }
 
     /// <summary>Bỏ một đường dẫn khỏi hàng đợi (ví dụ sau khi đã xử lý).</summary>
-    public bool Forget(string path) => _pending.Remove(path);
+    public bool Forget(string path)
+    {
+        lock (_pending) { return _pending.Remove(path); }
+    }
 
-    public void Clear() => _pending.Clear();
+    public void Clear()
+    {
+        lock (_pending) { _pending.Clear(); }
+    }
 }

@@ -41,16 +41,61 @@ public partial class TemMascot : UserControl
     public TemMascot()
     {
         InitializeComponent();
+        Cursor = System.Windows.Input.Cursors.Hand;
         System.Windows.Automation.AutomationProperties.SetName(this, Loc.T("TemName"));
         if (!SettingsStore.Load().ShowMascot) Visibility = Visibility.Collapsed;
-        Loaded += (_, _) => { ApplyState(); StartAmbientMotion(); };
-        Unloaded += (_, _) => StopAmbientMotion();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+        MouseLeftButtonDown += OnPoke;
     }
 
     public TemState State
     {
         get => (TemState)GetValue(StateProperty);
         set => SetValue(StateProperty, value);
+    }
+
+    /// <summary>Đổi biểu cảm linh vật Tem (tương đương gán <see cref="State"/>).</summary>
+    public void SetMood(TemState mood) => State = mood;
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        SettingsStore.MascotVisibilityChanged -= OnMascotVisibilityChanged;
+        SettingsStore.MascotVisibilityChanged += OnMascotVisibilityChanged;
+        Visibility = SettingsStore.Load().ShowMascot ? Visibility.Visible : Visibility.Collapsed;
+        ApplyState();
+        if (Visibility == Visibility.Visible) StartAmbientMotion();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        SettingsStore.MascotVisibilityChanged -= OnMascotVisibilityChanged;
+        StopAmbientMotion();
+    }
+
+    private void OnMascotVisibilityChanged(bool visible)
+    {
+        void Update()
+        {
+            Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (visible && IsLoaded) StartAmbientMotion();
+            else StopAmbientMotion();
+        }
+
+        if (Dispatcher.CheckAccess()) Update();
+        else _ = Dispatcher.BeginInvoke(Update);
+    }
+
+    private void OnPoke(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (BfrTheme.ReduceMotion) return;
+        var wiggle = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(420) };
+        wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(-10, KeyTime.FromPercent(0.2)));
+        wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(10, KeyTime.FromPercent(0.45)));
+        wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(-6, KeyTime.FromPercent(0.7)));
+        wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(4, KeyTime.FromPercent(0.88)));
+        wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1.0)));
+        Wiggle.BeginAnimation(RotateTransform.AngleProperty, wiggle);
     }
 
     private void Show(UIElement element, bool visible) => element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;

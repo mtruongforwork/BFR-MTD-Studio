@@ -59,10 +59,20 @@ public sealed class LicenseCoordinator
         {
             _license.RecordPurchase(LicenseService.ProProductId);
         }
-        else if (snapshot.IsTrialActive)
+        else if (string.IsNullOrWhiteSpace(snapshot.Error))
         {
-            // Store trial: dùng thử 30 ngày cục bộ tương ứng với thời hạn Store.
-            if (!_license.Status.IsTrial && _license.StartTrial()) { /* bắt đầu dùng thử */ }
+            // Store xác nhận rõ ràng không có Pro (không phải lỗi mạng/Store):
+            // thu hồi trạng thái mua đã cache cục bộ nếu trước đó được cấp qua Store (SEC-2).
+            if (!_license.ActivatedByKey && !string.IsNullOrWhiteSpace(_license.Status.ProductId))
+            {
+                _license.ClearPurchase();
+            }
+
+            if (snapshot.IsTrialActive)
+            {
+                // Store trial: dùng thử 30 ngày cục bộ tương ứng với thời hạn Store.
+                if (!_license.Status.IsTrial && _license.StartTrial()) { /* bắt đầu dùng thử */ }
+            }
         }
 
         return _license.Evaluate();

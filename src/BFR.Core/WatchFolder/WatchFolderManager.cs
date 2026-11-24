@@ -61,19 +61,27 @@ public sealed class WatchFolderManager : IDisposable
         var errors = Validate(rules);
         if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
 
-        foreach (var rule in rules.Where(r => r.Enabled))
+        try
         {
-            var captured = rule;
-            var service = new WatchFolderService(
-                rule.ToOptions(),
-                DisplayName(rule),
-                batch => _processor.Process(batch, captured),
-                _fs);
+            foreach (var rule in rules.Where(r => r.Enabled))
+            {
+                var captured = rule;
+                var service = new WatchFolderService(
+                    rule.ToOptions(),
+                    DisplayName(rule),
+                    batch => _processor.Process(batch, captured),
+                    _fs);
 
-            service.Logged += (_, entry) => Logged?.Invoke(this, (captured, entry));
-            service.BatchProcessed += (_, result) => BatchProcessed?.Invoke(this, (captured, result));
-            service.Start();
-            _services[rule.Id] = service;
+                service.Logged += (_, entry) => Logged?.Invoke(this, (captured, entry));
+                service.BatchProcessed += (_, result) => BatchProcessed?.Invoke(this, (captured, result));
+                service.Start();
+                _services[rule.Id] = service;
+            }
+        }
+        catch
+        {
+            Stop();
+            throw;
         }
     }
 

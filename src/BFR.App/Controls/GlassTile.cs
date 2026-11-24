@@ -24,6 +24,14 @@ public class GlassTile : HeaderedContentControl
     public static readonly DependencyProperty IsInteractiveProperty =
         DependencyProperty.Register(nameof(IsInteractive), typeof(bool), typeof(GlassTile), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsActiveProperty =
+        DependencyProperty.Register(nameof(IsActive), typeof(bool), typeof(GlassTile), new PropertyMetadata(false));
+
+    private static readonly DependencyPropertyKey IsPressedPropertyKey =
+        DependencyProperty.RegisterReadOnly(nameof(IsPressed), typeof(bool), typeof(GlassTile), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty IsPressedProperty = IsPressedPropertyKey.DependencyProperty;
+
     static GlassTile() =>
         DefaultStyleKeyProperty.OverrideMetadata(typeof(GlassTile), new FrameworkPropertyMetadata(typeof(GlassTile)));
 
@@ -35,17 +43,44 @@ public class GlassTile : HeaderedContentControl
     /// <summary>Bật hiệu ứng nổi khi rê chuột và vòng focus bàn phím.</summary>
     public bool IsInteractive { get => (bool)GetValue(IsInteractiveProperty); set => SetValue(IsInteractiveProperty, value); }
 
+    /// <summary>Đánh dấu ô đang được chọn/lọc (hiện viền nhấn).</summary>
+    public bool IsActive { get => (bool)GetValue(IsActiveProperty); set => SetValue(IsActiveProperty, value); }
+
+    /// <summary>True khi đang giữ chuột trên ô tương tác (dùng cho hiệu ứng thu nhẹ 0.985).</summary>
+    public bool IsPressed { get => (bool)GetValue(IsPressedProperty); private set => SetValue(IsPressedPropertyKey, value); }
+
     /// <summary>Ô tương tác được kích hoạt: bấm chuột, Enter/Space, hoặc InvokePattern của UI Automation (trình đọc màn hình, test tự động).</summary>
     public event EventHandler? Invoked;
 
     public void RaiseInvoked() => Invoked?.Invoke(this, EventArgs.Empty);
 
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        if (!IsInteractive || e.Handled) return;
+        if (Infrastructure.BfrTheme.GlassEffectsEnabled && !Infrastructure.BfrTheme.ReduceMotion)
+            IsPressed = true;
+    }
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
+        IsPressed = false;
         base.OnMouseLeftButtonUp(e);
         if (!IsInteractive || e.Handled) return;
         e.Handled = true;
         RaiseInvoked();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        IsPressed = false;
+        base.OnMouseLeave(e);
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        IsPressed = false;
+        base.OnLostMouseCapture(e);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

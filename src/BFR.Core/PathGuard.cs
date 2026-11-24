@@ -23,6 +23,94 @@ public static class PathGuard
         Path.Combine(Path.GetTempPath(), "BatchFileRenamer");
 
     /// <summary>
+    /// Gỡ tiền tố đường dẫn mở rộng / thiết bị Windows (<c>\\?\</c>, <c>\\.\</c>, <c>\\?\UNC\</c>, <c>\\.\UNC\</c>)
+    /// để ngăn vượt mặt so sánh đường dẫn (SEC-3).
+    /// </summary>
+    public static string StripDevicePrefix(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+
+        // Chuẩn hoá tạm 8 ký tự đầu để bắt cả biến thể dùng '/' (ví dụ //?/C:/Windows).
+        if (path.Length >= 8)
+        {
+            var head8 = path[..8].Replace('/', '\\');
+            if (head8.Equals(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase) ||
+                head8.Equals(@"\\.\UNC\", StringComparison.OrdinalIgnoreCase))
+            {
+                return @"\\" + path[8..];
+            }
+        }
+
+        if (path.Length >= 4)
+        {
+            var head4 = path[..4].Replace('/', '\\');
+            if (head4.Equals(@"\\?\", StringComparison.Ordinal) ||
+                head4.Equals(@"\\.\", StringComparison.Ordinal))
+            {
+                return path[4..];
+            }
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// Phân giải symlink / NTFS junction trên đĩa (bao gồm cả thư mục cha nếu đường dẫn đích chưa tồn tại).
+    /// Trả về đường dẫn gốc nếu không có liên kết hoặc không truy cập được đĩa (ví dụ FakeFileSystem).
+    /// </summary>
+    public static string ResolveRealPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return path;
+
+        try
+        {
+            var cleaned = StripDevicePrefix(path);
+            if (!Path.IsPathFullyQualified(cleaned)) return path;
+
+            var full = StripDevicePrefix(Path.GetFullPath(cleaned));
+            var tail = new Stack<string>();
+            var current = full;
+
+            while (!string.IsNullOrEmpty(current))
+            {
+                FileSystemInfo? target = null;
+                if (File.Exists(current))
+                {
+                    target = File.ResolveLinkTarget(current, returnFinalTarget: true);
+                }
+                else if (Directory.Exists(current))
+                {
+                    target = Directory.ResolveLinkTarget(current, returnFinalTarget: true);
+                }
+
+                if (target is not null)
+                {
+                    var resolvedBase = StripDevicePrefix(Path.GetFullPath(target.FullName));
+                    while (tail.Count > 0)
+                    {
+                        resolvedBase = Path.Combine(resolvedBase, tail.Pop());
+                    }
+                    return StripDevicePrefix(Path.GetFullPath(resolvedBase));
+                }
+
+                var parent = Path.GetDirectoryName(current);
+                if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                    break;
+
+                var segment = Path.GetFileName(current);
+                if (!string.IsNullOrEmpty(segment)) tail.Push(segment);
+                current = parent;
+            }
+
+            return full;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
+    }
+
+    /// <summary>
     /// Đường dẫn hợp lệ: không rỗng, không quá dài, không có ký tự điều khiển hoặc NUL,
     /// là đường dẫn tuyệt đối. Trả về dạng đã chuẩn hoá (<see cref="Path.GetFullPath(string)"/>).
     /// </summary>
@@ -38,9 +126,10 @@ public static class PathGuard
 
         try
         {
-            if (!Path.IsPathFullyQualified(path)) return false;
-            normalized = Path.GetFullPath(path);
-            return normalized.Length <= MaxPathLength;
+            var cleaned = StripDevicePrefix(path);
+            if (!Path.IsPathFullyQualified(cleaned)) return false;
+            normalized = StripDevicePrefix(Path.GetFullPath(cleaned));
+            return normalized.Length <= MaxPathLength && Path.IsPathFullyQualified(normalized);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
@@ -48,11 +137,25 @@ public static class PathGuard
         }
     }
 
-    /// <summary>True khi <paramref name="path"/> nằm bên trong <paramref name="root"/> (không tính chính root).</summary>
+    /// <summary>True khi <paramref name="path"/> nằm bên trong <paramref name="root"/> (không tính chính root) và không thoát ra ngoài qua symlink/junction.</summary>
     public static bool IsInside(string path, string root)
     {
         if (!TryNormalize(path, out var full) || !TryNormalize(root, out var rootFull)) return false;
 
+        if (!IsLexicallyInside(full, rootFull)) return false;
+
+        var resolvedPath = ResolveRealPath(full);
+        if (!string.Equals(resolvedPath, full, StringComparison.OrdinalIgnoreCase))
+        {
+            var resolvedRoot = ResolveRealPath(rootFull);
+            if (!IsLexicallyInside(resolvedPath, resolvedRoot)) return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsLexicallyInside(string full, string rootFull)
+    {
         var prefix = rootFull.EndsWith(Path.DirectorySeparatorChar) ? rootFull : rootFull + Path.DirectorySeparatorChar;
         return full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }

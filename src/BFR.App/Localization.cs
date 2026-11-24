@@ -13,6 +13,9 @@ public static class Loc
     public static string Current { get; private set; } = "vi";
     public static bool IsEnglish => Current == "en";
 
+    /// <summary>Phát ra sau khi đổi ngôn ngữ giao diện để các trang/cửa sổ nạp lại nhãn ngay lập tức.</summary>
+    public static event Action<string>? LanguageChanged;
+
     /// <summary>Chọn chuỗi theo ngôn ngữ hiện tại cho text sinh động trong code-behind.</summary>
     public static string L(string vi, string en) => IsEnglish ? en : vi;
 
@@ -45,6 +48,7 @@ public static class Loc
             }
         }
         BFR.Core.CoreText.Resolver = key => snapshot.TryGetValue(key, out var text) ? text : null;
+        LanguageChanged?.Invoke(language);
     }
 
     public static string T(string key) =>

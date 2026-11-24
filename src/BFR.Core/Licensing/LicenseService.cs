@@ -296,11 +296,12 @@ public sealed class LicenseService
     /// <summary>
     /// Móc thử nghiệm cho bản dev: biến môi trường BFR_DEV_TIER=pro|free|trial.
     ///
-    /// CHỈ có tác dụng khi ứng dụng KHÔNG chạy từ gói MSIX. Người dùng bản Store
-    /// (có package identity) không thể tự mở khoá Pro chỉ bằng biến môi trường.
+    /// CHỈ biên dịch trong bản DEBUG (SEC-2) và chỉ có tác dụng khi KHÔNG chạy từ gói MSIX.
+    /// Bản Release luôn trả về null.
     /// </summary>
     public static Func<LicenseTier>? ResolveDevTierOverride(bool packaged)
     {
+#if DEBUG
         if (packaged) return null;
 
         var value = Environment.GetEnvironmentVariable("BFR_DEV_TIER");
@@ -312,6 +313,10 @@ public sealed class LicenseService
             "free" => () => LicenseTier.Free,
             _ => null
         };
+#else
+        _ = packaged;
+        return null;
+#endif
     }
 }
 

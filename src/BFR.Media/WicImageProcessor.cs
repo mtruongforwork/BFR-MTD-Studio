@@ -234,17 +234,44 @@ public sealed class WicImageProcessor : IImageProcessor
         format == PixelFormats.Bgra32 || format == PixelFormats.Pbgra32 || format == PixelFormats.Prgba64 || format == PixelFormats.Rgba64
         || format == PixelFormats.Prgba128Float || format == PixelFormats.Rgba128Float;
 
-    /// <summary>JPEG/BMP không có kênh trong suốt: đặt ảnh lên nền trắng thay vì để nền đen.</summary>
-    private static BitmapSource FlattenOnWhite(BitmapSource source)
+    /// <summary>
+    /// JPEG/BMP không có kênh trong suốt: đặt ảnh lên nền trắng thay vì để nền đen.
+    /// Hòa trộn alpha thuần CPU trên Pbgra32 (free-threaded, không dùng DrawingVisual/RenderTargetBitmap
+    /// nên không tạo MIL context và không rò rỉ bộ nhớ trên background thread — STAB-3).
+    /// </summary>
+    internal static BitmapSource FlattenOnWhite(BitmapSource source)
     {
-        var visual = new DrawingVisual();
-        using (var dc = visual.RenderOpen())
+        var width = source.PixelWidth;
+        var height = source.PixelHeight;
+        if (width <= 0 || height <= 0) return source;
+
+        var converted = source.Format == PixelFormats.Pbgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Pbgra32, null, 0);
+
+        var stride = checked(width * 4);
+        var pixels = new byte[checked(stride * height)];
+        converted.CopyPixels(pixels, stride, 0);
+
+        // Pbgra32 là premultiplied alpha: out = src_pre + white * (1 - a) = src_pre + (255 - a).
+        for (int i = 0; i < pixels.Length; i += 4)
         {
-            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
-            dc.DrawImage(source, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
+            var invA = 255 - pixels[i + 3];
+            if (invA > 0)
+            {
+                var b = pixels[i] + invA;
+                var g = pixels[i + 1] + invA;
+                var r = pixels[i + 2] + invA;
+                pixels[i] = b > 255 ? (byte)255 : (byte)b;
+                pixels[i + 1] = g > 255 ? (byte)255 : (byte)g;
+                pixels[i + 2] = r > 255 ? (byte)255 : (byte)r;
+                pixels[i + 3] = 255;
+            }
         }
-        var target = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-        target.Render(visual);
+
+        var dpiX = source.DpiX > 0 ? source.DpiX : 96;
+        var dpiY = source.DpiY > 0 ? source.DpiY : 96;
+        var target = BitmapSource.Create(width, height, dpiX, dpiY, PixelFormats.Pbgra32, null, pixels, stride);
         target.Freeze();
         return target;
     }

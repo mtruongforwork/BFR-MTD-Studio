@@ -14,6 +14,8 @@ using System.Threading.Tasks;
 /// </summary>
 public sealed class GitHubReleasesUpdateFeed : IUpdateFeed, IDisposable
 {
+    private const int MaxRedirects = 3;
+
     private readonly HttpClient _client;
     private readonly bool _ownsClient;
     private readonly Uri _releasesApiUri;
@@ -27,7 +29,7 @@ public sealed class GitHubReleasesUpdateFeed : IUpdateFeed, IDisposable
 
         _releasesApiUri = releasesApiUri;
         _ownsClient = client is null;
-        _client = client ?? new HttpClient
+        _client = client ?? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }, disposeHandler: true)
         {
             Timeout = TimeSpan.FromSeconds(10),
             MaxResponseContentBufferSize = UpdateFeedPolicy.MaxResponseBytes
@@ -43,47 +45,87 @@ public sealed class GitHubReleasesUpdateFeed : IUpdateFeed, IDisposable
     {
         try
         {
-            using var response = await _client.GetAsync(_releasesApiUri, ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            var currentUri = _releasesApiUri;
+            HttpResponseMessage? response = null;
+            try
             {
-                return new UpdateFeedResult(false, Error: $"HTTP {(int)response.StatusCode}");
-            }
+                for (int hop = 0; hop <= MaxRedirects; hop++)
+                {
+                    response?.Dispose();
+                    response = await _client.GetAsync(currentUri, ct).ConfigureAwait(false);
 
-            // Sau chuyển hướng (nếu có) vẫn phải là máy chủ đã cho phép.
-            var finalUri = response.RequestMessage?.RequestUri;
-            if (finalUri is not null && !UpdateFeedPolicy.IsAllowedFeed(finalUri))
+                    var statusCode = (int)response.StatusCode;
+                    if (statusCode is 301 or 302 or 303 or 307 or 308)
+                    {
+                        if (hop == MaxRedirects)
+                        {
+                            return new UpdateFeedResult(false, Error: "Nguồn cập nhật chuyển hướng quá nhiều lần.");
+                        }
+
+                        var location = response.Headers.Location;
+                        if (location is null)
+                        {
+                            return new UpdateFeedResult(false, Error: $"HTTP {statusCode}");
+                        }
+
+                        var nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+                        if (!UpdateFeedPolicy.IsAllowedFeed(nextUri))
+                        {
+                            return new UpdateFeedResult(false, Error: "Nguồn cập nhật chuyển hướng tới máy chủ không được phép.");
+                        }
+
+                        currentUri = nextUri;
+                        continue;
+                    }
+
+                    break;
+                }
+
+                if (response is null || !response.IsSuccessStatusCode)
+                {
+                    return new UpdateFeedResult(false, Error: $"HTTP {(int)(response?.StatusCode ?? 0)}");
+                }
+
+                // Phòng vệ bổ sung nếu bên gọi truyền HttpClient có AllowAutoRedirect = true.
+                var finalUri = response.RequestMessage?.RequestUri;
+                if (finalUri is not null && !UpdateFeedPolicy.IsAllowedFeed(finalUri))
+                {
+                    return new UpdateFeedResult(false, Error: "Nguồn cập nhật chuyển hướng tới máy chủ không được phép.");
+                }
+
+                if (response.Content.Headers.ContentLength > UpdateFeedPolicy.MaxResponseBytes)
+                {
+                    return new UpdateFeedResult(false, Error: "Phản hồi cập nhật quá lớn.");
+                }
+
+                var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                if (json.Length > UpdateFeedPolicy.MaxResponseBytes)
+                {
+                    return new UpdateFeedResult(false, Error: "Phản hồi cập nhật quá lớn.");
+                }
+
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                var tag = root.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() : null;
+                // Chỉ giữ URL https tới github.com: giá trị này sau đó được mở bằng trình duyệt.
+                var url = UpdateFeedPolicy.SafeReleaseUrl(
+                    root.TryGetProperty("html_url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String
+                        ? urlProp.GetString()
+                        : null);
+                var body = root.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() : null;
+
+                if (string.IsNullOrWhiteSpace(tag))
+                {
+                    return new UpdateFeedResult(false, Error: "Phản hồi không có tag_name.");
+                }
+
+                return new UpdateFeedResult(true, tag, url, body);
+            }
+            finally
             {
-                return new UpdateFeedResult(false, Error: "Nguồn cập nhật chuyển hướng tới máy chủ không được phép.");
+                response?.Dispose();
             }
-
-            if (response.Content.Headers.ContentLength > UpdateFeedPolicy.MaxResponseBytes)
-            {
-                return new UpdateFeedResult(false, Error: "Phản hồi cập nhật quá lớn.");
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (json.Length > UpdateFeedPolicy.MaxResponseBytes)
-            {
-                return new UpdateFeedResult(false, Error: "Phản hồi cập nhật quá lớn.");
-            }
-
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var tag = root.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() : null;
-            // Chỉ giữ URL https tới github.com: giá trị này sau đó được mở bằng trình duyệt.
-            var url = UpdateFeedPolicy.SafeReleaseUrl(
-                root.TryGetProperty("html_url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String
-                    ? urlProp.GetString()
-                    : null);
-            var body = root.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() : null;
-
-            if (string.IsNullOrWhiteSpace(tag))
-            {
-                return new UpdateFeedResult(false, Error: "Phản hồi không có tag_name.");
-            }
-
-            return new UpdateFeedResult(true, tag, url, body);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

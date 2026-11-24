@@ -2,23 +2,15 @@ namespace BFR.Store;
 
 using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Services.Store;
-
-[ComImport]
-[Guid("3E68D4BD-7135-4D10-8018-9FB6D9F33FA1")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IInitializeWithWindow
-{
-    void Initialize(IntPtr hwnd);
-}
+using WinRT.Interop;
 
 /// <summary>Gắn cửa sổ chủ cho StoreContext (bắt buộc với ứng dụng desktop khi gọi API có giao diện).</summary>
 internal static class StoreWindow
 {
     public static void Initialize(StoreContext context, IntPtr hwnd) =>
-        ((IInitializeWithWindow)(object)context).Initialize(hwnd);
+        InitializeWithWindow.Initialize(context, hwnd);
 }
 
 /// <summary>

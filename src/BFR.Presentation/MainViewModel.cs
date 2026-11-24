@@ -35,10 +35,10 @@ public sealed class MainViewModel : ObservableObject
     private readonly PresetStore _presetStore;
     private readonly HistoryStore _history;
     private readonly string _journalDir;
-    private readonly IMetadataProvider? _metadataProvider;
+    private IMetadataProvider? _metadataProvider;
     private readonly IStringProvider _strings;
     private readonly IUiDispatcher _dispatcher;
-    private readonly LicenseTier _metadataTier;
+    private LicenseTier _metadataTier;
 
     private readonly List<string> _sources = new();
 
@@ -52,10 +52,12 @@ public sealed class MainViewModel : ObservableObject
         return true;
     }
     private readonly HashSet<string> _excludedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _manualOverrides = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
     private Preset _preset = new();
     private PreviewResult? _preview;
     private bool _isBusy;
+    private bool _hasUndoHistory;
 
     public MainViewModel(
         LicenseCoordinator license,
@@ -82,8 +84,8 @@ public sealed class MainViewModel : ObservableObject
         Rules = new ObservableCollection<RuleCardViewModel>();
         Rows = new ObservableCollection<PreviewRowViewModel>();
 
-        ApplyCommand = new RelayCommand(async () => await ApplyAsync(), () => CanApply);
-        UndoCommand = new RelayCommand(async () => await UndoLastAsync(), () => CanUndo);
+        ApplyCommand = new AsyncRelayCommand(ApplyAsync, () => CanApply);
+        UndoCommand = new AsyncRelayCommand(UndoLastAsync, () => CanUndo);
         ClearCommand = new RelayCommand(ClearList);
         ResolveConflictsCommand = new RelayCommand(() => AutoResolveConflicts = true);
         StopAutoResolveCommand = new RelayCommand(() => AutoResolveConflicts = false);
@@ -101,6 +103,8 @@ public sealed class MainViewModel : ObservableObject
         {
             // Không đọc được journal/lịch sử: không chặn việc mở app.
         }
+
+        RefreshUndoHistory();
 
         if (initialPayload is not null)
         {
@@ -135,9 +139,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Các dòng sau khi áp bộ lọc (chip trạng thái + tìm kiếm) — view bind vào đây.</summary>
     public ObservableCollection<PreviewRowViewModel> FilteredRows { get; } = new();
 
-    public RelayCommand ApplyCommand { get; }
+    public AsyncRelayCommand ApplyCommand { get; }
 
-    public RelayCommand UndoCommand { get; }
+    public AsyncRelayCommand UndoCommand { get; }
 
     public RelayCommand ClearCommand { get; }
 
@@ -162,9 +166,76 @@ public sealed class MainViewModel : ObservableObject
 
     private Preset? _selectedPreset;
 
-    public bool IsRecursive { get; set; } = false;
+    public bool IsRecursive
+    {
+        get => _isRecursive;
+        set
+        {
+            if (!Set(ref _isRecursive, value)) return;
+            if (_sources.Count > 0) _ = RebuildAsync();
+        }
+    }
 
-    public bool IncludeFolders { get; set; } = false;
+    private bool _isRecursive;
+
+    public bool IncludeFolders
+    {
+        get => _includeFolders;
+        set
+        {
+            if (!Set(ref _includeFolders, value)) return;
+            if (_sources.Count > 0) _ = RebuildAsync();
+        }
+    }
+
+    private bool _includeFolders;
+
+    /// <summary>True nếu nhà cung cấp metadata Pro (EXIF/Media/Audio) đang hoạt động trong phiên hiện tại.</summary>
+    public bool HasMetadataProvider => _metadataProvider is not null;
+
+    /// <summary>Số dòng đang có tên thủ công (ghi đè bằng F2 hoặc Import).</summary>
+    public int ManualOverrideCount => _manualOverrides.Count;
+
+    public bool HasManualOverrides => _manualOverrides.Count > 0;
+
+    /// <summary>
+    /// Đồng bộ trạng thái giấy phép trong phiên (ví dụ sau khi nâng cấp lên Pro hoặc bắt đầu dùng thử)
+    /// để bật ngay EXIF/Media/Audio metadata mà không cần khởi động lại ứng dụng.
+    /// </summary>
+    public void RefreshLicenseState()
+    {
+        var currentTier = _license.Status.Tier;
+        if (currentTier == _metadataTier) return;
+
+        _metadataTier = currentTier;
+        _metadataProvider = currentTier == LicenseTier.Pro
+            ? new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader())
+            : null;
+
+        Raise(nameof(HasMetadataProvider));
+        if (_sources.Count > 0) _ = RebuildAsync();
+    }
+
+    /// <summary>Đọc lại trạng thái có lịch sử hoàn tác hay không từ đĩa vào bộ nhớ đệm.</summary>
+    public void RefreshUndoHistory()
+    {
+        bool hasHistory;
+        try
+        {
+            hasHistory = _history.LoadAll().Count > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            hasHistory = false;
+        }
+
+        if (_hasUndoHistory != hasHistory)
+        {
+            _hasUndoHistory = hasHistory;
+            Raise(nameof(CanUndo));
+            UndoCommand.RaiseCanExecuteChanged();
+        }
+    }
 
     public SortBy SortBy { get; set; } = SortBy.NameNatural;
 
@@ -274,7 +345,7 @@ public sealed class MainViewModel : ObservableObject
 
     public bool CanApply => WillChangeCount > 0 && ErrorCount == 0 && !IsBusy;
 
-    public bool CanUndo => _history.LoadAll().Count > 0 && !IsBusy;
+    public bool CanUndo => _hasUndoHistory && !IsBusy;
 
     public bool IsEmptyStateVisible => Rows.Count == 0;
 
@@ -302,9 +373,12 @@ public sealed class MainViewModel : ObservableObject
         _sources.Clear();
         _sourceSet.Clear();
         _excludedPaths.Clear();
+        _manualOverrides.Clear();
         foreach (var r in Rows) r.PropertyChanged -= OnRowPropertyChanged;
         Rows.Clear();
         _preview = null;
+        Raise(nameof(ManualOverrideCount));
+        Raise(nameof(HasManualOverrides));
         OnCountsChanged();
         ApplyFilter();
     }
@@ -366,6 +440,53 @@ public sealed class MainViewModel : ObservableObject
     {
         _preset.Rules.Remove(card.Definition);
         Rules.Remove(card);
+        RefreshRuleOrder();
+        _ = RebuildAsync();
+    }
+
+    /// <summary>Nhân bản một quy tắc ngay phía sau nó trong chuỗi (kiểm tra giới hạn Free/Pro).</summary>
+    public bool CloneRule(RuleCardViewModel card)
+    {
+        if (Rules.Count >= _license.License.MaxRules)
+        {
+            RaiseProLimit(_license.License.Check(ProFeature.UnlimitedRules), ProFeature.UnlimitedRules);
+            return false;
+        }
+
+        var index = Rules.IndexOf(card);
+        if (index < 0) return false;
+
+        var copyDef = new RuleDefinition
+        {
+            Type = card.Definition.Type,
+            Name = card.Definition.Name,
+            Enabled = card.Definition.Enabled,
+            Params = new Dictionary<string, System.Text.Json.JsonElement>(card.Definition.Params)
+        };
+
+        var insertAt = index + 1;
+        _preset.Rules.Insert(insertAt, copyDef);
+        var copyCard = new RuleCardViewModel(copyDef, _strings, MoveRule) { IsExpanded = true };
+        copyCard.Changed += (_, _) => ScheduleRebuild();
+        Rules.Insert(insertAt, copyCard);
+        RefreshRuleOrder();
+        _ = RebuildAsync();
+        return true;
+    }
+
+    /// <summary>Đặt lại toàn bộ tham số của quy tắc về giá trị mặc định.</summary>
+    public void ResetRule(RuleCardViewModel card)
+    {
+        var index = Rules.IndexOf(card);
+        if (index < 0) return;
+
+        var freshDef = new RuleDefinition { Type = card.Definition.Type, Enabled = true };
+        ApplyDefaultParams(freshDef);
+        _preset.Rules[index] = freshDef;
+
+        var freshCard = new RuleCardViewModel(freshDef, _strings, MoveRule) { IsExpanded = card.IsExpanded };
+        freshCard.Changed += (_, _) => ScheduleRebuild();
+        Rules[index] = freshCard;
         RefreshRuleOrder();
         _ = RebuildAsync();
     }
@@ -455,9 +576,10 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Trì hoãn 150 ms rồi tính lại preview (nhập liên tục không giật).</summary>
     public void ScheduleRebuild()
     {
-        _debounceCts?.Cancel();
+        var previous = _debounceCts;
         var cts = new CancellationTokenSource();
         _debounceCts = cts;
+        try { previous?.Cancel(); } catch (ObjectDisposedException) { }
 
         // Luôn hồi lại luồng UI: ObservableCollection không được sửa ngoài luồng giao diện.
         _dispatcher.Post(() => _ = DebouncedRebuildAsync(cts));
@@ -481,6 +603,11 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception)
         {
             // Lỗi preview không được làm sập giao diện.
+        }
+        finally
+        {
+            if (ReferenceEquals(_debounceCts, cts)) _debounceCts = null;
+            cts.Dispose();
         }
     }
 
@@ -552,6 +679,7 @@ public sealed class MainViewModel : ObservableObject
         var sources = _sources.ToList();
         if (sources.Count == 0)
         {
+            foreach (var r in Rows) r.PropertyChanged -= OnRowPropertyChanged;
             Rows.Clear();
             _preview = null;
             OnCountsChanged();
@@ -559,11 +687,27 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        _cts?.Cancel();
+        var previous = _cts;
         var cts = new CancellationTokenSource();
         _cts = cts;
+        try { previous?.Cancel(); } catch (ObjectDisposedException) { }
+
+        // STAB-2: Chụp bản sao bất biến của toàn bộ trạng thái trên luồng UI TRƯỚC khi vào Task.Run.
+        var isRecursive = _isRecursive;
+        var includeFolders = _includeFolders;
+        var maxDepth = isRecursive ? _license.License.MaxRecursionDepth : 0;
+        var sortBy = SortBy;
         var autoResolve = _autoResolve;
         var maxListRows = _license.License.MaxListRows;
+        var metadataProvider = _metadataProvider;
+        var excludedPaths = new HashSet<string>(_excludedPaths, StringComparer.OrdinalIgnoreCase);
+        var unselectedPaths = new HashSet<string>(
+            Rows.Where(r => !r.IsSelected).Select(r => r.File.FullPath),
+            StringComparer.OrdinalIgnoreCase);
+        var manualOverrides = new Dictionary<string, string>(_manualOverrides, StringComparer.OrdinalIgnoreCase);
+        var presetSnapshot = ClonePreset(_preset);
+        var token = cts.Token;
+
         NotifyListLimit(maxListRows);
 
         IsBusy = true;
@@ -576,28 +720,37 @@ public sealed class MainViewModel : ObservableObject
                 var scanner = new FileScanner();
                 var items = scanner.Scan(sources, new ScanOptions
                 {
-                    Recursive = IsRecursive,
-                    IncludeFolders = IncludeFolders,
-                    MaxDepth = IsRecursive ? _license.License.MaxRecursionDepth : 0
-                }, cts.Token);
+                    Recursive = isRecursive,
+                    IncludeFolders = includeFolders,
+                    MaxDepth = maxDepth
+                }, token);
 
-                if (_excludedPaths.Count > 0)
+                if (excludedPaths.Count > 0)
                 {
-                    items = items.Where(f => !_excludedPaths.Contains(f.FullPath)).ToList();
+                    items = items.Where(f => !excludedPaths.Contains(f.FullPath)).ToList();
                 }
 
-                items = SortItems(items, SortBy);
+                items = SortItems(items, sortBy);
+                if (excludedPaths.Count > 0)
+                {
+                    items = items.Select((f, idx) => f with { LoadOrder = idx }).ToList();
+                }
 
                 var context = new RuleContext(DateTime.Now, Guid.NewGuid().ToString("N"));
-                var pipeline = new PresetCompiler().Compile(_preset, maxListRows);
-                var outside = BuildOutsideIndex(items);
-                var engine = new PreviewEngine(pipeline, metadataProvider: _metadataProvider) { AutoResolveConflicts = autoResolve };
-                var result = engine.Run(items, context, null, cts.Token, outside);
+                var pipeline = new PresetCompiler().Compile(presetSnapshot, maxListRows);
+                if (manualOverrides.Count > 0)
+                {
+                    pipeline.Add(new ManualOverrideRule(manualOverrides));
+                }
+
+                var outside = BuildOutsideIndex(items, unselectedPaths);
+                var engine = new PreviewEngine(pipeline, metadataProvider: metadataProvider) { AutoResolveConflicts = autoResolve };
+                var result = engine.Run(items, context, null, token, outside);
 
                 return (items, result, engine.AutoResolvedCount);
-            }, cts.Token).ConfigureAwait(true);
+            }, token).ConfigureAwait(true);
 
-            if (cts.IsCancellationRequested) return;
+            if (token.IsCancellationRequested) return;
 
             _preview = preview;
             AutoResolvedCount = autoResolved;
@@ -612,6 +765,7 @@ public sealed class MainViewModel : ObservableObject
             foreach (var item in preview.Items)
             {
                 var isSelected = previousSelection.TryGetValue(item.File.FullPath, out var kept) ? kept : true;
+                var hasManualOverride = manualOverrides.ContainsKey(item.File.FullPath);
                 var row = new PreviewRowViewModel(
                     item.File,
                     item.OldName,
@@ -619,7 +773,8 @@ public sealed class MainViewModel : ObservableObject
                     item.Status,
                     item.Detail,
                     isSelected,
-                    _strings);
+                    _strings,
+                    hasManualOverride);
                 row.PropertyChanged += OnRowPropertyChanged;
                 Rows.Add(row);
             }
@@ -635,9 +790,62 @@ public sealed class MainViewModel : ObservableObject
         {
             if (ReferenceEquals(_cts, cts))
             {
+                _cts = null;
                 IsBusy = false;
                 BusyText = string.Empty;
             }
+            cts.Dispose();
+        }
+    }
+
+    private static Preset ClonePreset(Preset source) => new()
+    {
+        Name = source.Name,
+        Description = source.Description,
+        Options = source.Options,
+        Rules = source.Rules.Select(r => new RuleDefinition
+        {
+            Type = r.Type,
+            Name = r.Name,
+            Enabled = r.Enabled,
+            Params = new Dictionary<string, System.Text.Json.JsonElement>(r.Params)
+        }).ToList()
+    };
+
+    /// <summary>
+    /// Quy tắc nội bộ áp dụng bản ghi đè tên thủ công sau chuỗi quy tắc thông thường,
+    /// để mọi tên thủ công vẫn đi qua đầy đủ NameValidator + ConflictDetector + ProtectedZones + RenamePlanner.
+    /// </summary>
+    private sealed class ManualOverrideRule : IRule
+    {
+        private readonly IReadOnlyDictionary<string, string> _overrides;
+
+        public ManualOverrideRule(IReadOnlyDictionary<string, string> overrides) => _overrides = overrides;
+
+        public string Id => "manual-override";
+
+        public bool Enabled => true;
+
+        public RenameState Apply(FileItem file, RenameState state, RuleContext ctx)
+        {
+            if (!_overrides.TryGetValue(file.FullPath, out var customName)) return state;
+
+            var dotIndex = customName.LastIndexOf('.');
+            string name;
+            string ext;
+            if (dotIndex > 0 && dotIndex < customName.Length - 1)
+            {
+                name = customName[..dotIndex];
+                ext = customName[(dotIndex + 1)..];
+            }
+            else
+            {
+                name = customName;
+                ext = string.Empty;
+            }
+
+            var trace = new List<string>(state.Trace) { $"{Id}: {customName}" };
+            return state with { Name = name, Extension = ext, Trace = trace };
         }
     }
 
@@ -676,12 +884,11 @@ public sealed class MainViewModel : ObservableObject
     /// Chỉ mục tên tệp "ngoài lô" để phát hiện xung đột: gồm tệp trên đĩa không thuộc lô
     /// và các tệp trong lô đã bị người dùng bỏ chọn (FR-A6).
     /// </summary>
-    private IReadOnlyDictionary<string, IReadOnlySet<string>> BuildOutsideIndex(IReadOnlyList<FileItem> all)
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> BuildOutsideIndex(
+        IReadOnlyList<FileItem> all,
+        IReadOnlySet<string> unselected)
     {
         var batchPaths = new HashSet<string>(all.Select(f => f.FullPath), StringComparer.OrdinalIgnoreCase);
-        var unselected = new HashSet<string>(
-            Rows.Where(r => !r.IsSelected).Select(r => r.File.FullPath),
-            StringComparer.OrdinalIgnoreCase);
 
         // Khoá PHẢI là tên thư mục đã chuẩn hoá: ConflictDetector tra cứu bằng NormalizeDirectory
         // (chữ thường, dấu '/'). Dùng khoá thô thì không bao giờ khớp và mọi va chạm với tệp
@@ -792,10 +999,240 @@ public sealed class MainViewModel : ObservableObject
         _sources.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
         _sourceSet.Remove(path);
         _excludedPaths.Add(path);
+        if (_manualOverrides.Remove(path))
+        {
+            Raise(nameof(ManualOverrideCount));
+            Raise(nameof(HasManualOverrides));
+        }
+
         row.PropertyChanged -= OnRowPropertyChanged;
         Rows.Remove(row);
         FilteredRows.Remove(row);
         OnCountsChanged();
+
+        if (_sources.Count > 0) ScheduleRebuild();
+    }
+
+    // ----------------------------------------------------------------- Manual overrides & CSV/Clipboard round-trip
+
+    /// <summary>Ghi đè tên mới thủ công cho một dòng (F2 / double-click); vẫn đi qua NameValidator &amp; ConflictDetector.</summary>
+    public void SetManualOverride(PreviewRowViewModel row, string customName)
+    {
+        if (row is null) return;
+        if (string.IsNullOrEmpty(customName))
+        {
+            ClearManualOverride(row);
+            return;
+        }
+
+        _manualOverrides[row.File.FullPath] = customName;
+        Raise(nameof(ManualOverrideCount));
+        Raise(nameof(HasManualOverrides));
+        _ = RebuildAsync();
+    }
+
+    /// <summary>Gỡ ghi đè thủ công cho một dòng để quay về tên do quy tắc tạo ra.</summary>
+    public void ClearManualOverride(PreviewRowViewModel row)
+    {
+        if (row is null) return;
+        if (!_manualOverrides.Remove(row.File.FullPath)) return;
+
+        Raise(nameof(ManualOverrideCount));
+        Raise(nameof(HasManualOverrides));
+        _ = RebuildAsync();
+    }
+
+    /// <summary>Xóa toàn bộ các ghi đè tên thủ công hiện có.</summary>
+    public void ClearAllManualOverrides()
+    {
+        if (_manualOverrides.Count == 0) return;
+
+        _manualOverrides.Clear();
+        Raise(nameof(ManualOverrideCount));
+        Raise(nameof(HasManualOverrides));
+        _ = RebuildAsync();
+    }
+
+    /// <summary>
+    /// Xuất danh sách <c>OldName,NewName</c> dạng CSV an toàn (chống CSV Formula Injection CWE-1236)
+    /// để dán vào Excel hoặc lưu thành tệp <c>.csv</c>.
+    /// </summary>
+    public string ExportNamesToCsvText()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("OldName,NewName");
+        foreach (var row in Rows)
+        {
+            sb.Append(EscapeCsvCell(row.OldName))
+              .Append(',')
+              .Append(EscapeCsvCell(row.NewName))
+              .AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Nhập tên mới từ chuỗi văn bản (Clipboard hoặc nội dung CSV): hỗ trợ cả danh sách 1 tên/dòng
+    /// và CSV 2 cột (<c>OldName,NewName</c>), áp dụng thành manual overrides và tính lại preview.
+    /// Trả về số dòng đã áp dụng.
+    /// </summary>
+    public int ImportNewNamesFromCsvText(string? csvOrLines)
+    {
+        if (string.IsNullOrWhiteSpace(csvOrLines)) return 0;
+        var lines = csvOrLines.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        return ImportNewNamesFromLines(lines);
+    }
+
+    /// <summary>
+    /// Nhập tên mới từ các dòng (danh sách tên mới theo thứ tự hoặc cột thứ 2 của CSV <c>OldName,NewName</c>),
+    /// áp dụng thành manual overrides và tính lại preview. Trả về số dòng đã áp dụng.
+    /// </summary>
+    public int ImportNewNamesFromLines(IEnumerable<string> lines)
+    {
+        if (lines is null || Rows.Count == 0) return 0;
+
+        var rawLines = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+        if (rawLines.Count == 0) return 0;
+
+        int startIdx = 0;
+        var firstCols = ParseCsvLine(rawLines[0]);
+        if (firstCols.Count >= 2 &&
+            firstCols[0].Trim().Equals("OldName", StringComparison.OrdinalIgnoreCase) &&
+            firstCols[1].Trim().Equals("NewName", StringComparison.OrdinalIgnoreCase))
+        {
+            startIdx = 1;
+        }
+
+        var matchedIndices = new HashSet<int>();
+        int positionalIndex = 0;
+        int applied = 0;
+
+        for (int i = startIdx; i < rawLines.Count; i++)
+        {
+            var cols = ParseCsvLine(rawLines[i]);
+            if (cols.Count == 0) continue;
+
+            PreviewRowViewModel? targetRow = null;
+            string newName;
+
+            if (cols.Count >= 2)
+            {
+                var oldKey = UnescapeFormulaGuard(cols[0].Trim());
+                newName = UnescapeFormulaGuard(cols[1].Trim());
+
+                // Ưu tiên khớp theo OldName (trường hợp người dùng sắp xếp lại dòng trong Excel).
+                for (int r = 0; r < Rows.Count; r++)
+                {
+                    if (!matchedIndices.Contains(r) &&
+                        string.Equals(Rows[r].OldName, oldKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetRow = Rows[r];
+                        matchedIndices.Add(r);
+                        break;
+                    }
+                }
+
+                if (targetRow is null)
+                {
+                    while (positionalIndex < Rows.Count && matchedIndices.Contains(positionalIndex)) positionalIndex++;
+                    if (positionalIndex < Rows.Count)
+                    {
+                        targetRow = Rows[positionalIndex];
+                        matchedIndices.Add(positionalIndex++);
+                    }
+                }
+            }
+            else
+            {
+                newName = cols[0].Trim();
+                while (positionalIndex < Rows.Count && matchedIndices.Contains(positionalIndex)) positionalIndex++;
+                if (positionalIndex < Rows.Count)
+                {
+                    targetRow = Rows[positionalIndex];
+                    matchedIndices.Add(positionalIndex++);
+                }
+            }
+
+            if (targetRow is null || string.IsNullOrWhiteSpace(newName)) continue;
+
+            _manualOverrides[targetRow.File.FullPath] = newName;
+            applied++;
+        }
+
+        if (applied > 0)
+        {
+            Raise(nameof(ManualOverrideCount));
+            Raise(nameof(HasManualOverrides));
+            _ = RebuildAsync();
+        }
+
+        return applied;
+    }
+
+    private static string EscapeCsvCell(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "\"\"";
+        var safe = value[0] is '=' or '+' or '-' or '@' or '\t' or '\r'
+            ? "'" + value
+            : value;
+        return "\"" + safe.Replace("\"", "\"\"") + "\"";
+    }
+
+    private static string UnescapeFormulaGuard(string value)
+    {
+        if (value.Length >= 2 && value[0] == '\'' && value[1] is '=' or '+' or '-' or '@' or '\t' or '\r')
+        {
+            return value[1..];
+        }
+        return value;
+    }
+
+    private static List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char ch = line[i];
+            if (inQuotes)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    current.Append(ch);
+                }
+            }
+            else if (ch == '"')
+            {
+                inQuotes = true;
+            }
+            else if (ch == ',' || ch == '\t')
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+
+        result.Add(current.ToString());
+        return result;
     }
 
     // ----------------------------------------------------------------- Apply / Undo
@@ -846,6 +1283,13 @@ public sealed class MainViewModel : ObservableObject
             });
 
             _history.PruneAndLimit(_license.License.MaxUndoEntries);
+            _hasUndoHistory = true;
+            if (_manualOverrides.Count > 0)
+            {
+                _manualOverrides.Clear();
+                Raise(nameof(ManualOverrideCount));
+                Raise(nameof(HasManualOverrides));
+            }
 
             _lastReport = Rows
                 .Where(r => r.Status == PreviewStatus.Ok && r.IsSelected)
@@ -880,8 +1324,10 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            var result = new UndoService(_fs).UndoLast(_journalDir);
+            var result = await Task.Run(() => new UndoService(_fs).UndoLast(_journalDir)).ConfigureAwait(true);
+            RefreshUndoHistory();
             SuccessMessage = _strings.F("UndoMessage", result.Undone, result.Total);
+            OnCountsChanged();
             await RebuildAsync().ConfigureAwait(true);
         }
         finally
@@ -891,7 +1337,10 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public void CancelWork() => _cts?.Cancel();
+    public void CancelWork()
+    {
+        try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
+    }
 
     /// <summary>
     /// Phát hiện việc người dùng chọn nguồn ngày Pro (EXIF / media) khi đang ở cấp Free

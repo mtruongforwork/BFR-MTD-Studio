@@ -3,6 +3,7 @@ namespace BFR.App;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
+using BFR.App.Infrastructure;
 using BFR.Presentation.Tools;
 
 /// <summary>
@@ -20,6 +22,25 @@ using BFR.Presentation.Tools;
 internal sealed class RadialMenuWindow : Window
 {
     private const double Outer = 96, Inner = 33, Pad = 12, FlyoutWidth = 230, Hover = 6;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")] private static extern nint MonitorFromPoint(POINT pt, uint dwFlags);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern bool GetMonitorInfo(nint hMonitor, ref MONITORINFO lpmi);
 
     private readonly IReadOnlyList<RadialItem> _items;
     private readonly Action<RadialItem, RadialAction?> _activate;
@@ -31,6 +52,7 @@ internal sealed class RadialMenuWindow : Window
     private readonly TextBlock _hubTitle = new();
     private readonly TextBlock _hint = new();
     private readonly double _cx, _cy;
+    private Rect _monitorWorkArea = SystemParameters.WorkArea;
     private Border? _flyout;
     private int _hovered = -1;
     private bool _closing;
@@ -91,7 +113,7 @@ internal sealed class RadialMenuWindow : Window
             var icon = new TextBlock
             {
                 Text = _items[i].Icon,
-                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
                 FontSize = 16,
                 Foreground = Res("Accent"),
                 IsHitTestVisible = false,
@@ -118,27 +140,27 @@ internal sealed class RadialMenuWindow : Window
         Canvas.SetTop(hub, _cy - (Inner - 3));
         _canvas.Children.Add(hub);
 
-        _hubIcon.FontFamily = new FontFamily("Segoe MDL2 Assets");
+        _hubIcon.FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");
         _hubIcon.FontSize = 13;
         _hubIcon.Foreground = Res("Accent");
         _hubIcon.TextAlignment = TextAlignment.Center;
         _hubIcon.Width = 2 * (Inner - 5);
         _hubIcon.IsHitTestVisible = false;
         Canvas.SetLeft(_hubIcon, _cx - (Inner - 5));
-        Canvas.SetTop(_hubIcon, _cy - 17);
+        Canvas.SetTop(_hubIcon, _cy - 20);
         _canvas.Children.Add(_hubIcon);
 
-        _hubTitle.FontSize = 8.5;
+        _hubTitle.FontSize = 11;
         _hubTitle.FontWeight = FontWeights.SemiBold;
         _hubTitle.Foreground = Res("TextPrimary");
         _hubTitle.TextAlignment = TextAlignment.Center;
         _hubTitle.TextWrapping = TextWrapping.Wrap;
         _hubTitle.TextTrimming = TextTrimming.CharacterEllipsis;
-        _hubTitle.MaxHeight = 22;
-        _hubTitle.Width = 2 * (Inner - 4);
+        _hubTitle.MaxHeight = 30;
+        _hubTitle.Width = 2 * (Inner - 3);
         _hubTitle.IsHitTestVisible = false;
-        Canvas.SetLeft(_hubTitle, _cx - (Inner - 4));
-        Canvas.SetTop(_hubTitle, _cy + 1);
+        Canvas.SetLeft(_hubTitle, _cx - (Inner - 3));
+        Canvas.SetTop(_hubTitle, _cy - 3);
         _canvas.Children.Add(_hubTitle);
 
         _hint.Text = Loc.T("RadialHint");
@@ -223,9 +245,18 @@ internal sealed class RadialMenuWindow : Window
 
     private static void Animate(TranslateTransform transform, double x, double y)
     {
-        var duration = new Duration(TimeSpan.FromMilliseconds(110));
-        transform.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(x, duration));
-        transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, duration));
+        if (BfrTheme.ReduceMotion)
+        {
+            transform.BeginAnimation(TranslateTransform.XProperty, null);
+            transform.BeginAnimation(TranslateTransform.YProperty, null);
+            transform.X = x;
+            transform.Y = y;
+            return;
+        }
+        var duration = new Duration(TimeSpan.FromMilliseconds(120));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        transform.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(x, duration) { EasingFunction = ease });
+        transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, duration) { EasingFunction = ease });
     }
 
     private void OnLeftUp(object sender, MouseButtonEventArgs e)
@@ -308,7 +339,7 @@ internal sealed class RadialMenuWindow : Window
         var onRight = angle < 180;
 
         // Gần mép màn hình: danh sách chức năng chuyển sang phía còn chỗ (cửa sổ đối xứng nên phía kia vẫn nằm trong cửa sổ).
-        var area = SystemParameters.WorkArea;
+        var area = _monitorWorkArea;
         var rightX = _cx + Outer + Pad;
         var leftX = _cx - Outer - Pad - FlyoutWidth;
         bool FitsRight() => Left + rightX + FlyoutWidth <= area.Right;
@@ -401,20 +432,53 @@ internal sealed class RadialMenuWindow : Window
         try { Close(); } catch (InvalidOperationException) { /* đang đóng */ }
     }
 
-    /// <summary>Hiện menu với tâm tại điểm (toạ độ màn hình vật lý) rồi giữ trong vùng làm việc.</summary>
+    private static Rect GetMonitorWorkAreaDip(int screenX, int screenY, double dpi)
+    {
+        var monitor = MonitorFromPoint(new POINT { X = screenX, Y = screenY }, MONITOR_DEFAULTTONEAREST);
+        if (monitor != 0)
+        {
+            var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(monitor, ref info))
+            {
+                var r = info.rcWork;
+                return new Rect(r.Left / dpi, r.Top / dpi, (r.Right - r.Left) / dpi, (r.Bottom - r.Top) / dpi);
+            }
+        }
+        return SystemParameters.WorkArea;
+    }
+
+    /// <summary>Hiện menu với tâm tại điểm (toạ độ màn hình vật lý) rồi giữ trong vùng làm việc của đúng màn hình đó.</summary>
     public void ShowAt(int screenX, int screenY)
     {
         var dpi = Application.Current.MainWindow is { } main ? VisualTreeHelper.GetDpi(main).DpiScaleX : 1.0;
         var x = screenX / dpi - _cx;
         var y = screenY / dpi - _cy;
 
-        var area = SystemParameters.WorkArea;
+        var area = GetMonitorWorkAreaDip(screenX, screenY, dpi);
+        _monitorWorkArea = area;
         // Chỉ vòng tròn cần nằm trọn trong màn hình; vùng trong suốt hai bên được phép tràn ra ngoài.
-        x = Math.Clamp(x, area.Left - (_cx - Outer - Pad), area.Right - (_cx + Outer + Pad));
-        y = Math.Clamp(y, area.Top - Pad, area.Bottom - (_cy + Outer + 44));
+        var minX = area.Left - (_cx - Outer - Pad);
+        var maxX = area.Right - (_cx + Outer + Pad);
+        var minY = area.Top - Pad;
+        var maxY = area.Bottom - (_cy + Outer + 44);
+        x = minX <= maxX ? Math.Clamp(x, minX, maxX) : minX;
+        y = minY <= maxY ? Math.Clamp(y, minY, maxY) : minY;
 
         Left = x;
         Top = y;
+
+        if (!BfrTheme.ReduceMotion)
+        {
+            var scale = new ScaleTransform(0.92, 0.92, _cx, _cy);
+            _canvas.RenderTransform = scale;
+            _canvas.Opacity = 0;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var dur = TimeSpan.FromMilliseconds(140);
+            _canvas.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.92, 1.0, dur) { EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.92, 1.0, dur) { EasingFunction = ease });
+        }
+
         Show();
         Activate();
         Focus();

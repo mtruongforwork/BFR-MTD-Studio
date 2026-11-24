@@ -1,6 +1,8 @@
 namespace BFR.Core;
 
 using System.Globalization;
+using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -12,6 +14,7 @@ using System.Text.RegularExpressions;
 public sealed class TokenEngine
 {
     private static readonly Regex TokenRegex = new(@"\{([^{}]+)\}", RegexOptions.Compiled, RegexLimits.Timeout);
+    private static readonly BoundedCache<string, string> HashCache = new(capacity: 8192);
 
     public string Expand(string template, FileItem file, RenameState state, RuleContext ctx, ICollection<string>? errors = null)
     {
@@ -43,7 +46,20 @@ public sealed class TokenEngine
             case "ext": return state.Extension;
             case "orig": return file.Name;
             case "parent":
-                return System.IO.Path.GetFileName(file.Directory.TrimEnd('\\', '/'));
+            {
+                if (arg is null)
+                {
+                    return Path.GetFileName(file.Directory.TrimEnd('\\', '/'));
+                }
+
+                if (!int.TryParse(arg, NumberStyles.Integer, CultureInfo.InvariantCulture, out var level) || level < 1 || level > 4)
+                {
+                    missing = CoreText.Get("CoreInvalidToken", "Token không hợp lệ: {0}", "{" + token + "}");
+                    return null;
+                }
+
+                return ResolveParent(file.Directory, level);
+            }
             case "n":
             {
                 var value = state.GroupIndex + 1;
@@ -76,7 +92,7 @@ public sealed class TokenEngine
                 missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{media}");
                 return null;
             }
-            case "artist" or "album" or "title" or "track":
+            case "artist" or "album" or "title" or "track" or "year" or "camera" or "width" or "height":
             {
                 var metadata = ctx.MetadataFor(file);
                 if (metadata is not null && metadata.TryGetValue(name, out var tag))
@@ -90,6 +106,30 @@ public sealed class TokenEngine
                 }
                 missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + name + "}");
                 return null;
+            }
+            case "md5" or "sha256":
+            {
+                int? length = null;
+                if (arg is not null)
+                {
+                    if (!int.TryParse(arg, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) || n <= 0)
+                    {
+                        missing = CoreText.Get("CoreInvalidToken", "Token không hợp lệ: {0}", "{" + token + "}");
+                        return null;
+                    }
+                    length = n;
+                }
+
+                var hash = ComputeFileHash(name, file);
+                if (hash is null)
+                {
+                    missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + token + "}");
+                    return null;
+                }
+
+                return length.HasValue && length.Value < hash.Length
+                    ? hash[..length.Value]
+                    : hash;
             }
             case "size":
                 return FormatSize(file.Size, arg);
@@ -117,6 +157,44 @@ public sealed class TokenEngine
         "GB" => (size / 1024.0 / 1024.0 / 1024.0).ToString("0.##", CultureInfo.InvariantCulture),
         _ => size.ToString(CultureInfo.InvariantCulture)
     };
+
+    private static string ResolveParent(string directory, int level)
+    {
+        var current = directory.TrimEnd('\\', '/');
+        for (int i = 1; i < level; i++)
+        {
+            var next = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(next)) return string.Empty;
+            current = next.TrimEnd('\\', '/');
+        }
+        return Path.GetFileName(current);
+    }
+
+    private static string? ComputeFileHash(string algorithm, FileItem file)
+    {
+        if (file.IsDirectory || file.IsOffline || string.IsNullOrWhiteSpace(file.FullPath))
+            return null;
+
+        var cacheKey = $"{algorithm}|{file.FullPath}|{file.ModifiedUtc.Ticks}|{file.Size}";
+        if (HashCache.TryGet(cacheKey, out var cached))
+            return cached;
+
+        try
+        {
+            if (!File.Exists(file.FullPath)) return null;
+            using var stream = new FileStream(file.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 81920, FileOptions.SequentialScan);
+            var digest = algorithm == "md5"
+                ? MD5.HashData(stream)
+                : SHA256.HashData(stream);
+            var hex = Convert.ToHexString(digest).ToLowerInvariant();
+            HashCache.Set(cacheKey, hex);
+            return hex;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
 
     private static int ParseInt(string? s, int fallback) =>
         int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : fallback;

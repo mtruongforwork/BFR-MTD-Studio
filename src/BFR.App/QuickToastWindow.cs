@@ -3,21 +3,27 @@ namespace BFR.App;
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Shapes;
 using System.Windows.Threading;
+using BFR.App.Infrastructure;
 using Ui = Wpf.Ui.Controls;
 
 /// <summary>
 /// Thông báo nhỏ ở góc màn hình sau khi đổi tên nhanh từ menu chuột phải (B1): nói rõ kết quả và có
-/// nút Hoàn tác. Tự đóng sau vài giây (dừng đếm khi rê chuột vào). Không lấy focus của cửa sổ khác.
+/// nút Hoàn tác. Tự đóng sau vài giây (dừng đếm khi rê chuột vào) kèm thanh tiến trình đếm ngược 2px ở cạnh đáy.
 /// </summary>
 public sealed class QuickToastWindow : Window
 {
     private readonly DispatcherTimer _timer;
     private readonly TextBlock _message;
     private readonly Ui.Button _undoButton;
+    private readonly Border _card;
+    private readonly TranslateTransform _slide = new(0, 0);
+    private readonly ScaleTransform _progressScale = new(1, 1);
+    private bool _closingAnimated;
 
     /// <param name="message">Nội dung kết quả.</param>
     /// <param name="undo">Hàm hoàn tác trả về thông báo mới; null nếu không có gì để hoàn tác.</param>
@@ -39,7 +45,7 @@ public sealed class QuickToastWindow : Window
 
         var glyph = new TextBlock
         {
-            Text = isProblem ? "" : "",
+            Text = isProblem ? "\uE7BA" : "\uE73E",
             FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
             FontSize = 18,
             Foreground = accent,
@@ -68,37 +74,69 @@ public sealed class QuickToastWindow : Window
 
         var close = new Ui.Button
         {
-            Content = "",
+            Content = "\uE711",
             FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
             Appearance = Ui.ControlAppearance.Transparent,
             Margin = new Thickness(6, 0, 0, 0),
             Padding = new Thickness(6),
             VerticalAlignment = VerticalAlignment.Top
         };
-        close.Click += (_, _) => Close();
+        close.Click += (_, _) => CloseWithAnimation();
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 12, 10, 12) };
         row.Children.Add(glyph);
         row.Children.Add(_message);
         row.Children.Add(_undoButton);
         row.Children.Add(close);
 
-        Content = new Border
+        // Thanh tiến trình đếm ngược auto-dismiss 2px ở cạnh đáy.
+        var progressBar = new Rectangle
+        {
+            Height = 2,
+            Fill = accent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            RenderTransformOrigin = new Point(0, 0.5),
+            RenderTransform = _progressScale,
+            Opacity = 0.85
+        };
+
+        var layout = new DockPanel();
+        DockPanel.SetDock(progressBar, Dock.Bottom);
+        layout.Children.Add(progressBar);
+        layout.Children.Add(row);
+
+        _card = new Border
         {
             Margin = new Thickness(12),   // chỗ cho bóng đổ
-            Padding = new Thickness(16, 12, 10, 12),
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(10),
             Background = (Brush)Application.Current.FindResource("SurfaceBackground"),
             BorderBrush = (Brush)Application.Current.FindResource("Divider"),
             BorderThickness = new Thickness(1),
-            Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.28, Color = Colors.Black },
-            Child = row
+            ClipToBounds = true,
+            RenderTransform = _slide,
+            Child = layout
         };
+        if (BfrTheme.GlassEffectsEnabled)
+        {
+            _card.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.28, Color = Colors.Black };
+        }
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(isProblem ? 14 : 9) };
-        _timer.Tick += (_, _) => Close();
-        MouseEnter += (_, _) => _timer.Stop();
-        MouseLeave += (_, _) => { _timer.Stop(); _timer.Start(); };
+        Content = _card;
+
+        var duration = TimeSpan.FromSeconds(isProblem ? 14 : 9);
+        _timer = new DispatcherTimer { Interval = duration };
+        _timer.Tick += (_, _) => CloseWithAnimation();
+        MouseEnter += (_, _) =>
+        {
+            _timer.Stop();
+            StopCountdownBar(resetFull: false);
+        };
+        MouseLeave += (_, _) =>
+        {
+            _timer.Stop();
+            _timer.Start();
+            StartCountdownBar(_timer.Interval);
+        };
         Closed += (_, _) => _timer.Stop();
 
         if (undo is not null)
@@ -111,6 +149,7 @@ public sealed class QuickToastWindow : Window
                 _timer.Interval = TimeSpan.FromSeconds(4);
                 _timer.Stop();
                 _timer.Start();
+                StartCountdownBar(_timer.Interval);
             };
         }
 
@@ -120,7 +159,56 @@ public sealed class QuickToastWindow : Window
             var area = SystemParameters.WorkArea;
             Left = area.Right - ActualWidth - 8;
             Top = area.Bottom - ActualHeight - 8 - index * (ActualHeight + 4);
+            PlayEntrance();
             _timer.Start();
+            StartCountdownBar(_timer.Interval);
         };
+    }
+
+    private void PlayEntrance()
+    {
+        if (BfrTheme.ReduceMotion) return;
+        _card.Opacity = 0;
+        _slide.X = 28;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        _card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(28, 0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+    }
+
+    private void StartCountdownBar(TimeSpan interval)
+    {
+        if (BfrTheme.ReduceMotion)
+        {
+            _progressScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            _progressScale.ScaleX = 1;
+            return;
+        }
+        _progressScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0, interval));
+    }
+
+    private void StopCountdownBar(bool resetFull)
+    {
+        var current = _progressScale.ScaleX;
+        _progressScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        _progressScale.ScaleX = resetFull ? 1 : current;
+    }
+
+    private void CloseWithAnimation()
+    {
+        if (_closingAnimated) return;
+        _closingAnimated = true;
+        _timer.Stop();
+
+        if (BfrTheme.ReduceMotion)
+        {
+            Close();
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var fade = new DoubleAnimation(_card.Opacity, 0, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease };
+        fade.Completed += (_, _) => { try { Close(); } catch (InvalidOperationException) { } };
+        _card.BeginAnimation(OpacityProperty, fade);
+        _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 20, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
     }
 }

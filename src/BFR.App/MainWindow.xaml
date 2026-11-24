@@ -14,7 +14,7 @@
         FontSize="{StaticResource AppFontSizeBody}"
         TextOptions.TextFormattingMode="Ideal"
         UseLayoutRounding="True"
-        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop"
+        AllowDrop="True" DragEnter="Window_DragEnter" DragOver="Window_DragOver" DragLeave="Window_DragLeave" Drop="Window_Drop"
         AutomationProperties.Name="Batch File Renamer Main Window">
 
     <Window.Resources>
@@ -86,6 +86,17 @@
                 </MenuItem.Icon>
             </MenuItem>
             <Separator />
+            <MenuItem Header="{DynamicResource CtxManualRename}" InputGestureText="F2" Click="ContextMenu_ManualRename_Click" Style="{StaticResource AppMenuItemStyle}">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xE70F;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="{DynamicResource CtxResetManualName}" Click="ContextMenu_ResetManualName_Click" Style="{StaticResource AppMenuItemStyle}">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator />
             <MenuItem Header="{DynamicResource CtxToggleSelect}" Click="ContextMenu_ToggleSelect_Click" Style="{StaticResource AppMenuItemStyle}" />
             <MenuItem Header="{DynamicResource CtxRemoveFromList}" Click="ContextMenu_RemoveFromList_Click" Style="{StaticResource AppMenuItemStyle}">
                 <MenuItem.Icon>
@@ -96,101 +107,110 @@
 
         <!-- Thẻ quy tắc hiện đại phong cách PowerToys / WinUI 3 -->
         <DataTemplate x:Key="RuleCardTemplate">
-            <Border Style="{StaticResource InteractiveCardStyle}" Margin="0,0,0,8" Padding="12,10"
-                    AllowDrop="True" DragOver="RuleCard_DragOver" Drop="RuleCard_Drop">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+            <StackPanel>
+                <!-- Vạch chỉ báo vị trí chèn khi kéo-thả sắp xếp quy tắc -->
+                <Border x:Name="DropIndicator" Height="3" CornerRadius="2" Margin="4,0,4,4"
+                        Background="{DynamicResource BfrAccFg}" Visibility="Collapsed" IsHitTestVisible="False" />
+                <Border x:Name="CardBorder" Style="{StaticResource InteractiveCardStyle}" Margin="0,0,0,8" Padding="12,10"
+                        AllowDrop="True" DragEnter="RuleCard_DragEnter" DragOver="RuleCard_DragOver" DragLeave="RuleCard_DragLeave" Drop="RuleCard_Drop">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Tay nắm kéo thả -->
-                        <TextBlock Grid.Column="0" Text="&#xE700;" FontFamily="{StaticResource IconFont}"
-                                   FontSize="14" Foreground="{DynamicResource TextDisabled}"
-                                   VerticalAlignment="Center" Cursor="SizeAll" Background="Transparent"
-                                   MouseLeftButtonDown="RuleDragStart_Click" Margin="0,0,10,0"
-                                   ToolTip="{DynamicResource RuleDragHint}"
-                                   AutomationProperties.Name="{DynamicResource RuleDragHandleA11y}" />
+                            <!-- Tay nắm kéo thả -->
+                            <TextBlock Grid.Column="0" Text="&#xE700;" FontFamily="{StaticResource IconFont}"
+                                       FontSize="14" Foreground="{DynamicResource TextDisabled}"
+                                       VerticalAlignment="Center" Cursor="SizeAll" Background="Transparent"
+                                       MouseLeftButtonDown="RuleDragStart_Click" Margin="0,0,10,0"
+                                       ToolTip="{DynamicResource RuleDragHint}"
+                                       AutomationProperties.Name="{DynamicResource RuleDragHandleA11y}" />
 
-                        <!-- Tên & Tóm tắt tham số quy tắc -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"
-                                       Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionTextStyle}"
-                                       Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                            <!-- Tên & Tóm tắt tham số quy tắc (bấm để mở rộng/thu gọn) -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0"
+                                        Cursor="Hand" Background="Transparent" MouseLeftButtonUp="RuleHeader_Click">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"
+                                           Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionTextStyle}"
+                                           Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
 
-                        <!-- Toggle Switch bật/tắt nhanh quy tắc -->
-                        <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                   Margin="6,0,4,0"
-                                  VerticalAlignment="Center"
-                                  AutomationProperties.Name="{DynamicResource RuleToggleA11y}" />
+                            <!-- Toggle Switch bật/tắt nhanh quy tắc -->
+                            <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                       Margin="6,0,4,0"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="{DynamicResource RuleToggleA11y}" />
 
-                        <!-- Nút mở Regex Tester (nếu quy tắc hỗ trợ) -->
-                        <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Content="&#xE946;"
-                                Click="RuleRegexTester_Click" Tag="{Binding}" Margin="2,0"
-                                ToolTip="{DynamicResource RegexTesterOpen}"
-                                Visibility="{Binding CanOpenRegexTester, Converter={StaticResource BoolToVis}}"
-                                AutomationProperties.Name="Open regex tester" />
+                            <!-- Nút mở Regex Tester (nếu quy tắc hỗ trợ) -->
+                            <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Content="&#xE946;"
+                                    Click="RuleRegexTester_Click" Tag="{Binding}" Margin="2,0"
+                                    ToolTip="{DynamicResource RegexTesterOpen}"
+                                    Visibility="{Binding CanOpenRegexTester, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.Name="Open regex tester" />
 
-                        <!-- Nút menu thao tác quy tắc (⋯) -->
-                        <Button Grid.Column="4" Style="{StaticResource IconButtonStyle}" Content="&#xE712;"
-                                Click="RuleMoreMenu_Click" Tag="{Binding}" Margin="2,0,0,0"
-                                ToolTip="{DynamicResource RuleEditHint}"
-                                AutomationProperties.Name="Rule actions" />
-                    </Grid>
+                            <!-- Nút menu thao tác quy tắc (⋯) -->
+                            <Button Grid.Column="4" Style="{StaticResource IconButtonStyle}" Content="&#xE712;"
+                                    Click="RuleMoreMenu_Click" Tag="{Binding}" Margin="2,0,0,0"
+                                    ToolTip="{DynamicResource RuleEditHint}"
+                                    AutomationProperties.Name="Rule actions" />
+                        </Grid>
 
-                    <!-- Bảng tham số chỉnh sửa accordion tại chỗ -->
-                    <Border Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}"
-                            Margin="0,10,0,0" Padding="12,10" CornerRadius="6"
-                            Background="{DynamicResource SurfaceHover}" BorderBrush="{DynamicResource Divider}" BorderThickness="1">
-                        <ItemsControl ItemsSource="{Binding Parameters}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,4">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
-                                                   Style="{StaticResource CaptionTextStyle}" />
-                                        <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding BoolValue, Mode=TwoWay}"
-                                                  
-                                                  Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Toggle}" />
-                                        <TextBox Grid.Column="1" Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}"
-                                                 Visibility="{Binding Kind, Converter={StaticResource ParameterKindToTextVis}, ConverterParameter=Text}" />
-                                        <StackPanel Grid.Column="1"
-                                                    Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Multiline}">
-                                            <TextBox Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}"
-                                                     AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                                                     MinHeight="90" MaxHeight="180"
-                                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                                     AutomationProperties.Name="{Binding Label}" />
-                                            <ui:Button Appearance="Secondary" Margin="0,6,0,0" Click="ImportListFile_Click"
-                                                       Content="{DynamicResource ListImportButton}"
-                                                       Visibility="{Binding CanImportFile, Converter={StaticResource BoolToVis}}"
-                                                       AutomationProperties.Name="Import list from file" />
-                                        </StackPanel>
-                                        <ComboBox Grid.Column="1" ItemsSource="{Binding Options}"
-                                                  SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                                  Visibility="{Binding Kind, Converter={StaticResource ParameterKindToChoiceVis}, ConverterParameter=Choice}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Label}" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Border>
-                </StackPanel>
-            </Border>
+                        <!-- Bảng tham số chỉnh sửa accordion tại chỗ -->
+                        <Border Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}"
+                                Margin="0,10,0,0" Padding="12,10" CornerRadius="6"
+                                Background="{DynamicResource SurfaceHover}" BorderBrush="{DynamicResource Divider}" BorderThickness="1">
+                            <ItemsControl ItemsSource="{Binding Parameters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding BoolValue, Mode=TwoWay}"
+                                                      Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Toggle}" />
+                                            <StackPanel Grid.Column="1"
+                                                        Visibility="{Binding Kind, Converter={StaticResource ParameterKindToTextVis}, ConverterParameter=Text}">
+                                                <TextBox x:Name="ParamTextBox" Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ContentControl x:Name="TokenPickerHost" Margin="0,6,0,0" Visibility="Collapsed"
+                                                                Loaded="TokenPickerHost_Loaded" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1"
+                                                        Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Multiline}">
+                                                <TextBox Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}"
+                                                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                                                         MinHeight="90" MaxHeight="180"
+                                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                                         AutomationProperties.Name="{Binding Label}" />
+                                                <ui:Button Appearance="Secondary" Margin="0,6,0,0" Click="ImportListFile_Click"
+                                                           Content="{DynamicResource ListImportButton}"
+                                                           Visibility="{Binding CanImportFile, Converter={StaticResource BoolToVis}}"
+                                                           AutomationProperties.Name="Import list from file" />
+                                            </StackPanel>
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding Options}"
+                                                      SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                                      Visibility="{Binding Kind, Converter={StaticResource ParameterKindToChoiceVis}, ConverterParameter=Choice}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </DataTemplate>
 
         <!-- Cột tên cũ có highlight đoạn bị thay đổi -->
@@ -202,7 +222,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border x:Name="SegBorder" CornerRadius="3" Padding="2,0" Background="Transparent">
-                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="TextDecorations" Value="None" />
@@ -227,37 +247,55 @@
             </ItemsControl>
         </DataTemplate>
 
-        <!-- Cột tên mới có highlight đoạn thêm mới -->
+        <!-- Cột tên mới có highlight đoạn thêm mới + sửa thủ công tại chỗ (F2 / nhấp đúp) + huy hiệu Manual -->
         <DataTemplate x:Key="NewNameTemplate">
-            <ItemsControl ItemsSource="{Binding NewSegments}" VerticalAlignment="Center">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border x:Name="SegBorder" CornerRadius="3" Padding="2,0" Background="Transparent">
-                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                                <Setter Property="Foreground" Value="{DynamicResource DiffAddedText}" />
-                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Border>
-                        <DataTemplate.Triggers>
-                            <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource DiffAdded}" />
-                            </DataTrigger>
-                        </DataTemplate.Triggers>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid Background="Transparent" MouseLeftButtonDown="NewNameCell_MouseDown" ToolTip="{DynamicResource InlineRenameHint}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ItemsControl x:Name="NewNameSegments" Grid.Column="0" ItemsSource="{Binding NewSegments}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="SegBorder" CornerRadius="3" Padding="2,0" Background="Transparent">
+                                <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Highlight}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource DiffAddedText}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Highlight}" Value="True">
+                                    <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource DiffAdded}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBox x:Name="InlineRenameBox" Grid.Column="0" Grid.ColumnSpan="2"
+                         Visibility="Collapsed" Padding="4,1" FontSize="12.5"
+                         VerticalAlignment="Center"
+                         KeyDown="InlineRenameBox_KeyDown"
+                         LostFocus="InlineRenameBox_LostFocus" />
+                <Border x:Name="ManualBadge" Grid.Column="1" CornerRadius="6" Padding="5,1" Margin="6,0,0,0"
+                        Background="{DynamicResource AccentSoft}" BorderBrush="{DynamicResource AccentBorder}" BorderThickness="1"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding HasManualOverride, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{DynamicResource ManualBadge}" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Accent}" />
+                </Border>
+            </Grid>
         </DataTemplate>
     </Window.Resources>
 
@@ -587,31 +625,46 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Hàng ô thống kê (bento): số tệp sẽ đổi / không đổi / có vấn đề -->
+                <!-- Hàng ô thống kê (bento tương tác): bấm trực tiếp để lọc bảng xem trước -->
                 <Grid Grid.Row="0" Margin="0,0,0,10" Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource InverseBoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <ctl:GlassTile Grid.Column="0" CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10" Margin="0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding WillChangeCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource FilterWillChange}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ctl:GlassTile>
-                    <ctl:GlassTile Grid.Column="1" CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10" Margin="10,0,0,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding UnchangedCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26" Foreground="{DynamicResource BfrFg2}" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource FilterUnchanged}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ctl:GlassTile>
-                    <ctl:GlassTile Grid.Column="2" CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10" Margin="10,0,0,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding ErrorCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26" Foreground="{DynamicResource BfrBad}" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource FilterProblems}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ctl:GlassTile>
+                    <Border x:Name="KpiWillChangeRing" Grid.Column="0" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="0">
+                        <ctl:GlassTile x:Name="KpiWillChange" IsInteractive="True" Tag="WillChange" Invoked="KpiTile_Invoked"
+                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
+                                       AutomationProperties.Name="{DynamicResource FilterWillChange}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding WillChangeCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
+                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource FilterWillChange}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ctl:GlassTile>
+                    </Border>
+                    <Border x:Name="KpiUnchangedRing" Grid.Column="1" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="10,0,0,0">
+                        <ctl:GlassTile x:Name="KpiUnchanged" IsInteractive="True" Tag="Unchanged" Invoked="KpiTile_Invoked"
+                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
+                                       AutomationProperties.Name="{DynamicResource FilterUnchanged}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding UnchangedCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
+                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrFg2}" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource FilterUnchanged}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ctl:GlassTile>
+                    </Border>
+                    <Border x:Name="KpiProblemsRing" Grid.Column="2" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="10,0,0,0">
+                        <ctl:GlassTile x:Name="KpiProblems" IsInteractive="True" Tag="Problems" Invoked="KpiTile_Invoked"
+                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
+                                       AutomationProperties.Name="{DynamicResource FilterProblems}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding ErrorCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
+                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrBad}" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource FilterProblems}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ctl:GlassTile>
+                    </Border>
                 </Grid>
 
             <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}"
@@ -619,12 +672,47 @@
                     CornerRadius="{DynamicResource BfrRadiusTile}">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0">
+                    <!-- Thanh bộ lọc dạng Segmented Tab + Ô tìm kiếm (đặt trên bảng xem trước) -->
+                    <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="12,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Segmented Filter Container -->
+                            <Border Grid.Column="0" Background="{DynamicResource ChipBackground}"
+                                    CornerRadius="8" Padding="3" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="FilterAll" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterAll}"
+                                                 IsChecked="True" Checked="Filter_Checked" Tag="All"
+                                                 AutomationProperties.Name="Filter all" />
+                                    <RadioButton x:Name="FilterWillChange" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterWillChange}"
+                                                 Checked="Filter_Checked" Tag="WillChange"
+                                                 AutomationProperties.Name="Filter will change" />
+                                    <RadioButton x:Name="FilterUnchanged" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterUnchanged}"
+                                                 Checked="Filter_Checked" Tag="Unchanged"
+                                                 AutomationProperties.Name="Filter unchanged" />
+                                    <RadioButton x:Name="FilterProblems" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterProblems}"
+                                                 Checked="Filter_Checked" Tag="Problems"
+                                                 AutomationProperties.Name="Filter problems" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Ô tìm kiếm tệp -->
+                            <ui:TextBox Grid.Column="1" Width="230" VerticalAlignment="Center" x:Name="PreviewSearchBox"
+                                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                        Icon="{ui:SymbolIcon Search24}" ClearButtonEnabled="True"
+                                        AutomationProperties.Name="Search files" />
+                        </Grid>
+                    </Border>
+
+                    <DockPanel Grid.Row="1">
                         <StackPanel DockPanel.Dock="Top">
                             <!-- Cảnh báo trùng tên: một nút tự thêm (2), (3)… -->
                             <Border Margin="10,10,10,0" Padding="12,8" CornerRadius="8" BorderThickness="1"
@@ -664,6 +752,7 @@
                               CellStyle="{StaticResource PreviewCellStyle}"
                               ItemsSource="{Binding FilteredRows}"
                               SelectionChanged="PreviewGrid_SelectionChanged"
+                              PreviewKeyDown="PreviewGrid_PreviewKeyDown"
                               AutomationProperties.Name="Preview table">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow" BasedOn="{StaticResource PreviewRowStyle}">
@@ -761,47 +850,12 @@
                     </DataGrid>
                     </DockPanel>
 
-                    <!-- Thanh bộ lọc dạng Segmented Tab + Ô tìm kiếm -->
-                    <Grid Grid.Row="1" Margin="12,8,12,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Segmented Filter Container -->
-                        <Border Grid.Column="0" Background="{DynamicResource ChipBackground}"
-                                CornerRadius="8" Padding="3" HorizontalAlignment="Left" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="FilterAll" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterAll}"
-                                             IsChecked="True" Checked="Filter_Checked" Tag="All"
-                                             AutomationProperties.Name="Filter all" />
-                                <RadioButton x:Name="FilterWillChange" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterWillChange}"
-                                             Checked="Filter_Checked" Tag="WillChange"
-                                             AutomationProperties.Name="Filter will change" />
-                                <RadioButton x:Name="FilterUnchanged" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterUnchanged}"
-                                             Checked="Filter_Checked" Tag="Unchanged"
-                                             AutomationProperties.Name="Filter unchanged" />
-                                <RadioButton x:Name="FilterProblems" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterProblems}"
-                                             Checked="Filter_Checked" Tag="Problems"
-                                             AutomationProperties.Name="Filter problems" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Ô tìm kiếm tệp -->
-                        <ui:TextBox Grid.Column="1" Width="230" VerticalAlignment="Center" x:Name="PreviewSearchBox"
-                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                    Icon="{ui:SymbolIcon Search24}" ClearButtonEnabled="True"
-                                    AutomationProperties.Name="Search files" />
-                    </Grid>
-
-                    <!-- Ngăn Rule Trace (timeline theo dõi vết đổi tên) -->
-                    <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="12,8">
+                    <!-- Ngăn Rule Trace (tự thu gọn khi chưa chọn dòng) -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="12,8"
+                            Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVis}}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource TraceHeader}" Style="{StaticResource PanelHeaderTextStyle}" Margin="0,0,0,4" />
-                            <TextBlock Text="{DynamicResource TraceEmpty}" Style="{StaticResource CaptionTextStyle}"
-                                       Visibility="{Binding SelectedRow, Converter={StaticResource NullToVis}}" />
-                            <ItemsControl ItemsSource="{Binding TraceSteps}"
-                                          Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVis}}">
+                            <ItemsControl ItemsSource="{Binding TraceSteps}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,2">
@@ -836,11 +890,7 @@
                         CornerRadius="16" BorderThickness="2" BorderBrush="{DynamicResource Divider}"
                         Background="{DynamicResource SurfaceBackground}">
                 <StackPanel>
-                    <Border Width="64" Height="64" CornerRadius="16" Background="{DynamicResource AccentSoft}"
-                            HorizontalAlignment="Center" Margin="0,0,0,16">
-                        <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="32"
-                                   Foreground="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <ctl:TemMascot x:Name="EmptyMascot" Width="76" Height="80" HorizontalAlignment="Center" Margin="0,0,0,12" />
                     <TextBlock Text="{DynamicResource EmptyTitle}" FontSize="22" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
                     <TextBlock Text="{DynamicResource EmptyHint}" Style="{StaticResource BodyTextStyle}"
@@ -882,18 +932,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Tóm tắt số lượng & Tiến trình -->
+                <!-- Trạng thái gọn & thông báo thành công (đã bỏ dải đếm trùng lặp với KPI tiles) -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="{DynamicResource ChipBackground}" BorderBrush="{DynamicResource Border}"
-                            BorderThickness="1" CornerRadius="8" Padding="12,6" Margin="0,0,8,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="13"
-                                       Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding StatusSummary}" FontSize="12" FontWeight="Medium"
-                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-
                     <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
                                Foreground="{DynamicResource TextSecondary}" Margin="4,0,0,0" />
 
@@ -913,18 +953,15 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Tiến trình -->
+                    <!-- Nút Huỷ khi đang xử lý -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                        <ProgressBar IsIndeterminate="True" Width="120" Height="4" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding BusyText}" Margin="8,0,0,0" Style="{StaticResource CaptionTextStyle}"
-                                   VerticalAlignment="Center" />
                         <ui:Button Appearance="Transparent" Content="{DynamicResource Cancel}"
-                                Click="CancelWork_Click" Padding="6,2" Margin="6,0,0,0" />
+                                Click="CancelWork_Click" Padding="8,3" />
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Nút Hoàn tác & Áp dụng -->
+                <!-- Nút Hoàn tác & Áp dụng (morph sang vòng xoay tiến trình kiểu Squoosh khi đang chạy) -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <ui:Button Appearance="Secondary" Content="{DynamicResource Undo}" Click="Undo_Click"
                             IsEnabled="{Binding CanUndo}" Margin="0,0,8,0" Padding="14,7"
@@ -933,12 +970,22 @@
                     <Button x:Name="ApplyButton" Style="{StaticResource BfrPrimaryButton}" Click="Apply_Click"
                             IsEnabled="{Binding CanApply}" MinWidth="200" Height="36"
                             AutomationProperties.Name="Apply renaming">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
-                                       Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding ApplyButtonText}" FontWeight="SemiBold" FontSize="13"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                        Visibility="{Binding IsBusy, Converter={StaticResource InverseBoolToVis}}">
+                                <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                           Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ApplyButtonText}" FontWeight="SemiBold" FontSize="13"
+                                           Typography.NumeralAlignment="Tabular" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                                <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource TextOnAccent}" />
+                                <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="13"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
                     </Button>
                 </StackPanel>
             </Grid>
@@ -949,5 +996,23 @@
             <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên cả rail và trang -->
             <ui:ContentDialogHost x:Name="DialogHost" Grid.ColumnSpan="2" />
         </Grid>
+
+        <!-- Lớp phủ kính mờ khi kéo tệp vào bất kỳ vị trí nào trên cửa sổ -->
+        <Border x:Name="DropOverlay" Grid.RowSpan="2" Panel.ZIndex="100"
+                Visibility="Collapsed" IsHitTestVisible="False"
+                Background="#99000000">
+            <Border VerticalAlignment="Center" HorizontalAlignment="Center" Padding="48,36"
+                    CornerRadius="24" BorderThickness="2" BorderBrush="{DynamicResource BfrAccFg}"
+                    Background="{DynamicResource BfrGlassFillStrong}">
+                <StackPanel HorizontalAlignment="Center">
+                    <ctl:TemMascot x:Name="DropOverlayMascot" State="Happy" Width="76" Height="80"
+                                   HorizontalAlignment="Center" Margin="0,0,0,14" />
+                    <TextBlock Text="{DynamicResource WindowDropOverlayTitle}" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource BfrFg}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource WindowDropOverlayHint}" Style="{StaticResource CaptionTextStyle}"
+                               Margin="0,6,0,0" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </ui:FluentWindow>

@@ -3,7 +3,7 @@
                     xmlns:ctl="clr-namespace:BFR.App.Controls;assembly=BatchFileRenamer"
                     xmlns:infra="clr-namespace:BFR.App.Infrastructure;assembly=BatchFileRenamer">
     <!--
-        Bộ thành phần kính + bento (v2.1): GlassTile, thanh kính, thanh nổi.
+        Bộ thành phần kính + bento (v2.2): GlassTile, thanh kính, thanh nổi.
         Chỉ dùng token Bfr* (DynamicResource) nên đổi sáng/tối/bảng màu nhấn là cập nhật tức thì;
         tương phản cao ghi đè BfrGlass* thành nền đặc + viền đặc, bóng = 0.
     -->
@@ -14,9 +14,14 @@
         <Setter Property="Foreground" Value="{DynamicResource BfrFg}" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
         <Setter Property="RenderTransform">
             <Setter.Value>
-                <TranslateTransform Y="0" />
+                <TransformGroup>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                    <TranslateTransform Y="0" />
+                </TransformGroup>
             </Setter.Value>
         </Setter>
         <Setter Property="Template">
@@ -32,12 +37,16 @@
                         </Border>
                         <Border Background="{DynamicResource BfrGlassFill}" CornerRadius="{TemplateBinding CornerRadius}" />
                         <Border Background="{DynamicResource BfrGlassSheen}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-                        <Border BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+                        <!-- Viền phát sáng 1px kiểu Raycast -->
+                        <Border x:Name="PART_Rim" BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+                        <!-- Lớp sáng viền khi hover hoặc active -->
+                        <Border x:Name="PART_HoverRim" BorderBrush="{DynamicResource BfrAccFg}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+                        <!-- Vòng focus bàn phím 2px cho trợ năng -->
+                        <Border x:Name="PART_FocusRing" BorderBrush="{DynamicResource BfrAccFg}" BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}" Visibility="Collapsed" IsHitTestVisible="False" />
                         <DockPanel Margin="{TemplateBinding Padding}">
                             <StackPanel x:Name="HeaderRow" DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
                                 <TextBlock x:Name="IconText" Text="{TemplateBinding Icon}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                           FontSize="16" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" Margin="0,0,8,0"
-                                           />
+                                           FontSize="16" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <ContentPresenter ContentSource="Header" TextElement.FontFamily="{DynamicResource BfrFontHeading}"
                                                   TextElement.FontSize="{DynamicResource BfrSizeHeading}" TextElement.Foreground="{DynamicResource BfrFg}" VerticalAlignment="Center" />
                             </StackPanel>
@@ -51,6 +60,21 @@
                         <Trigger Property="Icon" Value="">
                             <Setter TargetName="IconText" Property="Visibility" Value="Collapsed" />
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="PART_FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="PART_HoverRim" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="PART_HoverRim" Property="BorderThickness" Value="1.5" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsInteractive" Value="True" />
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsActive" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="PART_HoverRim" Property="Opacity" Value="0.45" />
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -69,14 +93,36 @@
                 <MultiTrigger.EnterActions>
                     <BeginStoryboard>
                         <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-2" Duration="{infra:Dur Fast}" />
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)" To="-2" Duration="{infra:Dur Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </MultiTrigger.EnterActions>
                 <MultiTrigger.ExitActions>
                     <BeginStoryboard>
                         <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="{infra:Dur Fast}" />
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)" To="0" Duration="{infra:Dur Fast}" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiTrigger.ExitActions>
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsInteractive" Value="True" />
+                    <Condition Property="IsPressed" Value="True" />
+                </MultiTrigger.Conditions>
+                <MultiTrigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)" To="0.985" Duration="{infra:Dur Fast}" />
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)" To="0.985" Duration="{infra:Dur Fast}" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiTrigger.EnterActions>
+                <MultiTrigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)" To="1" Duration="{infra:Dur Fast}" />
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)" To="1" Duration="{infra:Dur Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </MultiTrigger.ExitActions>

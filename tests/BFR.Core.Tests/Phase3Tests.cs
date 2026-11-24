@@ -144,8 +144,13 @@ public class Phase3Tests
         try
         {
             Environment.SetEnvironmentVariable(envName, "pro");
+#if DEBUG
             Assert.NotNull(LicenseService.ResolveDevTierOverride(packaged: false));
             Assert.Null(LicenseService.ResolveDevTierOverride(packaged: true));
+#else
+            Assert.Null(LicenseService.ResolveDevTierOverride(packaged: false));
+            Assert.Null(LicenseService.ResolveDevTierOverride(packaged: true));
+#endif
         }
         finally
         {

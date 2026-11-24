@@ -51,30 +51,69 @@ public sealed class RelayCommand : ICommand
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-/// <summary>ICommand bất đồng bộ (dùng cho thao tác mua trong Store).</summary>
+/// <summary>ICommand bất đồng bộ không chặn luồng UI, có chống chạy chồng (re-entrancy guard).</summary>
 public sealed class AsyncRelayCommand : ICommand
 {
     private readonly Func<object?, Task> _execute;
     private readonly Func<object?, bool>? _canExecute;
+    private readonly Action<Exception>? _onError;
+    private bool _isExecuting;
 
-    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
-        : this(_ => execute(), canExecute is null ? null : _ => canExecute())
+    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null, Action<Exception>? onError = null)
+        : this(_ => execute(), canExecute is null ? null : _ => canExecute(), onError)
     {
     }
 
-    public AsyncRelayCommand(Func<object?, Task> execute, Func<object?, bool>? canExecute = null)
+    public AsyncRelayCommand(Func<object?, Task> execute, Func<object?, bool>? canExecute = null, Action<Exception>? onError = null)
     {
-        _execute = execute;
+        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
         _canExecute = canExecute;
+        _onError = onError;
     }
+
+    public bool IsExecuting => _isExecuting;
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
+    public bool CanExecute(object? parameter) => !_isExecuting && (_canExecute?.Invoke(parameter) ?? true);
 
-    public void Execute(object? parameter) => _execute(parameter).GetAwaiter().GetResult();
+    public void Execute(object? parameter) => _ = ExecuteSafeAsync(parameter);
 
-    public async Task ExecuteAsync(object? parameter = null) => await _execute(parameter);
+    public async Task ExecuteAsync(object? parameter = null)
+    {
+        if (_isExecuting || !CanExecute(parameter)) return;
+        _isExecuting = true;
+        RaiseCanExecuteChanged();
+        try
+        {
+            await _execute(parameter);
+        }
+        finally
+        {
+            _isExecuting = false;
+            RaiseCanExecuteChanged();
+        }
+    }
+
+    private async Task ExecuteSafeAsync(object? parameter)
+    {
+        if (_isExecuting || !CanExecute(parameter)) return;
+        _isExecuting = true;
+        RaiseCanExecuteChanged();
+        try
+        {
+            await _execute(parameter);
+        }
+        catch (Exception ex)
+        {
+            _onError?.Invoke(ex);
+        }
+        finally
+        {
+            _isExecuting = false;
+            RaiseCanExecuteChanged();
+        }
+    }
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

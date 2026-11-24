@@ -170,11 +170,40 @@ public class ShellCommandTests : IDisposable
 
     // ---------------------------------------------------------------- Khởi chạy
     [Fact]
+    public void FindAppExecutable_IgnoresEnvOverrideInRelease()
+    {
+        var fake = Path.Combine(Environment.SystemDirectory, "hostname.exe");
+        Environment.SetEnvironmentVariable("BFR_APP_PATH", fake);
+        var found = ExplorerCommandLauncher.FindAppExecutable();
+#if DEBUG
+        Assert.Equal(Path.GetFullPath(fake), found);
+#else
+        Assert.NotEqual(Path.GetFullPath(fake), found);
+#endif
+    }
+
+    [Fact]
+    public void ComServerLifetime_DoesNotExitWhileFactoryLocked()
+    {
+        var factory = new ExplorerCommandFactory();
+        Assert.Equal(0, factory.ActiveLocks);
+        Assert.True(ComServerLifetime.ShouldExit(TimeSpan.FromSeconds(61), factory.ActiveLocks, TimeSpan.FromSeconds(60)));
+
+        factory.LockServer(true);
+        Assert.Equal(1, factory.ActiveLocks);
+        Assert.False(ComServerLifetime.ShouldExit(TimeSpan.FromSeconds(120), factory.ActiveLocks, TimeSpan.FromSeconds(60)));
+
+        factory.LockServer(false);
+        Assert.Equal(0, factory.ActiveLocks);
+        Assert.True(ComServerLifetime.ShouldExit(TimeSpan.FromSeconds(60), factory.ActiveLocks, TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
     public void Launch_AppMissing_ReturnsFileNotFound_AndLeavesNoOrphanList()
     {
-        Environment.SetEnvironmentVariable("BFR_APP_PATH", Path.Combine(Path.GetTempPath(), "bfr-does-not-exist.exe"));
+        var missing = Path.Combine(Path.GetTempPath(), "bfr-does-not-exist.exe");
         var before = Lists();
-        var hr = ExplorerCommandLauncher.Launch(new[] { @"C:\a.txt" });
+        var hr = ExplorerCommandLauncher.LaunchCore(new[] { @"C:\a.txt" }, null, null, missing);
         Assert.Equal(HResult.E_FILE_NOT_FOUND, hr);
         Assert.Empty(Lists().Except(before));
     }
@@ -186,9 +215,8 @@ public class ShellCommandTests : IDisposable
         File.WriteAllText(fake, "this is not a PE file");
         try
         {
-            Environment.SetEnvironmentVariable("BFR_APP_PATH", fake);
             var before = Lists();
-            var hr = ExplorerCommandLauncher.Launch(new[] { @"C:\a.txt" });
+            var hr = ExplorerCommandLauncher.LaunchCore(new[] { @"C:\a.txt" }, null, null, fake);
             Assert.Equal(HResult.E_FAIL, hr);
             Assert.Empty(Lists().Except(before));          // không để lại tệp danh sách mồ côi
         }
@@ -199,10 +227,10 @@ public class ShellCommandTests : IDisposable
     public void Launch_DoesNotWaitForTheApp_AndPassesTheListFile()
     {
         // hostname.exe thoát ngay (không hiểu tham số): kiểm tra Launch trả về nhanh và đã tạo tệp danh sách.
-        Environment.SetEnvironmentVariable("BFR_APP_PATH", Path.Combine(Environment.SystemDirectory, "hostname.exe"));
+        var host = Path.Combine(Environment.SystemDirectory, "hostname.exe");
         var before = Lists();
         var sw = Stopwatch.StartNew();
-        var hr = ExplorerCommandLauncher.Launch(new[] { @"C:\a.txt", @"C:\b.txt" });
+        var hr = ExplorerCommandLauncher.LaunchCore(new[] { @"C:\a.txt", @"C:\b.txt" }, null, null, host);
         Assert.Equal(HResult.S_OK, hr);
         Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), "Launch chặn Explorer quá lâu");
         Assert.Single(Lists().Except(before));
@@ -211,19 +239,19 @@ public class ShellCommandTests : IDisposable
     [Fact]
     public void Launch_QuickOrToolWithoutSelection_DoesNothing()
     {
-        Environment.SetEnvironmentVariable("BFR_APP_PATH", Path.Combine(Environment.SystemDirectory, "hostname.exe"));
+        var host = Path.Combine(Environment.SystemDirectory, "hostname.exe");
         var before = Lists();
-        Assert.Equal(HResult.S_OK, ExplorerCommandLauncher.Launch(Array.Empty<string>(), quickKey: "number"));
-        Assert.Equal(HResult.S_OK, ExplorerCommandLauncher.Launch(Array.Empty<string>(), toolKey: "organize"));
+        Assert.Equal(HResult.S_OK, ExplorerCommandLauncher.LaunchCore(Array.Empty<string>(), quickKey: "number", toolKey: null, host));
+        Assert.Equal(HResult.S_OK, ExplorerCommandLauncher.LaunchCore(Array.Empty<string>(), quickKey: null, toolKey: "organize", host));
         Assert.Empty(Lists().Except(before));
     }
 
     [Fact]
     public async Task Launch_FiftyConcurrentInvocations_AllSucceedWithDistinctLists()
     {
-        Environment.SetEnvironmentVariable("BFR_APP_PATH", Path.Combine(Environment.SystemDirectory, "hostname.exe"));
+        var host = Path.Combine(Environment.SystemDirectory, "hostname.exe");
         var before = Lists();
-        var results = await Task.WhenAll(Enumerable.Range(0, 50).Select(i => Task.Run(() => ExplorerCommandLauncher.Launch(new[] { $@"C:\f{i}.txt" }))));
+        var results = await Task.WhenAll(Enumerable.Range(0, 50).Select(i => Task.Run(() => ExplorerCommandLauncher.LaunchCore(new[] { $@"C:\f{i}.txt" }, null, null, host))));
         Assert.All(results, hr => Assert.Equal(HResult.S_OK, hr));
         Assert.Equal(50, Lists().Except(before).Count());
     }

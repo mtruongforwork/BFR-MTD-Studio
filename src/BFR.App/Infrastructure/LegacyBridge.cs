@@ -98,6 +98,7 @@ public static class LegacyBridge
     /// </summary>
     private static void ApplyHighContrast(Application app)
     {
+        app.Resources.Remove("BfrAccFg");
         var window = SystemColors.WindowColor;
         var text = SystemColors.WindowTextColor;
         var highlight = SystemColors.HighlightColor;

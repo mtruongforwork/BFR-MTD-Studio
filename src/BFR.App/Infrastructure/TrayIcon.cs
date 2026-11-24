@@ -127,7 +127,11 @@ public sealed class TrayIcon : IDisposable
             {
                 case CmdOpen: _open(); break;
                 case CmdShelf: _shelf(); break;
-                case CmdExit: _exit(); break;
+                case CmdExit:
+                    var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                    if (dispatcher is not null) _ = dispatcher.BeginInvoke(_exit);
+                    else _exit();
+                    break;
             }
         }
         finally
