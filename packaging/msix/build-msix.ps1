@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $artifactsPath = Join-Path $repoRoot $OutputDir
 $layoutDir = Join-Path $artifactsPath "msix-layout"
-$version = "2.2.0"
+$version = "3.0.0"
 $msixOutput = Join-Path $artifactsPath "BatchFileRenamer-$version.msix"
 $zipOutput = Join-Path $artifactsPath "BatchFileRenamer-$version-portable-win-x64.zip"
 
@@ -48,6 +48,7 @@ $required = @(
     "BFR.Shell.runtimeconfig.json",
     "BFR.Shell.deps.json",
     "BFR.Store.dll",
+    "BFR.Documents.dll",
     "Assets\StoreLogo.png",
     "Assets\Square44x44Logo.png",
     "Assets\Square150x150Logo.png",

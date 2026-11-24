@@ -2,7 +2,9 @@ namespace BFR.App;
 
 using BFR.Presentation.Tools;
 using BFR.Core;
+using BFR.App.Context;
 using BFR.App.Infrastructure;
+using BFR.App.Studios;
 using BFR.Core.Licensing;
 using BFR.Core.Reports;
 using BFR.Presentation;
@@ -282,13 +284,29 @@ public partial class MainWindow : FluentWindow
         if (GetPage("Tools") is ToolsPage tools) tools.OpenTool(toolKey, paths, values);
     }
 
-    // ----------------------------------------------------------------- Menu tròn
+    // ----------------------------------------------------------------- Menu tròn v3.0 (Context-Aware + QuickActionCoordinator)
 
     private GlobalHotkey? _radialHotkey;
     private RadialMenuWindow? _radial;
+    private ActiveFileDetector? _fileDetector;
+    private QuickActionCoordinator? _quickCoordinator;
 
-    /// <summary>Mở menu tròn tại toạ độ màn hình (vật lý). Đang mở thì đóng lại.</summary>
-    public void ShowRadial(int x, int y)
+    private ActiveFileDetector EnsureFileDetector() =>
+        _fileDetector ??= new ActiveFileDetector(
+            () => _vm.Rows.Where(r => r.IsSelected).Select(r => r.File.FullPath).ToList(),
+            () => _shelfModel.Items.ToList());
+
+    private QuickActionCoordinator EnsureQuickCoordinator() =>
+        _quickCoordinator ??= new QuickActionCoordinator(
+            _license.License,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BatchFileRenamer", "journal"),
+            OnContinueWithAction,
+            feature => ShowUpgradeDialog(feature),
+            batch => OpenShelf(batch),
+            (target, paths, values) => DispatchTargetAction(target, null, paths, values));
+
+    /// <summary>Mở menu tròn ngữ cảnh tại toạ độ màn hình (vật lý). Đang mở thì đóng lại.</summary>
+    public async void ShowRadial(int x, int y, IReadOnlyList<string>? explicitPaths = null)
     {
         if (_radial is not null)
         {
@@ -296,8 +314,31 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        var items = RadialMenuModel.Build(ToolCatalog.Create(), Loc.Current == "vi");
-        _radial = new RadialMenuWindow(items, OnRadialChosen);
+        var detector = EnsureFileDetector();
+        RadialContextInfo context;
+        if (explicitPaths is { Count: > 0 })
+        {
+            context = RadialContextInfo.Classify(explicitPaths);
+        }
+        else
+        {
+            try
+            {
+                context = await detector.DetectAsync(x, y, budgetMs: 120);
+            }
+            catch
+            {
+                context = RadialContextInfo.Empty;
+            }
+        }
+
+        var items = RadialMenuModel.BuildForContext(context, ToolCatalog.Create(), Loc.Current == "vi");
+        _radial = new RadialMenuWindow(
+            items,
+            context,
+            (item, action, forceWorkbench) => OnRadialChosen(item, action, forceWorkbench, context),
+            onFilesDropped: dropped => ShowRadial(x, y, dropped),
+            recentFiles: ActiveFileDetector.GetRecentLocalFiles(3));
         _radial.Closed += (_, _) => _radial = null;
         _radial.ShowAt(x, y);
     }
@@ -308,21 +349,138 @@ public partial class MainWindow : FluentWindow
         ShowRadial(x, y);
     }
 
-    private void OnRadialChosen(RadialItem item, RadialAction? action)
+    /// <summary>Mở Menu Tròn tại vị trí con trỏ với danh sách tệp truyền từ <c>--radial</c>.</summary>
+    public void ShowRadialAtCursorWithPaths(IReadOnlyList<string> paths)
     {
+        var (x, y) = GlobalHotkey.CursorPosition();
+        ShowRadial(x, y, paths);
+    }
+
+    private void OnRadialChosen(RadialItem item, RadialAction? action, bool forceWorkbench, RadialContextInfo context)
+    {
+        var mode = forceWorkbench ? RadialExecutionMode.Workbench : (action?.ExecutionMode ?? item.ExecutionMode);
+        var commandKey = action?.CommandKey ?? item.CommandKey ?? item.Key;
+
+        if (mode == RadialExecutionMode.Instant && !item.IsRename)
+        {
+            _ = EnsureQuickCoordinator().ExecuteAsync(item, action, context);
+            return;
+        }
+
         ActivateAndForeground();
 
-        if (item.IsRename)
+        if (item.IsRename || string.Equals(commandKey, "rename", StringComparison.OrdinalIgnoreCase))
         {
             NavigateTo("Rename");
-            if (action is not null) ApplyPresetByName(action.Value);
+            if (context.Paths.Count > 0) _vm.AddPaths(context.Paths);
+            if (action is not null && string.Equals(action.OptionKey, "preset", StringComparison.OrdinalIgnoreCase))
+                ApplyPresetByName(action.Value);
             return;
         }
 
         var values = action is null
             ? null
             : new Dictionary<string, string> { [action.OptionKey] = action.Value };
-        OpenTool(item.Key, Array.Empty<string>(), values);
+
+        DispatchCommandKey(commandKey, context.Paths, values);
+    }
+
+    private void DispatchCommandKey(string commandKey, IReadOnlyList<string> paths, IReadOnlyDictionary<string, string>? values = null)
+    {
+        switch (commandKey)
+        {
+            case "pdf.studio.organize":
+            case "pdf.merge":
+                DispatchTargetAction("pdf-studio", "organize", paths, values);
+                break;
+            case "pdf.studio.compress":
+            case "pdf.compress":
+                DispatchTargetAction("pdf-studio", "compress", paths, values);
+                break;
+            case "pdf.studio.stamp":
+                DispatchTargetAction("pdf-studio", "stamp", paths, values);
+                break;
+            case "pdf.studio.security":
+            case "pdf.strip-meta":
+                DispatchTargetAction("pdf-studio", "security", paths, values);
+                break;
+            case "pdf.to-images":
+            case "pdf.extract-images":
+            case "pdf.extract":
+                DispatchTargetAction("pdf-studio", "convert", paths, values);
+                break;
+            case "docs.studio.convert":
+            case "doc.to-pdf":
+            case "doc.extract-text":
+                DispatchTargetAction("docs-ocr", "convert", paths, values);
+                break;
+            case "doc.clean-meta":
+            case "privacy.clean-all":
+                DispatchTargetAction("docs-ocr", "privacy", paths, values);
+                break;
+            case "doc.xlsx-convert":
+                DispatchTargetAction("docs-ocr", "spreadsheet", paths, values);
+                break;
+            case "ocr.run":
+                DispatchTargetAction("docs-ocr", "ocr", paths, values);
+                break;
+            case "shelf.add":
+                OpenShelf(paths);
+                break;
+            default:
+                OpenTool(commandKey, paths, values);
+                break;
+        }
+    }
+
+    private void OnContinueWithAction(ContinueWithAction action, IReadOnlyList<string> outputPaths) =>
+        DispatchTargetAction(action.TargetPage, action.Mode, outputPaths);
+
+    private void DispatchTargetAction(
+        string targetPage,
+        string? mode,
+        IReadOnlyList<string> paths,
+        IReadOnlyDictionary<string, string>? values = null)
+    {
+        ActivateAndForeground();
+
+        if (string.Equals(targetPage, "pdf-studio", StringComparison.OrdinalIgnoreCase))
+        {
+            NavigateTo("PdfStudio");
+            if (GetPage("PdfStudio") is PdfStudioPage pdfStudio)
+            {
+                pdfStudio.SetMode(mode);
+                if (paths.Count > 0) _ = pdfStudio.LoadFilesAsync(paths);
+            }
+            return;
+        }
+
+        if (string.Equals(targetPage, "docs-ocr", StringComparison.OrdinalIgnoreCase))
+        {
+            NavigateTo("DocsOcr");
+            if (GetPage("DocsOcr") is DocsOcrPage docsOcr)
+            {
+                docsOcr.SetMode(mode);
+                if (paths.Count > 0) _ = docsOcr.LoadFilesAsync(paths);
+            }
+            return;
+        }
+
+        if (string.Equals(targetPage, "rename", StringComparison.OrdinalIgnoreCase))
+        {
+            NavigateTo("Rename");
+            if (paths.Count > 0) _vm.AddPaths(paths);
+            return;
+        }
+
+        if (targetPage.StartsWith("tool:", StringComparison.OrdinalIgnoreCase))
+        {
+            var toolKey = targetPage["tool:".Length..];
+            OpenTool(toolKey, paths, values);
+            return;
+        }
+
+        OpenTool(targetPage, paths, values);
     }
 
     /// <summary>Đăng ký/gỡ phím tắt toàn cục mở menu tròn theo cài đặt.</summary>
@@ -396,26 +554,35 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    /// <summary>Bật/tắt hook lắc chuột theo cài đặt hiện tại.</summary>
+    /// <summary>Bật/tắt hook chuột (lắc mở Shelf + giữ chuột giữa 220ms mở Menu Tròn) theo cài đặt hiện tại.</summary>
     public void ApplyShakeSetting()
     {
-        var enabled = SettingsStore.Load().ShakeToOpenShelf;
-        if (enabled && _shakeHook is null)
+        var settings = SettingsStore.Load();
+        var needHook = settings.ShakeToOpenShelf || settings.MiddleMouseRadialEnabled;
+        if (needHook && _shakeHook is null)
         {
             try
             {
                 _shakeHook = new MouseHook(new ShakeDetector());
                 _shakeHook.Shaken += (x, y) => Dispatcher.BeginInvoke(() => OpenShelfAt(x, y));
+                _shakeHook.MiddleMouseHoldTriggered += (x, y) => Dispatcher.BeginInvoke(() => ShowRadial(x, y));
             }
             catch
             {
                 _shakeHook = null;   // không cài được hook: bỏ qua, không làm hỏng ứng dụng
             }
         }
-        else if (!enabled && _shakeHook is not null)
+        else if (!needHook && _shakeHook is not null)
         {
             _shakeHook.Dispose();
             _shakeHook = null;
+        }
+
+        if (_shakeHook is not null)
+        {
+            _shakeHook.ShakeEnabled = settings.ShakeToOpenShelf;
+            _shakeHook.MiddleMouseHoldEnabled = settings.MiddleMouseRadialEnabled;
+            _shakeHook.MiddleMouseHoldMs = settings.MiddleMouseHoldMs;
         }
     }
 
@@ -1088,6 +1255,8 @@ public partial class MainWindow : FluentWindow
 
         // 1. Pages
         registry.Register(Loc.T("NavHome"), pages, () => NavigateTo("Home"), icon: "\uE80F");
+        registry.Register(Loc.T("NavPdfStudio"), pages, () => NavigateTo("PdfStudio"), icon: "\uEA90");
+        registry.Register(Loc.T("NavDocsOcr"), pages, () => NavigateTo("DocsOcr"), icon: "\uE8A5");
         registry.Register(Loc.T("NavRename"), pages, () => NavigateTo("Rename"), icon: "\uE70F");
         registry.Register(Loc.T("NavTools"), pages, () => NavigateTo("Tools"), icon: "\uE90F");
         registry.Register(Loc.T("NavShelf"), pages, () => NavigateTo("Shelf"), icon: "\uE8A1");
@@ -1095,6 +1264,17 @@ public partial class MainWindow : FluentWindow
         registry.Register(Loc.T("NavPresets"), pages, () => NavigateTo("Presets"), icon: "\uE8F1");
         registry.Register(Loc.T("NavWatch"), pages, () => NavigateTo("Watch"), icon: "\uE7B3");
         registry.Register(Loc.T("NavSettings"), pages, () => NavigateTo("Settings"), icon: "\uE713");
+
+        // 1b. v3.0 Document Studio Quick Actions
+        registry.Register(Loc.T("PdfModeOrganize"), tools, () => DispatchTargetAction("pdf-studio", "organize", Array.Empty<string>()), icon: "\uE8C6");
+        registry.Register(Loc.T("PdfModeCompress"), tools, () => DispatchTargetAction("pdf-studio", "compress", Array.Empty<string>()), icon: "\uE7B8");
+        registry.Register(Loc.T("PdfModeStamp"), tools, () => DispatchTargetAction("pdf-studio", "stamp", Array.Empty<string>()), icon: "\uE929");
+        registry.Register(Loc.T("PdfModeSecurity"), tools, () => DispatchTargetAction("pdf-studio", "security", Array.Empty<string>()), icon: "\uE72E");
+        registry.Register(Loc.T("PdfModeConvert"), tools, () => DispatchTargetAction("pdf-studio", "convert", Array.Empty<string>()), icon: "\uEB9F");
+        registry.Register(Loc.T("DocsModeConvertPdf"), tools, () => DispatchTargetAction("docs-ocr", "convert", Array.Empty<string>()), icon: "\uEA90");
+        registry.Register(Loc.T("DocsModePrivacy"), tools, () => DispatchTargetAction("docs-ocr", "privacy", Array.Empty<string>()), icon: "\uE74D");
+        registry.Register(Loc.T("DocsModeSpreadsheet"), tools, () => DispatchTargetAction("docs-ocr", "spreadsheet", Array.Empty<string>()), icon: "\uE80A");
+        registry.Register(Loc.T("DocsModeOcr"), tools, () => DispatchTargetAction("docs-ocr", "ocr", Array.Empty<string>()), icon: "\uE8D2");
 
         // 2. All 10 Tools
         foreach (var tool in ToolCatalog.Create())
@@ -1253,6 +1433,8 @@ public partial class MainWindow : FluentWindow
     private RadioButton NavButton(string key) => key switch
     {
         "Home" => NavHome,
+        "PdfStudio" => NavPdfStudio,
+        "DocsOcr" => NavDocsOcr,
         "Tools" => NavTools,
         "Shelf" => NavShelf,
         "History" => NavHistory,
@@ -1379,7 +1561,8 @@ public partial class MainWindow : FluentWindow
                     NavigateTo,
                     dropped => { NavigateTo("Rename"); EnqueuePaths(dropped); },
                     toolKey => OpenTool(toolKey, Array.Empty<string>()),
-                    ShowRadialAtCursor);
+                    ShowRadialAtCursor,
+                    (target, mode, batch) => DispatchTargetAction(target, mode, batch));
                 home.SetWatchStateProvider(
                     () => _pages.TryGetValue("Watch", out var wp) && wp is WatchFolderPage watchPage
                         ? (watchPage.EnabledRuleCount, watchPage.IsRunning)
@@ -1390,6 +1573,21 @@ public partial class MainWindow : FluentWindow
                         if (GetPage("Watch") is WatchFolderPage watchPage) watchPage.ToggleRunning();
                     });
                 page = home;
+                break;
+            case "PdfStudio":
+                page = new PdfStudioPage(
+                    _license.License,
+                    AppData("journal"),
+                    feature => ShowUpgradeDialog(feature),
+                    OnContinueWithAction,
+                    ocrFiles => DispatchTargetAction("docs-ocr", "ocr", ocrFiles));
+                break;
+            case "DocsOcr":
+                page = new DocsOcrPage(
+                    _license.License,
+                    AppData("journal"),
+                    feature => ShowUpgradeDialog(feature),
+                    OnContinueWithAction);
                 break;
             case "Shelf":
                 page = new ShelfPage(_shelfModel, batch => { NavigateTo("Rename"); EnqueuePaths(batch); }, feature => ShowUpgradeDialog(feature));

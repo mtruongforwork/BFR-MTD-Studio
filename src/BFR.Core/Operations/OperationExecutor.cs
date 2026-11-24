@@ -171,9 +171,33 @@ public sealed class OperationExecutor
                 if (_fs.FileExists(op.To)) entry.Backup = _quarantine.PathFor(journalId, seq, op.To);
                 entry.Aux = ParentChain(op.To);
                 break;
+
+            case OperationKind.CreateFile:
+                entry.Id = journalId;
+                entry.Aux = ParentChain(op.To);
+                if (_fs.FileExists(op.From))
+                {
+                    entry.OutputSize = _fs.GetLength(op.From);
+                    entry.OutputHash = ComputeSha256(_fs, op.From);
+                }
+                break;
         }
 
         return entry;
+    }
+
+    internal static string? ComputeSha256(IFileSystem fs, string path)
+    {
+        try
+        {
+            using var stream = fs.OpenRead(path);
+            var hash = System.Security.Cryptography.SHA256.HashData(stream);
+            return Convert.ToHexString(hash);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Lớp bảo vệ cuối (C10 + SEC-3): dù phía trên đã chặn, không bao giờ chạm vùng hệ thống (kể cả qua junction/symlink). Khu cách ly của BFR được miễn.</summary>
@@ -249,6 +273,11 @@ public sealed class OperationExecutor
                     EnsureParent(fs, e.Backup!);
                     fs.Move(to, e.Backup!, overwrite: false);
                 }
+                EnsureParent(fs, to);
+                fs.Move(from, to, overwrite: false);
+                break;
+
+            case OperationKind.CreateFile:
                 EnsureParent(fs, to);
                 fs.Move(from, to, overwrite: false);
                 break;

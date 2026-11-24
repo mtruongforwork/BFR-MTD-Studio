@@ -389,6 +389,20 @@
                                 <TextBlock Text="{DynamicResource NavHome}" Style="{StaticResource NavLabelStyle}" />
                             </StackPanel>
                         </RadioButton>
+                        <RadioButton x:Name="NavPdfStudio" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="PdfStudio"
+                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavPdfStudio}" AutomationProperties.Name="Nav PDF Studio">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEA90;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource NavPdfStudio}" Style="{StaticResource NavLabelStyle}" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavDocsOcr" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="DocsOcr"
+                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavDocsOcr}" AutomationProperties.Name="Nav Docs and OCR">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource NavDocsOcr}" Style="{StaticResource NavLabelStyle}" />
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton x:Name="NavRename" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Rename" IsChecked="True"
                                      Checked="Nav_Checked" ToolTip="{DynamicResource NavRename}" AutomationProperties.Name="Nav rename">
                             <StackPanel Orientation="Horizontal">
@@ -411,6 +425,13 @@
                                 <TextBlock Text="{DynamicResource NavShelf}" Style="{StaticResource NavLabelStyle}" />
                             </StackPanel>
                         </RadioButton>
+                        <RadioButton x:Name="NavWatch" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Watch"
+                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavWatch}" AutomationProperties.Name="Nav watch folder">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource NavWatch}" Style="{StaticResource NavLabelStyle}" />
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton x:Name="NavHistory" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="History"
                                      Checked="Nav_Checked" ToolTip="{DynamicResource NavHistory}" AutomationProperties.Name="Nav history">
                             <StackPanel Orientation="Horizontal">
@@ -423,13 +444,6 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8F1;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
                                 <TextBlock Text="{DynamicResource NavPresets}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavWatch" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Watch"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavWatch}" AutomationProperties.Name="Nav watch folder">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavWatch}" Style="{StaticResource NavLabelStyle}" />
                             </StackPanel>
                         </RadioButton>
                     </StackPanel>

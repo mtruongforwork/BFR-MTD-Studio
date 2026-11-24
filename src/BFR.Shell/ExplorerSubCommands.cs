@@ -94,9 +94,10 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
     private readonly string _titleVi;
     private readonly string _titleEn;
 
-    public ExplorerSubCommand(Guid canonicalName, string titleVi, string titleEn, string? quickKey, string? toolKey = null)
+    public ExplorerSubCommand(Guid canonicalName, string titleVi, string titleEn, string? quickKey, string? toolKey = null, bool isRadial = false)
     {
         ToolKey = toolKey;
+        IsRadial = isRadial;
         _canonicalName = canonicalName;
         _titleVi = titleVi;
         _titleEn = titleEn;
@@ -107,6 +108,9 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
 
     /// <summary>Khoá công cụ tệp: mở trang Công cụ với các tệp đã chọn.</summary>
     public string? ToolKey { get; }
+
+    /// <summary>True để mở Menu Tròn ngữ cảnh BFR v3.0 tại con trỏ (<c>--radial</c>).</summary>
+    public bool IsRadial { get; }
 
     public string Title(bool vietnamese) => vietnamese ? _titleVi : _titleEn;
 
@@ -154,7 +158,7 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
         try
         {
             var paths = ExplorerCommand.CollectPaths(psiItemArray);
-            return ExplorerCommandLauncher.Launch(paths, QuickKey, ToolKey);
+            return ExplorerCommandLauncher.Launch(paths, QuickKey, ToolKey, IsRadial);
         }
         catch
         {
@@ -181,7 +185,8 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
     {
         var list = new List<IExplorerCommandServer>
         {
-            new ExplorerSubCommand(Guid.Parse("b7a3c5d1-0001-4e5f-8a6b-0f1e2d3c4b01"), "Mở trong BFR", "Open in BFR", null)
+            new ExplorerSubCommand(Guid.Parse("b7a3c5d1-0001-4e5f-8a6b-0f1e2d3c4b01"), "Mở trong BFR", "Open in BFR", null),
+            new ExplorerSubCommand(Guid.Parse("b7a3c5d1-00ff-4e5f-8a6b-0f1e2d3c4b01"), "Mở Menu Tròn BFR tại đây", "Open BFR Radial Menu", null, isRadial: true)
         };
 
         var id = 2;

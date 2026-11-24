@@ -5,29 +5,47 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using BFR.App.Controls;
 using BFR.Core;
 using BFR.Presentation.Tools;
 
 /// <summary>
-/// Trang chủ của Công cụ: bố cục Bento cân đối (không còn thẻ lẻ loi bị cắt), ô tìm kiếm nhanh,
-/// huy hiệu Pro rõ ràng cho Workflow và vùng thả tệp.
+/// Trang chủ của All Tools v3.0: tab phân loại kiểu iLovePDF (All, ★ Favorites, PDF, Docs &amp; Data, Images,
+/// Organize &amp; Rename, Security), nút gắn sao yêu thích ★ lưu trong SettingsStore.FavoriteTools,
+/// tìm kiếm tức thì và bố cục Bento cân đối.
 /// </summary>
 internal sealed class ToolsHomeView : UserControl
 {
-    private sealed record ToolCardEntry(string Key, string Icon, string Title, string Description, bool IsPro);
+    private const string TabAll = "all";
+    private const string TabFavorites = "favorites";
+
+    private sealed record ToolCardEntry(
+        string Key,
+        string Icon,
+        string Title,
+        string Description,
+        ToolCategory Category,
+        bool IsPro);
 
     private readonly List<ToolCardEntry> _entries = new();
+    private readonly HashSet<string> _favorites;
     private readonly Action<string> _open;
     private readonly TextBlock _pending = new();
     private readonly Border _banner = new();
     private readonly TextBox _search = new();
+    private readonly WrapPanel _categoryTabs = new() { Margin = new Thickness(0, 0, 0, 14) };
     private readonly BentoPanel _bento = new() { RowHeight = 84, CollapseWidth = 760, Margin = new Thickness(0, 0, 0, 16) };
+    private readonly TextBlock _emptyFavorites = new();
+
+    private string _activeCategory = TabAll;
 
     public ToolsHomeView(IReadOnlyList<ITool> tools, Action<string> open, Action<IEnumerable<string>> drop)
     {
         _open = open;
+        var saved = SettingsStore.Load().FavoriteTools ?? new List<string>();
+        _favorites = new HashSet<string>(saved, StringComparer.OrdinalIgnoreCase);
 
         AllowDrop = true;
         Drop += (_, e) =>
@@ -44,9 +62,21 @@ internal sealed class ToolsHomeView : UserControl
         foreach (var tool in tools)
         {
             var isPro = string.Equals(tool.Key, "workflow", StringComparison.OrdinalIgnoreCase);
-            _entries.Add(new ToolCardEntry(tool.Key, tool.Icon, Loc.T(tool.TitleKey), Loc.T(tool.DescriptionKey), isPro));
+            _entries.Add(new ToolCardEntry(
+                tool.Key,
+                tool.Icon,
+                TryLoc(tool.TitleKey, tool.Key),
+                TryLoc(tool.DescriptionKey, string.Empty),
+                tool.Category,
+                isPro));
         }
-        _entries.Add(new ToolCardEntry("quarantine", "\uE74D", Loc.T("ToolQuarantineTitle"), Loc.F("ToolQuarantineDesc", QuarantineStore.DefaultRetentionDays), false));
+        _entries.Add(new ToolCardEntry(
+            "quarantine",
+            "\uE74D",
+            Loc.T("ToolQuarantineTitle"),
+            Loc.F("ToolQuarantineDesc", QuarantineStore.DefaultRetentionDays),
+            ToolCategory.Security,
+            false));
 
         var root = new StackPanel { Margin = new Thickness(24, 18, 24, 24) };
 
@@ -74,6 +104,10 @@ internal sealed class ToolsHomeView : UserControl
         headerRow.Children.Add(titles);
         root.Children.Add(headerRow);
 
+        // Thanh tab phân loại kiểu iLovePDF
+        BuildCategoryPills();
+        root.Children.Add(_categoryTabs);
+
         _pending.TextWrapping = TextWrapping.Wrap;
         _pending.Foreground = (Brush)Application.Current.FindResource("TextPrimary");
         _banner.Child = _pending;
@@ -83,11 +117,72 @@ internal sealed class ToolsHomeView : UserControl
         _banner.Visibility = Visibility.Collapsed;
         root.Children.Add(_banner);
 
+        _emptyFavorites.Text = TryLoc("ToolsEmptyFavorites", "No favorite tools yet. Click ★ on any tool to pin it here.");
+        _emptyFavorites.Style = (Style)Application.Current.FindResource("CaptionTextStyle");
+        _emptyFavorites.Margin = new Thickness(4, 12, 4, 12);
+        _emptyFavorites.Visibility = Visibility.Collapsed;
+        root.Children.Add(_emptyFavorites);
+
         root.Children.Add(_bento);
         RenderTiles();
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         SetPending(0);
+    }
+
+    private void BuildCategoryPills()
+    {
+        _categoryTabs.Children.Clear();
+        var tabs = new (string Id, string Label)[]
+        {
+            (TabAll, TryLoc("ToolsCatAll", "All")),
+            (TabFavorites, TryLoc("ToolsCatFavorites", "★ Favorites")),
+            (ToolCategory.Pdf.ToString(), TryLoc("ToolsCatPdf", "PDF")),
+            (ToolCategory.Docs.ToString(), TryLoc("ToolsCatDocs", "Docs & Data")),
+            (ToolCategory.Images.ToString(), TryLoc("ToolsCatImages", "Images")),
+            (ToolCategory.Organize.ToString(), TryLoc("ToolsCatOrganize", "Organize & Rename")),
+            (ToolCategory.Security.ToString(), TryLoc("ToolsCatSecurity", "Security"))
+        };
+
+        var chipStyle = Application.Current.TryFindResource("BfrChipToggle") as Style;
+        foreach (var (id, label) in tabs)
+        {
+            var tabId = id;
+            var pill = new ToggleButton
+            {
+                Content = label,
+                IsChecked = string.Equals(_activeCategory, tabId, StringComparison.OrdinalIgnoreCase),
+                Margin = new Thickness(0, 0, 8, 6),
+                Tag = tabId
+            };
+            if (chipStyle is not null) pill.Style = chipStyle;
+            pill.Click += (_, _) =>
+            {
+                _activeCategory = tabId;
+                SyncCategoryPills();
+                RenderTiles();
+            };
+            _categoryTabs.Children.Add(pill);
+        }
+    }
+
+    private void SyncCategoryPills()
+    {
+        foreach (var child in _categoryTabs.Children.OfType<ToggleButton>())
+        {
+            child.IsChecked = string.Equals(child.Tag as string, _activeCategory, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private void ToggleFavorite(string toolKey)
+    {
+        if (!_favorites.Add(toolKey))
+            _favorites.Remove(toolKey);
+
+        var settings = SettingsStore.Load();
+        settings.FavoriteTools = _favorites.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        SettingsStore.Save(settings);
+        RenderTiles();
     }
 
     private UIElement BuildSearchBox()
@@ -143,12 +238,30 @@ internal sealed class ToolsHomeView : UserControl
     {
         _bento.Children.Clear();
         var query = _search.Text.Trim();
-        var items = query.Length == 0
-            ? _entries
-            : _entries.Where(e =>
+
+        IEnumerable<ToolCardEntry> filtered = _entries;
+        if (string.Equals(_activeCategory, TabFavorites, StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(e => _favorites.Contains(e.Key));
+        }
+        else if (!string.Equals(_activeCategory, TabAll, StringComparison.OrdinalIgnoreCase)
+            && Enum.TryParse<ToolCategory>(_activeCategory, ignoreCase: true, out var cat))
+        {
+            filtered = filtered.Where(e => e.Category == cat);
+        }
+
+        if (query.Length > 0)
+        {
+            filtered = filtered.Where(e =>
                 e.Title.Contains(query, StringComparison.CurrentCultureIgnoreCase)
                 || e.Description.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-                || e.Key.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+                || e.Key.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var items = filtered.ToList();
+        _emptyFavorites.Visibility = items.Count == 0 && string.Equals(_activeCategory, TabFavorites, StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         var total = items.Count;
         var remainder = total % 3;
@@ -156,7 +269,6 @@ internal sealed class ToolsHomeView : UserControl
         for (var i = 0; i < total; i++)
         {
             var entry = items[i];
-            // Cân đối hàng cuối (12 cột): nếu dư 2 thẻ → mỗi thẻ 6 cột; nếu dư 1 thẻ → thẻ cuối 12 cột (hoặc 2 thẻ cuối mỗi thẻ 6 cột nếu total >= 4).
             int colSpan = 4;
             if (remainder == 2 && i >= total - 2) colSpan = 6;
             else if (remainder == 1 && i == total - 1) colSpan = 12;
@@ -173,6 +285,38 @@ internal sealed class ToolsHomeView : UserControl
             var panel = new StackPanel();
             var head = new DockPanel { LastChildFill = true };
 
+            // Nút gắn sao yêu thích ★
+            var isFav = _favorites.Contains(entry.Key);
+            var key = entry.Key;
+            var starBtn = new Button
+            {
+                Content = new TextBlock
+                {
+                    Text = isFav ? "\uE735" : "\uE734",
+                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                    FontSize = 13.5,
+                    Foreground = isFav
+                        ? (Brush)Application.Current.FindResource("BfrWarn")
+                        : (Brush)Application.Current.FindResource("BfrFg3")
+                },
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(4, 2, 4, 2),
+                Margin = new Thickness(6, 0, 0, 0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = isFav
+                    ? TryLoc("ToolsFavoriteRemoveTip", "Remove from Favorites")
+                    : TryLoc("ToolsFavoriteAddTip", "Pin to Favorites")
+            };
+            starBtn.Click += (_, e) =>
+            {
+                e.Handled = true;
+                ToggleFavorite(key);
+            };
+            DockPanel.SetDock(starBtn, Dock.Right);
+            head.Children.Add(starBtn);
+
             if (entry.IsPro)
             {
                 var badge = new Border
@@ -182,7 +326,7 @@ internal sealed class ToolsHomeView : UserControl
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(6, 1, 6, 1),
-                    Margin = new Thickness(8, 0, 0, 0),
+                    Margin = new Thickness(6, 0, 0, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock
                     {
@@ -229,7 +373,6 @@ internal sealed class ToolsHomeView : UserControl
             });
             tile.Content = panel;
 
-            var key = entry.Key;
             tile.Invoked += (_, _) => _open(key);
             System.Windows.Automation.AutomationProperties.SetName(tile, "Open " + entry.Title);
             _bento.Children.Add(tile);

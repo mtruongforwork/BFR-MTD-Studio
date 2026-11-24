@@ -1,6 +1,7 @@
 namespace BFR.App;
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -52,6 +53,18 @@ public sealed class AppSettings
     public bool RadialHotkeyEnabled { get; set; } = false;
 
     public string RadialHotkey { get; set; } = "Ctrl+Alt+Q";
+
+    /// <summary>Giữ nút chuột giữa 220ms để mở Menu Tròn ngữ cảnh v3.0 (không chặn click ngắn hay kéo pan).</summary>
+    public bool MiddleMouseRadialEnabled { get; set; } = true;
+
+    /// <summary>Thời gian giữ chuột giữa (ms) để bung Menu Tròn. Mặc định 220ms.</summary>
+    public int MiddleMouseHoldMs { get; set; } = 220;
+
+    /// <summary>Danh sách khoá công cụ được người dùng gắn sao yêu thích (★) trong All Tools &amp; Smart Home.</summary>
+    public List<string> FavoriteTools { get; set; } = new();
+
+    public static int NormalizeMiddleMouseHoldMs(int ms) =>
+        Math.Clamp(ms <= 0 ? 220 : ms, 120, 800);
 
     /// <summary>
     /// Chạy nền ở khay hệ thống: đóng cửa sổ chính chỉ ẩn đi, ứng dụng vẫn chạy
@@ -110,6 +123,8 @@ public static class SettingsStore
             if (!File.Exists(SettingsPath)) return new AppSettings();
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
             settings.UpdateFeedUrl = AppSettings.NormalizeUpdateFeedUrl(settings.UpdateFeedUrl);
+            settings.MiddleMouseHoldMs = AppSettings.NormalizeMiddleMouseHoldMs(settings.MiddleMouseHoldMs);
+            settings.FavoriteTools ??= new List<string>();
             return settings;
         }
         catch

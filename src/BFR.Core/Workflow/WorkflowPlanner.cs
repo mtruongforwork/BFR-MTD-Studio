@@ -173,6 +173,14 @@ public static class WorkflowPlanner
             case AttributeStep attributes:
                 return Collect(AttributePlanner.Plan(files, attributes.Set, attributes.Clear, fs), issues, blocking: false);
 
+            case CompressPdfStep:
+            case ImagesToPdfStep:
+            case DocToPdfStep:
+            case StripDocMetadataStep:
+            case WatermarkPdfStep:
+                // Các bước xử lý nội dung tài liệu (v3.0) chạy ở tầng BFR.Documents; không tạo thao tác đổi đường dẫn trên lớp phủ.
+                return new List<Operation>();
+
             default:
                 issues.Add(CoreText.Get("CoreWorkflowUnknownStep", "Loại bước không được hỗ trợ"));
                 return new List<Operation>();

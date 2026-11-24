@@ -1,0 +1,309 @@
+namespace BFR.Documents.Pdf;
+
+using BFR.Documents.Abstractions;
+using PdfSharpCore.Drawing;
+using PdfSharpCore.Pdf.IO;
+
+public enum WatermarkLayout
+{
+    Center,
+    Tile
+}
+
+public enum PageNumberPosition
+{
+    BottomCenter,
+    BottomRight,
+    BottomLeft,
+    TopCenter,
+    TopRight,
+    TopLeft
+}
+
+public sealed record PdfWatermarkOptions(
+    string? Text = "CONFIDENTIAL",
+    string? ImagePath = null,
+    double Opacity = 0.25,
+    double AngleDegrees = -45.0,
+    double FontSize = 48.0,
+    WatermarkLayout Layout = WatermarkLayout.Center,
+    string ColorHex = "#808080",
+    string? Password = null,
+    bool RecordJournal = false,
+    string? JournalDir = null);
+
+public sealed record PdfPageNumberOptions(
+    string Format = "Page {page} of {total}",
+    int StartNumber = 1,
+    PageNumberPosition Position = PageNumberPosition.BottomCenter,
+    double FontSize = 10.5,
+    double MarginPoints = 24.0,
+    string? Password = null,
+    bool RecordJournal = false,
+    string? JournalDir = null);
+
+/// <summary>
+/// Offline PDF stamping service: text/image watermarks (opacity, angle, font size, tile/center)
+/// and customizable page numbers ("Page {page} of {total}").
+/// </summary>
+public sealed class PdfStampService
+{
+    public Task<DocumentResult> AddWatermarkAsync(
+        string inputPath,
+        string outputPath,
+        PdfWatermarkOptions options,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default) =>
+        Task.Run(() => AddWatermark(inputPath, outputPath, options, progress, ct), ct);
+
+    public DocumentResult AddWatermark(
+        string inputPath,
+        string outputPath,
+        PdfWatermarkOptions options,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (!File.Exists(inputPath))
+            return DocumentResult.Fail(DocumentErrorCode.FileNotFound, $"File not found: {Path.GetFileName(inputPath)}");
+
+        if (string.IsNullOrWhiteSpace(options.Text) && string.IsNullOrWhiteSpace(options.ImagePath))
+            return DocumentResult.Fail(DocumentErrorCode.Unknown, "Watermark requires either Text or ImagePath.");
+
+        if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var code, out var msg))
+            return DocumentResult.Fail(code, msg!);
+
+        PdfFontResolver.EnsureRegistered();
+        string? snapshot = null;
+        var tempOut = DocumentSafety.CreateTempPath(finalOut);
+        var inputBytes = DocumentSafety.SafeFileLength(inputPath);
+
+        try
+        {
+            var readable = DocumentSafety.EnsureReadablePath(inputPath, out snapshot, out var usedSnapshot);
+            using var doc = string.IsNullOrEmpty(options.Password)
+                ? PdfReader.Open(readable, PdfDocumentOpenMode.Modify)
+                : PdfReader.Open(readable, options.Password, PdfDocumentOpenMode.Modify);
+
+            var alpha = (byte)Math.Clamp((int)Math.Round(options.Opacity * 255), 10, 255);
+            var (r, g, b) = ParseHexColor(options.ColorHex);
+            var brush = new XSolidBrush(XColor.FromArgb(alpha, r, g, b));
+            var font = new XFont("Segoe UI", Math.Clamp(options.FontSize, 8, 180), XFontStyle.Bold);
+
+            XImage? wmImage = null;
+            if (!string.IsNullOrWhiteSpace(options.ImagePath) && File.Exists(options.ImagePath))
+            {
+                wmImage = XImage.FromFile(options.ImagePath);
+            }
+
+            try
+            {
+                for (var i = 0; i < doc.PageCount; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var page = doc.Pages[i];
+                    using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+                    var w = page.Width.Point;
+                    var h = page.Height.Point;
+
+                    if (wmImage is not null)
+                    {
+                        var imgW = Math.Min(w * 0.5, wmImage.PointWidth);
+                        var imgH = imgW * (wmImage.PointHeight / Math.Max(1, wmImage.PointWidth));
+                        DrawAtPoints(gfx, w, h, options.Layout, options.AngleDegrees, (cx, cy) =>
+                        {
+                            gfx.DrawImage(wmImage, cx - imgW / 2, cy - imgH / 2, imgW, imgH);
+                        });
+                    }
+                    else if (!string.IsNullOrWhiteSpace(options.Text))
+                    {
+                        var size = gfx.MeasureString(options.Text, font);
+                        DrawAtPoints(gfx, w, h, options.Layout, options.AngleDegrees, (cx, cy) =>
+                        {
+                            gfx.DrawString(options.Text, font, brush, new XPoint(cx - size.Width / 2, cy + size.Height / 3));
+                        });
+                    }
+
+                    progress?.Report((double)(i + 1) / doc.PageCount);
+                }
+            }
+            finally
+            {
+                wmImage?.Dispose();
+            }
+
+            doc.Save(tempOut);
+            var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, options.RecordJournal, options.JournalDir);
+            tempOut = string.Empty;
+
+            return DocumentResult.Ok(
+                outputPath: finalOut,
+                inputBytes: inputBytes,
+                outputBytes: DocumentSafety.SafeFileLength(finalOut),
+                pagesProcessed: doc.PageCount,
+                usedSnapshotCopy: usedSnapshot,
+                journalPath: journal);
+        }
+        catch (OperationCanceledException)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.Cancelled, "Watermark cancelled.");
+        }
+        catch (PdfReaderException ex) when (PdfOrganizer.IsPasswordError(ex))
+        {
+            return DocumentResult.Fail(DocumentErrorCode.PasswordRequired, "PDF requires a password.");
+        }
+        catch (Exception ex)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.CorruptedPdf, $"Watermark failed: {ex.Message}");
+        }
+        finally
+        {
+            DocumentSafety.CleanupTempFile(tempOut);
+            DocumentSafety.CleanupTempFile(snapshot);
+        }
+    }
+
+    public Task<DocumentResult> AddPageNumbersAsync(
+        string inputPath,
+        string outputPath,
+        PdfPageNumberOptions? options = null,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default) =>
+        Task.Run(() => AddPageNumbers(inputPath, outputPath, options, progress, ct), ct);
+
+    public DocumentResult AddPageNumbers(
+        string inputPath,
+        string outputPath,
+        PdfPageNumberOptions? options = null,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        options ??= new PdfPageNumberOptions();
+        if (!File.Exists(inputPath))
+            return DocumentResult.Fail(DocumentErrorCode.FileNotFound, $"File not found: {Path.GetFileName(inputPath)}");
+
+        if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var code, out var msg))
+            return DocumentResult.Fail(code, msg!);
+
+        PdfFontResolver.EnsureRegistered();
+        string? snapshot = null;
+        var tempOut = DocumentSafety.CreateTempPath(finalOut);
+        var inputBytes = DocumentSafety.SafeFileLength(inputPath);
+
+        try
+        {
+            var readable = DocumentSafety.EnsureReadablePath(inputPath, out snapshot, out var usedSnapshot);
+            using var doc = string.IsNullOrEmpty(options.Password)
+                ? PdfReader.Open(readable, PdfDocumentOpenMode.Modify)
+                : PdfReader.Open(readable, options.Password, PdfDocumentOpenMode.Modify);
+
+            var font = new XFont("Segoe UI", Math.Clamp(options.FontSize, 6, 48), XFontStyle.Regular);
+            var brush = new XSolidBrush(XColor.FromArgb(220, 45, 45, 45));
+            var total = doc.PageCount;
+            var margin = Math.Max(8, options.MarginPoints);
+
+            for (var i = 0; i < total; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var page = doc.Pages[i];
+                var num = options.StartNumber + i;
+                var label = options.Format
+                    .Replace("{page}", num.ToString(), StringComparison.OrdinalIgnoreCase)
+                    .Replace("{total}", (options.StartNumber + total - 1).ToString(), StringComparison.OrdinalIgnoreCase);
+
+                using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+                var rect = new XRect(margin, margin, Math.Max(10, page.Width.Point - margin * 2), Math.Max(10, page.Height.Point - margin * 2));
+                var format = options.Position switch
+                {
+                    PageNumberPosition.BottomLeft => XStringFormats.BottomLeft,
+                    PageNumberPosition.BottomRight => XStringFormats.BottomRight,
+                    PageNumberPosition.TopLeft => XStringFormats.TopLeft,
+                    PageNumberPosition.TopCenter => XStringFormats.TopCenter,
+                    PageNumberPosition.TopRight => XStringFormats.TopRight,
+                    _ => XStringFormats.BottomCenter
+                };
+
+                gfx.DrawString(label, font, brush, rect, format);
+                progress?.Report((double)(i + 1) / total);
+            }
+
+            doc.Save(tempOut);
+            var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, options.RecordJournal, options.JournalDir);
+            tempOut = string.Empty;
+
+            return DocumentResult.Ok(
+                outputPath: finalOut,
+                inputBytes: inputBytes,
+                outputBytes: DocumentSafety.SafeFileLength(finalOut),
+                pagesProcessed: total,
+                usedSnapshotCopy: usedSnapshot,
+                journalPath: journal);
+        }
+        catch (OperationCanceledException)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.Cancelled, "Page numbering cancelled.");
+        }
+        catch (PdfReaderException ex) when (PdfOrganizer.IsPasswordError(ex))
+        {
+            return DocumentResult.Fail(DocumentErrorCode.PasswordRequired, "PDF requires a password.");
+        }
+        catch (Exception ex)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.CorruptedPdf, $"Page numbering failed: {ex.Message}");
+        }
+        finally
+        {
+            DocumentSafety.CleanupTempFile(tempOut);
+            DocumentSafety.CleanupTempFile(snapshot);
+        }
+    }
+
+    private static void DrawAtPoints(
+        XGraphics gfx,
+        double pageW,
+        double pageH,
+        WatermarkLayout layout,
+        double angle,
+        Action<double, double> draw)
+    {
+        if (layout == WatermarkLayout.Center)
+        {
+            var state = gfx.Save();
+            gfx.TranslateTransform(pageW / 2, pageH / 2);
+            gfx.RotateTransform(angle);
+            draw(0, 0);
+            gfx.Restore(state);
+        }
+        else
+        {
+            var cols = 3;
+            var rows = 4;
+            for (var r = 0; r < rows; r++)
+            {
+                for (var c = 0; c < cols; c++)
+                {
+                    var cx = pageW * (c + 0.5) / cols;
+                    var cy = pageH * (r + 0.5) / rows;
+                    var state = gfx.Save();
+                    gfx.TranslateTransform(cx, cy);
+                    gfx.RotateTransform(angle);
+                    draw(0, 0);
+                    gfx.Restore(state);
+                }
+            }
+        }
+    }
+
+    private static (byte R, byte G, byte B) ParseHexColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return (128, 128, 128);
+        var s = hex.Trim().TrimStart('#');
+        if (s.Length == 6
+            && byte.TryParse(s[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r)
+            && byte.TryParse(s[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g)
+            && byte.TryParse(s[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+        {
+            return (r, g, b);
+        }
+        return (128, 128, 128);
+    }
+}

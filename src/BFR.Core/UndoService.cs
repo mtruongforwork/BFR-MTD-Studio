@@ -20,7 +20,12 @@ public sealed class UndoResult
 public sealed class UndoService
 {
     private readonly IFileSystem _fs;
-    public UndoService(IFileSystem fs) => _fs = fs;
+    private readonly QuarantineStore? _quarantine;
+    public UndoService(IFileSystem fs, QuarantineStore? quarantine = null)
+    {
+        _fs = fs;
+        _quarantine = quarantine;
+    }
 
     public UndoResult UndoJournal(string journalPath)
     {
@@ -63,7 +68,7 @@ public sealed class UndoService
 
         foreach (var step in steps)
         {
-            var error = OperationUndo.Undo(_fs, step);
+            var error = OperationUndo.Undo(_fs, step, _quarantine);
             if (error is null)
             {
                 result.Undone++;

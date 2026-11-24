@@ -157,6 +157,16 @@ public sealed class ToolContext
     }
 }
 
+/// <summary>Nhóm phân loại công cụ cho All Tools v3.0 (kiểu iLovePDF pill tabs).</summary>
+public enum ToolCategory
+{
+    Pdf,
+    Docs,
+    Images,
+    Organize,
+    Security
+}
+
 /// <summary>Một công cụ trong khung công cụ dùng chung: khai báo tuỳ chọn, lập kế hoạch, thực thi qua <see cref="ToolRunner"/>.</summary>
 public interface ITool
 {
@@ -168,6 +178,9 @@ public interface ITool
 
     /// <summary>Mã glyph biểu tượng (Segoe MDL2).</summary>
     string Icon { get; }
+
+    /// <summary>Nhóm phân loại hiển thị trong All Tools v3.0.</summary>
+    ToolCategory Category => ToolCategory.Organize;
 
     /// <summary>Công cụ chỉ đọc (checksum, phân tích): không có nút Áp dụng.</summary>
     bool ReadOnly { get; }

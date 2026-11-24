@@ -44,7 +44,13 @@ public enum OperationKind
     /// Thay nội dung tệp bằng một tệp tạm đã dựng sẵn (ảnh, EXIF, ZIP...). Tệp cũ được giữ trong khu cách ly.
     /// Hoàn tác: trả tệp cũ về.
     /// </summary>
-    WriteFile
+    WriteFile,
+
+    /// <summary>
+    /// Tạo tệp đầu ra mới từ tệp tạm `.bfrtmp` (PDF, Docs, OCR...). Ghi kích thước/hash vào journal.
+    /// Hoàn tác: kiểm tra tệp chưa bị sửa đổi rồi chuyển vào khu cách ly an toàn.
+    /// </summary>
+    CreateFile
 }
 
 /// <summary>
@@ -90,6 +96,9 @@ public sealed record Operation
 
     public static Operation WriteFile(string tempSource, string target) =>
         new() { Kind = OperationKind.WriteFile, From = tempSource, To = target };
+
+    public static Operation CreateFile(string tempSource, string target) =>
+        new() { Kind = OperationKind.CreateFile, From = tempSource, To = target };
 
     /// <summary>Chuyển từ kế hoạch đổi tên cũ.</summary>
     public static Operation FromStep(Step step) => Move(step.From, step.To, step.Kind);

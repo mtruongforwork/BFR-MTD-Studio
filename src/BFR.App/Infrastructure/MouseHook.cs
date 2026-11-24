@@ -19,9 +19,18 @@ public sealed class MouseHook : IDisposable
 {
     private const int WH_MOUSE_LL = 14;
     private const int WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
+    private const int WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
     private const int WM_QUIT = 0x0012;
     private const int VK_LBUTTON = 0x01;
+    private const int VK_MBUTTON = 0x04;
     private const uint PM_NOREMOVE = 0x0000;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const int MiddleDriftThresholdPx = 8;
+    private const int MiddleDriftThresholdSq = MiddleDriftThresholdPx * MiddleDriftThresholdPx;
+
+    private const int QUNS_BUSY = 2;
+    private const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
+    private const int QUNS_PRESENTATION_MODE = 4;
 
     private delegate nint HookProc(int nCode, nint wParam, nint lParam);
     private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
@@ -31,6 +40,15 @@ public sealed class MouseHook : IDisposable
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MSLLHOOKSTRUCT { public POINT Pt; public uint MouseData, Flags, Time; public nint ExtraInfo; }
@@ -53,6 +71,10 @@ public sealed class MouseHook : IDisposable
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern bool GetMonitorInfo(nint hMonitor, ref MONITORINFO lpmi);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(nint hwnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+    [DllImport("shell32.dll")] private static extern int SHQueryUserNotificationState(out int pquns);
 
     private readonly HookProc _proc;   // giữ tham chiếu để GC không thu hồi delegate
     private readonly ShakeDetector _detector;
@@ -60,8 +82,16 @@ public sealed class MouseHook : IDisposable
     private readonly uint _ownPid = (uint)Environment.ProcessId;
     private readonly ManualResetEventSlim _ready = new(false);
     private readonly Thread _thread;
+    private readonly Timer _middleHoldTimer;
 
     private volatile bool _leftDown;
+    private volatile bool _middleDown;
+    private volatile bool _shakeEnabled = true;
+    private volatile bool _middleMouseHoldEnabled = true;
+    private int _middleMouseHoldMs = 220;
+    private int _middleDownX;
+    private int _middleDownY;
+    private long _middleHoldGen;
     private bool _ignoreThisDrag;
     private uint _threadId;
     private Exception? _startError;
@@ -73,6 +103,7 @@ public sealed class MouseHook : IDisposable
     {
         _detector = detector;
         _proc = Callback;
+        _middleHoldTimer = new Timer(OnMiddleHoldTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
 
         _thread = new Thread(Run) { IsBackground = true, Name = "BFR.MouseHook" };
         _thread.SetApartmentState(ApartmentState.STA);
@@ -84,6 +115,37 @@ public sealed class MouseHook : IDisposable
 
     /// <summary>Phát ra trên LUỒNG HOOK (không phải luồng giao diện) khi phát hiện lắc lúc đang giữ nút trái.</summary>
     public event Action<int, int>? Shaken;
+
+    /// <summary>
+    /// Phát ra trên luồng nền (off-hook Timer) khi người dùng giữ nút chuột giữa đủ <see cref="MiddleMouseHoldMs"/>
+    /// mà không rê lệch quá 8px và không ở ứng dụng toàn màn hình. Không bao giờ nuốt click ngắn.
+    /// </summary>
+    public event Action<int, int>? MiddleMouseHoldTriggered;
+
+    /// <summary>Bật/tắt phát hiện lắc chuột mở Shelf.</summary>
+    public bool ShakeEnabled
+    {
+        get => _shakeEnabled;
+        set => _shakeEnabled = value;
+    }
+
+    /// <summary>Bật/tắt giữ nút chuột giữa để mở Menu Tròn ngữ cảnh v3.0.</summary>
+    public bool MiddleMouseHoldEnabled
+    {
+        get => _middleMouseHoldEnabled;
+        set
+        {
+            _middleMouseHoldEnabled = value;
+            if (!value) CancelMiddleHold();
+        }
+    }
+
+    /// <summary>Thời gian giữ chuột giữa (ms) trước khi kích hoạt. Mặc định 220ms.</summary>
+    public int MiddleMouseHoldMs
+    {
+        get => Volatile.Read(ref _middleMouseHoldMs);
+        set => Volatile.Write(ref _middleMouseHoldMs, Math.Clamp(value, 120, 800));
+    }
 
     public bool LeftDown => _leftDown;
 
@@ -139,19 +201,46 @@ public sealed class MouseHook : IDisposable
             switch ((int)wParam)
             {
                 case WM_LBUTTONDOWN:
-                    _leftDown = true;
-                    _detector.Reset();
-                    // Kéo bắt đầu từ chính cửa sổ BFR (sắp xếp quy tắc, kéo thanh cuộn, bôi đen ô nhập...)
-                    // không phải kéo tệp để thả vào Shelf: bỏ qua để khỏi mở Shelf nhầm.
-                    _ignoreThisDrag = IsOwnWindow(info.Pt);
+                    if (_shakeEnabled)
+                    {
+                        _leftDown = true;
+                        _detector.Reset();
+                        // Kéo bắt đầu từ chính cửa sổ BFR (sắp xếp quy tắc, kéo thanh cuộn, bôi đen ô nhập...)
+                        // không phải kéo tệp để thả vào Shelf: bỏ qua để khỏi mở Shelf nhầm.
+                        _ignoreThisDrag = IsOwnWindow(info.Pt);
+                    }
                     break;
                 case WM_LBUTTONUP:
                     _leftDown = false;
                     _detector.Reset();
                     break;
+                case WM_MBUTTONDOWN:
+                    if (_middleMouseHoldEnabled)
+                    {
+                        _middleDown = true;
+                        Volatile.Write(ref _middleDownX, info.Pt.X);
+                        Volatile.Write(ref _middleDownY, info.Pt.Y);
+                        Interlocked.Increment(ref _middleHoldGen);
+                        // Chỉ hẹn giờ off-hook (< 0.01ms): không làm COM/I/O trong WH_MOUSE_LL và không nuốt click ngắn.
+                        try { _middleHoldTimer.Change(MiddleMouseHoldMs, Timeout.Infinite); } catch (ObjectDisposedException) { }
+                    }
+                    break;
+                case WM_MBUTTONUP:
+                    if (_middleDown) CancelMiddleHold();
+                    break;
                 case WM_MOUSEMOVE:
                     Interlocked.Increment(ref _moves);
-                    if (_leftDown && !_ignoreThisDrag && _detector.Feed(info.Pt.X, _clock.ElapsedMilliseconds))
+                    if (_middleDown)
+                    {
+                        var dx = info.Pt.X - Volatile.Read(ref _middleDownX);
+                        var dy = info.Pt.Y - Volatile.Read(ref _middleDownY);
+                        if (dx * dx + dy * dy > MiddleDriftThresholdSq)
+                        {
+                            // Đang rê chuột để pan bản vẽ/CAD/Figma: hủy giữ chuột giữa ngay lập tức.
+                            CancelMiddleHold();
+                        }
+                    }
+                    if (_shakeEnabled && _leftDown && !_ignoreThisDrag && _detector.Feed(info.Pt.X, _clock.ElapsedMilliseconds))
                     {
                         try { Shaken?.Invoke(info.Pt.X, info.Pt.Y); } catch { /* không để lỗi của bên nhận làm hỏng hook */ }
                     }
@@ -197,11 +286,82 @@ public sealed class MouseHook : IDisposable
     private static bool Contains(RECT r, POINT pt) =>
         pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom;
 
+    private void CancelMiddleHold()
+    {
+        _middleDown = false;
+        Interlocked.Increment(ref _middleHoldGen);
+        try { _middleHoldTimer.Change(Timeout.Infinite, Timeout.Infinite); } catch (ObjectDisposedException) { }
+    }
+
+    private void OnMiddleHoldTimerElapsed(object? _)
+    {
+        if (_disposed || !_middleMouseHoldEnabled || !_middleDown) return;
+
+        var genBefore = Interlocked.Read(ref _middleHoldGen);
+        if ((GetAsyncKeyState(VK_MBUTTON) & 0x8000) == 0)
+        {
+            CancelMiddleHold();
+            return;
+        }
+
+        if (IsForegroundFullscreen())
+        {
+            CancelMiddleHold();
+            return;
+        }
+
+        if (Interlocked.Read(ref _middleHoldGen) != genBefore || !_middleDown) return;
+
+        var x = Volatile.Read(ref _middleDownX);
+        var y = Volatile.Read(ref _middleDownY);
+        _middleDown = false; // chỉ kích hoạt 1 lần cho mỗi lần giữ
+        try { MiddleMouseHoldTriggered?.Invoke(x, y); } catch { /* không để lỗi của bên nhận làm hỏng timer */ }
+    }
+
+    private static bool IsForegroundFullscreen()
+    {
+        try
+        {
+            if (SHQueryUserNotificationState(out var state) == 0
+                && state is QUNS_BUSY or QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE)
+            {
+                return true;
+            }
+
+            var fg = GetForegroundWindow();
+            if (fg == 0 || !IsWindowVisible(fg) || IsIconic(fg)) return false;
+
+            var cls = new System.Text.StringBuilder(64);
+            if (GetClassName(fg, cls, cls.Capacity) > 0)
+            {
+                var name = cls.ToString();
+                // Desktop / Taskbar không phải ứng dụng fullscreen.
+                if (name is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
+            }
+
+            if (!GetWindowRect(fg, out var r)) return false;
+            var monitor = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+            if (monitor == 0) return false;
+
+            var mi = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(monitor, ref mi)) return false;
+
+            var m = mi.rcMonitor;
+            return r.Left <= m.Left && r.Top <= m.Top && r.Right >= m.Right && r.Bottom >= m.Bottom;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
 
+        CancelMiddleHold();
+        _middleHoldTimer.Dispose();
         if (_threadId != 0) PostThreadMessage(_threadId, WM_QUIT, 0, 0);
         _thread.Join(TimeSpan.FromSeconds(2));
         _ready.Dispose();

@@ -74,5 +74,25 @@ public enum ProFeature
     Workflow,
 
     /// <summary>Chỉnh thời gian giữ khu cách ly (7 đến 90 ngày).</summary>
-    QuarantineRetention
+    QuarantineRetention,
+
+    // ----- v3.0: File & Document Hub -----
+
+    /// <summary>Xử lý tài liệu hàng loạt (nén, chuyển đổi, xóa metadata nhiều tệp).</summary>
+    DocumentBatch,
+
+    /// <summary>Tổ chức/tách/xoay PDF không giới hạn số trang và gộp không giới hạn số tệp.</summary>
+    PdfUnlimitedPages,
+
+    /// <summary>OCR offline không giới hạn số trang (Free: 3 trang đầu).</summary>
+    OfflineOcr,
+
+    /// <summary>Bảo mật PDF (đặt/gỡ mật khẩu) và đóng dấu Watermark / đánh số trang.</summary>
+    PdfSecurityAndStamp,
+
+    /// <summary>Chuyển đổi Office sang PDF toàn quyền và PDF sang DOCX/Markdown.</summary>
+    OfficeConversion,
+
+    /// <summary>Dọn sạch dữ liệu ẩn Office (Comments, Revisions) hàng loạt.</summary>
+    OfficeDeepClean
 }

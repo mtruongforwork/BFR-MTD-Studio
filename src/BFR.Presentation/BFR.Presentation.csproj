@@ -1,19 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>BFR.Presentation</RootNamespace>
     <AssemblyName>BFR.Presentation</AssemblyName>
     <IsPackable>false</IsPackable>
-    <!-- Lớp trình bày: ViewModel + logic giấy phép, KHÔNG phụ thuộc WPF
+    <!-- Lớp trình bày: ViewModel + logic giấy phép, KHÔNG phụ thuộc BFR.App (WPF UI)
          (để unit test được trong mọi môi trường, kể cả máy có WDAC chặn nạp assembly UI). -->
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BFR.Core\BFR.Core.csproj" />
+    <ProjectReference Include="..\BFR.Documents\BFR.Documents.csproj" />
   </ItemGroup>
 
 </Project>

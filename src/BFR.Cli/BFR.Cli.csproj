@@ -20,6 +20,7 @@
     <ProjectReference Include="..\BFR.Core\BFR.Core.csproj" />
     <ProjectReference Include="..\BFR.Store\BFR.Store.csproj" />
     <ProjectReference Include="..\BFR.Media\BFR.Media.csproj" />
+    <ProjectReference Include="..\BFR.Documents\BFR.Documents.csproj" />
   </ItemGroup>
 
 </Project>

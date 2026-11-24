@@ -1,6 +1,10 @@
 namespace BFR.App;
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,27 +13,84 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using BFR.App.Infrastructure;
+using BFR.Presentation.Tools;
 using Ui = Wpf.Ui.Controls;
 
 /// <summary>
-/// Thông báo nhỏ ở góc màn hình sau khi đổi tên nhanh từ menu chuột phải (B1): nói rõ kết quả và có
-/// nút Hoàn tác. Tự đóng sau vài giây (dừng đếm khi rê chuột vào) kèm thanh tiến trình đếm ngược 2px ở cạnh đáy.
+/// Actionable Progress &amp; Result Glass Toast (v3.0):
+/// - Tương thích 100% constructor v2.x cho Quick Rename.
+/// - Hỗ trợ chế độ tiến trình trực tiếp (spinner + % + [Hủy]) rồi morph mượt sang chế độ Kết quả
+///   (✅, huy hiệu giảm dung lượng kiểu Squoosh như ↓64%, [Mở file], [Thư mục], [Hoàn tác], [Làm tiếp ▸]).
 /// </summary>
 public sealed class QuickToastWindow : Window
 {
     private readonly DispatcherTimer _timer;
+    private readonly TextBlock _glyph;
     private readonly TextBlock _message;
-    private readonly Ui.Button _undoButton;
+    private readonly Border _deltaBadge;
+    private readonly TextBlock _deltaText;
+    private readonly ProgressBar _liveProgress;
+    private readonly WrapPanel _actionsPanel;
     private readonly Border _card;
+    private readonly Rectangle _countdownBar;
     private readonly TranslateTransform _slide = new(0, 0);
     private readonly ScaleTransform _progressScale = new(1, 1);
+    private readonly int _index;
+    private bool _inProgressMode;
+    private bool _popupOpen;
     private bool _closingAnimated;
 
-    /// <param name="message">Nội dung kết quả.</param>
-    /// <param name="undo">Hàm hoàn tác trả về thông báo mới; null nếu không có gì để hoàn tác.</param>
-    /// <param name="isProblem">True nếu là cảnh báo/lỗi (đổi biểu tượng, giữ lâu hơn).</param>
+    /// <summary>Constructor v2.x cho kết quả tức thì kèm nút Hoàn tác.</summary>
     public QuickToastWindow(string message, Func<string>? undo, bool isProblem, int index)
+        : this(index)
     {
+        ApplyResultVisuals(
+            message,
+            isProblem: isProblem,
+            deltaBadge: null,
+            outputPaths: null,
+            undo: undo,
+            onContinueWith: null,
+            primaryActionLabel: null,
+            onPrimaryAction: null,
+            secondaryActionLabel: null,
+            onSecondaryAction: null);
+    }
+
+    /// <summary>Tạo Toast ở chế độ đang xử lý trực tiếp (Progress + [Hủy]), chờ morph sang kết quả.</summary>
+    public static QuickToastWindow CreateProgress(string title, Action? onCancel, int index = 0)
+    {
+        var toast = new QuickToastWindow(index)
+        {
+            _inProgressMode = true
+        };
+
+        toast._glyph.Text = "\uE895";
+        toast._glyph.Foreground = Res("BfrAccFg", "Accent");
+        toast._message.Text = title;
+        toast._liveProgress.Visibility = Visibility.Visible;
+        toast._liveProgress.IsIndeterminate = true;
+        toast._countdownBar.Visibility = Visibility.Collapsed;
+
+        if (onCancel is not null)
+        {
+            var cancelBtn = CreateActionButton(Loc.T("Cancel"), isPrimary: false);
+            cancelBtn.Click += (_, _) =>
+            {
+                cancelBtn.IsEnabled = false;
+                onCancel();
+            };
+            toast._actionsPanel.Children.Add(cancelBtn);
+            toast._actionsPanel.Visibility = Visibility.Visible;
+        }
+
+        return toast;
+    }
+
+    private QuickToastWindow(int index)
+    {
+        _index = index;
+
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -39,61 +100,91 @@ public sealed class QuickToastWindow : Window
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        System.Windows.Automation.AutomationProperties.SetName(this, "Quick rename result");
+        System.Windows.Automation.AutomationProperties.SetName(this, "BFR action toast");
 
-        var accent = (Brush)Application.Current.FindResource(isProblem ? "Warning" : "Success");
-
-        var glyph = new TextBlock
+        _glyph = new TextBlock
         {
-            Text = isProblem ? "\uE7BA" : "\uE73E",
+            Text = "\uE73E",
             FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
             FontSize = 18,
-            Foreground = accent,
+            Foreground = Res("BfrOk", "Success"),
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 2, 12, 0)
         };
 
         _message = new TextBlock
         {
-            Text = message,
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 320,
-            Foreground = (Brush)Application.Current.FindResource("TextPrimary"),
+            MaxWidth = 340,
+            Foreground = Res("BfrFg", "TextPrimary"),
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        _undoButton = new Ui.Button
+        _deltaText = new TextBlock
         {
-            Content = Loc.T("QuickUndo"),
-            Appearance = Ui.ControlAppearance.Secondary,
-            Margin = new Thickness(14, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Visibility = undo is null ? Visibility.Collapsed : Visibility.Visible
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Res("BfrOk", "Success")
         };
-        System.Windows.Automation.AutomationProperties.SetName(_undoButton, "Undo quick rename");
+        _deltaBadge = new Border
+        {
+            Background = Res("BfrOkSoft", "CardBackground"),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(7, 2, 7, 2),
+            Margin = new Thickness(0, 6, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Visibility = Visibility.Collapsed,
+            Child = _deltaText
+        };
+
+        _liveProgress = new ProgressBar
+        {
+            Height = 4,
+            Margin = new Thickness(0, 8, 0, 0),
+            Minimum = 0,
+            Maximum = 100,
+            Visibility = Visibility.Collapsed
+        };
+
+        _actionsPanel = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 8, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
+
+        var body = new StackPanel();
+        body.Children.Add(_message);
+        body.Children.Add(_deltaBadge);
+        body.Children.Add(_liveProgress);
+        body.Children.Add(_actionsPanel);
 
         var close = new Ui.Button
         {
             Content = "\uE711",
             FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
             Appearance = Ui.ControlAppearance.Transparent,
-            Margin = new Thickness(6, 0, 0, 0),
+            Margin = new Thickness(8, 0, 0, 0),
             Padding = new Thickness(6),
             VerticalAlignment = VerticalAlignment.Top
         };
         close.Click += (_, _) => CloseWithAnimation();
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 12, 10, 12) };
-        row.Children.Add(glyph);
-        row.Children.Add(_message);
-        row.Children.Add(_undoButton);
-        row.Children.Add(close);
+        var topGrid = new Grid { Margin = new Thickness(16, 12, 10, 12) };
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(_glyph, 0);
+        Grid.SetColumn(body, 1);
+        Grid.SetColumn(close, 2);
+        topGrid.Children.Add(_glyph);
+        topGrid.Children.Add(body);
+        topGrid.Children.Add(close);
 
-        // Thanh tiến trình đếm ngược auto-dismiss 2px ở cạnh đáy.
-        var progressBar = new Rectangle
+        _countdownBar = new Rectangle
         {
             Height = 2,
-            Fill = accent,
+            Fill = Res("BfrOk", "Success"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             RenderTransformOrigin = new Point(0, 0.5),
             RenderTransform = _progressScale,
@@ -101,16 +192,16 @@ public sealed class QuickToastWindow : Window
         };
 
         var layout = new DockPanel();
-        DockPanel.SetDock(progressBar, Dock.Bottom);
-        layout.Children.Add(progressBar);
-        layout.Children.Add(row);
+        DockPanel.SetDock(_countdownBar, Dock.Bottom);
+        layout.Children.Add(_countdownBar);
+        layout.Children.Add(topGrid);
 
         _card = new Border
         {
-            Margin = new Thickness(12),   // chỗ cho bóng đổ
-            CornerRadius = new CornerRadius(10),
-            Background = (Brush)Application.Current.FindResource("SurfaceBackground"),
-            BorderBrush = (Brush)Application.Current.FindResource("Divider"),
+            Margin = new Thickness(12),
+            CornerRadius = new CornerRadius(12),
+            Background = Res("BfrGlassFillStrong", "SurfaceBackground"),
+            BorderBrush = Res("BfrGlassRim", "Divider"),
             BorderThickness = new Thickness(1),
             ClipToBounds = true,
             RenderTransform = _slide,
@@ -118,51 +209,262 @@ public sealed class QuickToastWindow : Window
         };
         if (BfrTheme.GlassEffectsEnabled)
         {
-            _card.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.28, Color = Colors.Black };
+            _card.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.32, Color = Colors.Black };
         }
 
         Content = _card;
 
-        var duration = TimeSpan.FromSeconds(isProblem ? 14 : 9);
-        _timer = new DispatcherTimer { Interval = duration };
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _timer.Tick += (_, _) => CloseWithAnimation();
+
         MouseEnter += (_, _) =>
         {
+            if (_inProgressMode) return;
             _timer.Stop();
             StopCountdownBar(resetFull: false);
         };
         MouseLeave += (_, _) =>
         {
+            if (_inProgressMode || _popupOpen) return;
             _timer.Stop();
             _timer.Start();
             StartCountdownBar(_timer.Interval);
         };
         Closed += (_, _) => _timer.Stop();
 
-        if (undo is not null)
-        {
-            _undoButton.Click += (_, _) =>
-            {
-                _undoButton.IsEnabled = false;
-                _message.Text = undo();
-                _undoButton.Visibility = Visibility.Collapsed;
-                _timer.Interval = TimeSpan.FromSeconds(4);
-                _timer.Stop();
-                _timer.Start();
-                StartCountdownBar(_timer.Interval);
-            };
-        }
-
         Loaded += (_, _) =>
         {
-            // Góc dưới bên phải vùng làm việc; các thông báo xếp chồng lên nhau.
-            var area = SystemParameters.WorkArea;
-            Left = area.Right - ActualWidth - 8;
-            Top = area.Bottom - ActualHeight - 8 - index * (ActualHeight + 4);
+            Reposition();
             PlayEntrance();
-            _timer.Start();
-            StartCountdownBar(_timer.Interval);
+            if (!_inProgressMode)
+            {
+                _timer.Start();
+                StartCountdownBar(_timer.Interval);
+            }
         };
+    }
+
+    /// <summary>Cập nhật tiến trình trực tiếp từ bất kỳ luồng nào.</summary>
+    public void UpdateProgress(double? percent, string statusText)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateProgress(percent, statusText));
+            return;
+        }
+
+        if (_closingAnimated || !_inProgressMode) return;
+        _message.Text = statusText;
+        if (percent.HasValue)
+        {
+            _liveProgress.IsIndeterminate = false;
+            _liveProgress.Value = Math.Clamp(percent.Value, 0, 100);
+        }
+        else
+        {
+            _liveProgress.IsIndeterminate = true;
+        }
+    }
+
+    /// <summary>Morph từ chế độ Tiến trình sang chế độ Hoàn tất kèm các nút hành động &amp; Làm tiếp ▸.</summary>
+    public void CompleteSuccess(
+        string message,
+        string? deltaBadge = null,
+        IReadOnlyList<string>? outputPaths = null,
+        Func<string>? undo = null,
+        Action<ContinueWithAction, IReadOnlyList<string>>? onContinueWith = null)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => CompleteSuccess(message, deltaBadge, outputPaths, undo, onContinueWith));
+            return;
+        }
+
+        _inProgressMode = false;
+        _liveProgress.Visibility = Visibility.Collapsed;
+        ApplyResultVisuals(message, isProblem: false, deltaBadge, outputPaths, undo, onContinueWith, null, null, null, null);
+        RestartCountdown(TimeSpan.FromSeconds(12));
+        Reposition();
+    }
+
+    /// <summary>Morph sang trạng thái cảnh báo/lỗi kèm tối đa 2 nút giải quyết tại chỗ.</summary>
+    public void CompleteError(
+        string message,
+        string? primaryActionLabel = null,
+        Action? onPrimaryAction = null,
+        string? secondaryActionLabel = null,
+        Action? onSecondaryAction = null)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => CompleteError(message, primaryActionLabel, onPrimaryAction, secondaryActionLabel, onSecondaryAction));
+            return;
+        }
+
+        _inProgressMode = false;
+        _liveProgress.Visibility = Visibility.Collapsed;
+        ApplyResultVisuals(message, isProblem: true, null, null, null, null,
+            primaryActionLabel, onPrimaryAction, secondaryActionLabel, onSecondaryAction);
+        RestartCountdown(TimeSpan.FromSeconds(15));
+        Reposition();
+    }
+
+    private void ApplyResultVisuals(
+        string message,
+        bool isProblem,
+        string? deltaBadge,
+        IReadOnlyList<string>? outputPaths,
+        Func<string>? undo,
+        Action<ContinueWithAction, IReadOnlyList<string>>? onContinueWith,
+        string? primaryActionLabel,
+        Action? onPrimaryAction,
+        string? secondaryActionLabel,
+        Action? onSecondaryAction)
+    {
+        var accent = isProblem ? Res("BfrWarn", "Warning") : Res("BfrOk", "Success");
+        _glyph.Text = isProblem ? "\uE7BA" : "\uE73E";
+        _glyph.Foreground = accent;
+        _message.Text = message;
+        _countdownBar.Fill = accent;
+        _countdownBar.Visibility = Visibility.Visible;
+
+        if (!string.IsNullOrWhiteSpace(deltaBadge))
+        {
+            _deltaText.Text = deltaBadge;
+            _deltaBadge.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            _deltaBadge.Visibility = Visibility.Collapsed;
+        }
+
+        _actionsPanel.Children.Clear();
+
+        if (!string.IsNullOrWhiteSpace(primaryActionLabel) && onPrimaryAction is not null)
+        {
+            var btn = CreateActionButton(primaryActionLabel, isPrimary: true);
+            btn.Click += (_, _) =>
+            {
+                onPrimaryAction();
+                CloseWithAnimation();
+            };
+            _actionsPanel.Children.Add(btn);
+        }
+
+        if (!string.IsNullOrWhiteSpace(secondaryActionLabel) && onSecondaryAction is not null)
+        {
+            var btn = CreateActionButton(secondaryActionLabel, isPrimary: false);
+            btn.Click += (_, _) =>
+            {
+                onSecondaryAction();
+                CloseWithAnimation();
+            };
+            _actionsPanel.Children.Add(btn);
+        }
+
+        var existingOutputs = outputPaths?.Where(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p)).ToList();
+        if (existingOutputs is { Count: > 0 })
+        {
+            var first = existingOutputs[0];
+
+            var openBtn = CreateActionButton(Loc.T("ToastOpenFile"), isPrimary: false);
+            openBtn.Click += (_, _) =>
+            {
+                try { Process.Start(new ProcessStartInfo { FileName = first, UseShellExecute = true }); } catch { }
+            };
+            _actionsPanel.Children.Add(openBtn);
+
+            var folderBtn = CreateActionButton(Loc.T("ToastOpenFolder"), isPrimary: false);
+            folderBtn.Click += (_, _) =>
+            {
+                try
+                {
+                    var explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+                    using var _ = Process.Start(new ProcessStartInfo { FileName = explorer, Arguments = $"/select,\"{first}\"", UseShellExecute = false });
+                }
+                catch { }
+            };
+            _actionsPanel.Children.Add(folderBtn);
+        }
+
+        if (undo is not null)
+        {
+            var undoBtn = CreateActionButton(Loc.T("QuickUndo"), isPrimary: false);
+            System.Windows.Automation.AutomationProperties.SetName(undoBtn, "Undo action");
+            undoBtn.Click += (_, _) =>
+            {
+                undoBtn.IsEnabled = false;
+                _message.Text = undo();
+                undoBtn.Visibility = Visibility.Collapsed;
+                RestartCountdown(TimeSpan.FromSeconds(4));
+            };
+            _actionsPanel.Children.Add(undoBtn);
+        }
+
+        if (existingOutputs is { Count: > 0 } && onContinueWith is not null)
+        {
+            var suggestions = ContinueWithCatalog.GetSuggestions(existingOutputs);
+            if (suggestions.Count > 0)
+            {
+                var continueBtn = CreateActionButton(Loc.T("ToastContinueWith") + " ▸", isPrimary: true);
+                continueBtn.Click += (_, _) =>
+                {
+                    var menu = new ContextMenu();
+                    foreach (var suggestion in suggestions)
+                    {
+                        var captured = suggestion;
+                        var item = new MenuItem { Header = Loc.T(suggestion.LabelKey) };
+                        item.Click += (_, _) =>
+                        {
+                            onContinueWith(captured, existingOutputs);
+                            CloseWithAnimation();
+                        };
+                        menu.Items.Add(item);
+                    }
+                    menu.Opened += (_, _) => { _popupOpen = true; _timer.Stop(); StopCountdownBar(false); };
+                    menu.Closed += (_, _) => { _popupOpen = false; RestartCountdown(TimeSpan.FromSeconds(6)); };
+                    menu.PlacementTarget = continueBtn;
+                    menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+                    menu.IsOpen = true;
+                };
+                _actionsPanel.Children.Add(continueBtn);
+            }
+        }
+
+        _actionsPanel.Visibility = _actionsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _timer.Interval = TimeSpan.FromSeconds(isProblem ? 14 : 9);
+    }
+
+    private static Ui.Button CreateActionButton(string text, bool isPrimary) => new()
+    {
+        Content = text,
+        Appearance = isPrimary ? Ui.ControlAppearance.Primary : Ui.ControlAppearance.Secondary,
+        Padding = new Thickness(10, 4, 10, 4),
+        Margin = new Thickness(0, 0, 6, 4),
+        FontSize = 11.5
+    };
+
+    private static Brush Res(string primary, string fallback)
+    {
+        if (Application.Current?.TryFindResource(primary) is Brush b) return b;
+        if (Application.Current?.TryFindResource(fallback) is Brush fb) return fb;
+        return Brushes.Transparent;
+    }
+
+    private void Reposition()
+    {
+        UpdateLayout();
+        var area = SystemParameters.WorkArea;
+        Left = area.Right - ActualWidth - 8;
+        Top = Math.Max(area.Top + 8, area.Bottom - ActualHeight - 8 - _index * (ActualHeight + 4));
+    }
+
+    private void RestartCountdown(TimeSpan duration)
+    {
+        _timer.Stop();
+        _timer.Interval = duration;
+        _timer.Start();
+        StartCountdownBar(duration);
     }
 
     private void PlayEntrance()
@@ -193,7 +495,7 @@ public sealed class QuickToastWindow : Window
         _progressScale.ScaleX = resetFull ? 1 : current;
     }
 
-    private void CloseWithAnimation()
+    public void CloseWithAnimation()
     {
         if (_closingAnimated) return;
         _closingAnimated = true;
@@ -201,7 +503,7 @@ public sealed class QuickToastWindow : Window
 
         if (BfrTheme.ReduceMotion)
         {
-            Close();
+            try { Close(); } catch (InvalidOperationException) { }
             return;
         }
 

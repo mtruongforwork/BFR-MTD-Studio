@@ -17,6 +17,12 @@ public sealed class LicenseService
     /// <summary>Thời gian dùng thử Pro (30 ngày, một lần cho mỗi cài đặt).</summary>
     public static readonly TimeSpan TrialDuration = TimeSpan.FromDays(30);
 
+    // ----- v3.0: Giới hạn bản Free cho PDF / Docs / OCR -----
+    public const int MaxFreePdfMergeFiles = 3;
+    public const int MaxFreePdfPages = 50;
+    public const int MaxFreeImageToPdfCount = 20;
+    public const int MaxFreeOcrPages = 3;
+
     private readonly LicenseStore _store;
     private readonly Func<DateTime> _clock;
     private readonly Func<LicenseTier>? _tierOverride;
@@ -206,6 +212,12 @@ public sealed class LicenseService
             ProFeature.AnalyzeExport => limits.AllowAnalyzeExport,
             ProFeature.Workflow => limits.AllowWorkflow,
             ProFeature.QuarantineRetention => limits.MaxQuarantineDays > QuarantineStore.DefaultRetentionDays,
+            ProFeature.DocumentBatch => limits.AllowDocumentBatch,
+            ProFeature.PdfUnlimitedPages => limits.MaxPdfPages == int.MaxValue,
+            ProFeature.OfflineOcr => limits.MaxOcrPages == int.MaxValue,
+            ProFeature.PdfSecurityAndStamp => limits.AllowPdfSecurityAndStamp,
+            ProFeature.OfficeConversion => limits.AllowOfficeConversion,
+            ProFeature.OfficeDeepClean => limits.AllowOfficeDeepClean,
             _ => true
         };
 
@@ -242,6 +254,42 @@ public sealed class LicenseService
 
     /// <summary>Số mục lịch sử còn giữ để hoàn tác.</summary>
     public int MaxUndoEntries => Limits.MaxUndoEntries;
+
+    /// <summary>Số tệp PDF tối đa mỗi lần gộp.</summary>
+    public int MaxPdfMergeFiles => Limits.MaxPdfMergeFiles;
+
+    /// <summary>Số trang PDF tối đa mỗi lần tổ chức/tách.</summary>
+    public int MaxPdfPages => Limits.MaxPdfPages;
+
+    /// <summary>Số ảnh tối đa chuyển sang PDF mỗi lần.</summary>
+    public int MaxImageToPdfCount => Limits.MaxImageToPdfCount;
+
+    /// <summary>Số trang OCR tối đa mỗi lần.</summary>
+    public int MaxOcrPages => Limits.MaxOcrPages;
+
+    /// <summary>Kiểm tra số tệp PDF gộp có vượt giới hạn bản Free không.</summary>
+    public GateResult CheckPdfMergeCount(int fileCount) =>
+        fileCount <= MaxPdfMergeFiles
+            ? GateResult.Allow()
+            : GateResult.Deny(nameof(ProFeature.PdfUnlimitedPages), FeatureMessages.For(ProFeature.PdfUnlimitedPages));
+
+    /// <summary>Kiểm tra số trang PDF có vượt giới hạn bản Free không.</summary>
+    public GateResult CheckPdfPageCount(int pageCount) =>
+        pageCount <= MaxPdfPages
+            ? GateResult.Allow()
+            : GateResult.Deny(nameof(ProFeature.PdfUnlimitedPages), FeatureMessages.For(ProFeature.PdfUnlimitedPages));
+
+    /// <summary>Kiểm tra số ảnh chuyển sang PDF có vượt giới hạn bản Free không.</summary>
+    public GateResult CheckImageToPdfCount(int imageCount) =>
+        imageCount <= MaxImageToPdfCount
+            ? GateResult.Allow()
+            : GateResult.Deny(nameof(ProFeature.ImageUnlimited), FeatureMessages.For(ProFeature.ImageUnlimited));
+
+    /// <summary>Kiểm tra số trang OCR có vượt giới hạn bản Free không.</summary>
+    public GateResult CheckOcrPageCount(int pageCount) =>
+        pageCount <= MaxOcrPages
+            ? GateResult.Allow()
+            : GateResult.Deny(nameof(ProFeature.OfflineOcr), FeatureMessages.For(ProFeature.OfflineOcr));
 
     /// <summary>Kiểm tra chuỗi quy tắc có vượt giới hạn không.</summary>
     public GateResult CheckRuleCount(int ruleCount)
@@ -350,6 +398,12 @@ public static class FeatureMessages
         ProFeature.AnalyzeExport => "Xuất báo cáo phân tích là tính năng Pro.",
         ProFeature.Workflow => "Workflow nhiều bước là tính năng Pro.",
         ProFeature.QuarantineRetention => "Chỉnh thời gian giữ khu cách ly là tính năng Pro. Bản Free giữ 30 ngày.",
+        ProFeature.DocumentBatch => "Xử lý hàng loạt nhiều tài liệu là tính năng Pro. Bản Free hỗ trợ từng tệp một.",
+        ProFeature.PdfUnlimitedPages => "Bản Free hỗ trợ gộp tối đa 3 tệp và xử lý PDF tối đa 50 trang. Nâng cấp Pro để không giới hạn.",
+        ProFeature.OfflineOcr => "Bản Free hỗ trợ OCR thử 3 trang đầu. Nâng cấp Pro để nhận diện không giới hạn trang.",
+        ProFeature.PdfSecurityAndStamp => "Khóa/mở khóa mật khẩu PDF, đóng dấu Watermark và đánh số trang là tính năng Pro.",
+        ProFeature.OfficeConversion => "Chuyển đổi Office sang PDF đầy đủ và PDF sang Word/Markdown là tính năng Pro.",
+        ProFeature.OfficeDeepClean => "Dọn sạch dữ liệu ẩn Office hàng loạt là tính năng Pro.",
         _ => "Tính năng này cần bản Pro."
     };
 }

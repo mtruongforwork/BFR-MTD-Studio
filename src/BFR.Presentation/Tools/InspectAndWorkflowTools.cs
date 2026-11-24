@@ -18,6 +18,7 @@ public sealed class ChecksumTool : ITool
     public string TitleKey => "ToolChecksumTitle";
     public string DescriptionKey => "ToolChecksumDesc";
     public string Icon => "";
+    public ToolCategory Category => ToolCategory.Security;
     public bool ReadOnly => true;
     public bool AcceptsFiles => true;
     public string? QuickOptionKey => "mode";
@@ -284,6 +285,11 @@ public static class ToolCatalog
         new ArchiveTool(),
         new ChecksumTool(),
         new AnalyzeTool(),
-        new WorkflowTool()
+        new WorkflowTool(),
+        new PdfCompressTool(),
+        new PdfMergeTool(),
+        new DocToPdfTool(),
+        new OfficePrivacyCleanTool(),
+        new OfflineOcrTool()
     };
 }

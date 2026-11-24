@@ -104,6 +104,7 @@ public sealed class MetadataTool : ITool
     public string TitleKey => "ToolMetadataTitle";
     public string DescriptionKey => "ToolMetadataDesc";
     public string Icon => "";
+    public ToolCategory Category => ToolCategory.Security;
     public bool ReadOnly => false;
     public bool AcceptsFiles => true;
     public string? QuickOptionKey => "mode";

@@ -15,6 +15,11 @@ using System.Text.Json.Serialization;
 [JsonDerivedType(typeof(RemoveEmptyStep), "removeEmpty")]
 [JsonDerivedType(typeof(TimestampStep), "timestamps")]
 [JsonDerivedType(typeof(AttributeStep), "attributes")]
+[JsonDerivedType(typeof(CompressPdfStep), "compressPdf")]
+[JsonDerivedType(typeof(ImagesToPdfStep), "imagesToPdf")]
+[JsonDerivedType(typeof(DocToPdfStep), "docToPdf")]
+[JsonDerivedType(typeof(StripDocMetadataStep), "stripDocMetadata")]
+[JsonDerivedType(typeof(WatermarkPdfStep), "watermarkPdf")]
 public abstract record WorkflowStep
 {
     [JsonIgnore]
@@ -62,6 +67,33 @@ public sealed record TimestampStep(TimestampOptions Options) : WorkflowStep
 public sealed record AttributeStep(FileAttributes Set = 0, FileAttributes Clear = 0) : WorkflowStep
 {
     public override string Kind => "attributes";
+}
+
+// ----- v3.0: Document Workflow Steps -----
+
+public sealed record CompressPdfStep(string Quality = "Balanced") : WorkflowStep
+{
+    public override string Kind => "compressPdf";
+}
+
+public sealed record ImagesToPdfStep(string PageSize = "A4", string OutputName = "combined.pdf") : WorkflowStep
+{
+    public override string Kind => "imagesToPdf";
+}
+
+public sealed record DocToPdfStep(bool PreferHighFidelity = true) : WorkflowStep
+{
+    public override string Kind => "docToPdf";
+}
+
+public sealed record StripDocMetadataStep(bool RemoveComments = true, bool RemoveRevisions = true) : WorkflowStep
+{
+    public override string Kind => "stripDocMetadata";
+}
+
+public sealed record WatermarkPdfStep(string Text = "CONFIDENTIAL", double Opacity = 0.25, double Angle = -45) : WorkflowStep
+{
+    public override string Kind => "watermarkPdf";
 }
 
 /// <summary>Định nghĩa một workflow có tên, lưu được thành preset.</summary>

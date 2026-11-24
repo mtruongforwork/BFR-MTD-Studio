@@ -50,6 +50,9 @@ try
         "watch" => WatchCommand(args[1..]),
         "license" => await LicenseCommand(args[1..]),
         "context-menu" or "shell" => ContextMenuCommand(args[1..]),
+        "pdf" => DocumentCommands.RunPdf(args[1..], licenseService, Console.Out, Console.Error, journalDir),
+        "doc" => DocumentCommands.RunDoc(args[1..], licenseService, Console.Out, Console.Error, journalDir),
+        "internal-office-convert" => DocumentCommands.RunInternalOfficeConvert(args[1..], Console.Out, Console.Error),
         var tool when ToolCommands.Names.Contains(tool) => RunTool(args),
         "help" or "--help" or "-h" => Help(),
         _ => Unknown(args[0])
@@ -847,6 +850,8 @@ Batch File Renamer CLI
   bfr image <paths...> [--format-out jpg|png|bmp|tif] [--long-edge N | --percent N | --fit WxH]
                [--quality 60-95] [--suffix _edit] [--out <thư mục>] [--overwrite] [--no-orient]
   bfr workflow run <tệp.json> <paths...>
+  bfr pdf <merge|split|compress|to-img|img-to-pdf|ocr|protect|unlock|watermark> ...
+  bfr doc <to-pdf|clean-meta|to-md|xlsx-csv> ...
   bfr quarantine status|purge [--days N]
     (mọi lệnh ghi đều có --dry-run, --yes, --format json, --recursive và hoàn tác được bằng bfr undo)
   bfr license status|trial|buy

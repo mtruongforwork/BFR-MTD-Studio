@@ -205,6 +205,28 @@ public class SettingsPage : PageBase
         shelf.Children.Add(radialBox);
         shelf.Children.Add(Caption(Loc.T("SettingsRadialHint")));
 
+        // Giữ chuột giữa mở Menu Tròn ngữ cảnh (v3.0).
+        var mmbToggle = Toggle(Loc.T("SettingsMiddleMouseRadial"), _settings.MiddleMouseRadialEnabled, on => _settings.MiddleMouseRadialEnabled = on);
+        mmbToggle.Margin = new Thickness(0, 12, 0, 0);
+        shelf.Children.Add(mmbToggle);
+
+        var mmbHoldBox = new ComboBox { MinWidth = 160, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
+        AutomationProperties.SetName(mmbHoldBox, "Middle mouse hold duration");
+        foreach (var ms in new[] { 150, 220, 350, 500 })
+            mmbHoldBox.Items.Add(new ComboBoxItem { Content = $"{ms} ms", Tag = ms.ToString() });
+        SelectByTag(mmbHoldBox, AppSettings.NormalizeMiddleMouseHoldMs(_settings.MiddleMouseHoldMs).ToString());
+        mmbHoldBox.SelectionChanged += (_, _) =>
+        {
+            if (mmbHoldBox.SelectedItem is ComboBoxItem { Tag: string tag } && int.TryParse(tag, out var ms))
+            {
+                _settings.MiddleMouseHoldMs = AppSettings.NormalizeMiddleMouseHoldMs(ms);
+                SettingsStore.Save(_settings);
+                SettingsChanged?.Invoke(this, EventArgs.Empty);
+            }
+        };
+        shelf.Children.Add(mmbHoldBox);
+        shelf.Children.Add(Caption(Loc.T("SettingsMiddleMouseRadialHint")));
+
         var bg = Toggle(
             Loc.T("SettingsRunInBackground"),
             _settings.RunInBackground,

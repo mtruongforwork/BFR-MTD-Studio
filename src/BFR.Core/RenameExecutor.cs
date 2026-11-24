@@ -40,6 +40,12 @@ public sealed class JournalEntry
     /// <summary>WriteFile: đường dẫn trong khu cách ly của tệp cũ bị thay thế (null nếu trước đó chưa có tệp).</summary>
     public string? Backup { get; set; }
 
+    /// <summary>CreateFile: kích thước byte của tệp sinh ra để kiểm tra tính nguyên vẹn khi hoàn tác.</summary>
+    public long? OutputSize { get; set; }
+
+    /// <summary>CreateFile: mã băm SHA-256 (hex) của tệp sinh ra để đảm bảo người dùng chưa sửa tay trước khi hoàn tác.</summary>
+    public string? OutputHash { get; set; }
+
     public FileTimes? Before { get; set; }
     public FileTimes? After { get; set; }
     public int? AttrBefore { get; set; }

@@ -91,6 +91,11 @@ public partial class App : Application
         var parsed = StartupArgs.Parse(e.Args);
         var payload = parsed.Payload;
         StartHidden = parsed.Background;
+        var isRadialLaunch = payload.Paths.Any(p => string.Equals(p, "--radial", StringComparison.OrdinalIgnoreCase));
+        if (isRadialLaunch)
+        {
+            payload.Paths.RemoveAll(p => string.Equals(p, "--radial", StringComparison.OrdinalIgnoreCase));
+        }
 
         // Hỗ trợ lệnh đăng ký nhanh menu chuột phải từ phím tắt hoặc cài đặt
         if (payload.Paths.Contains("--register-context-menu", StringComparer.OrdinalIgnoreCase))
@@ -153,8 +158,9 @@ public partial class App : Application
             return;
         }
 
-        // --tool: mở trang Công cụ với các tệp đã chọn; danh sách Đổi tên không nhận các tệp này.
-        _mainWindow = new MainWindow(payload.Tool is null ? payload : new IpcPayload(), _license);
+        // --tool / --radial: mở công cụ hoặc Menu Tròn ngữ cảnh v3.0
+        var openCleanWindow = payload.Tool is not null || isRadialLaunch;
+        _mainWindow = new MainWindow(openCleanWindow ? new IpcPayload() : payload, _license);
         MainWindow = _mainWindow;
 
         // Bắt đầu lắng nghe trước khi Show để không bỏ lỡ lần mở tệp thứ hai
@@ -162,8 +168,8 @@ public partial class App : Application
         _server = new SingleInstanceServer(OnIpcPayloadReceived);
         _server.Start();
 
-        // --background: khởi động thẳng vào khay (chỉ khi đã bật chạy nền), không hiện cửa sổ.
-        var startHidden = (StartHidden || AutoStart.LaunchedByStartup()) && settings.RunInBackground;
+        // --background hoặc --radial khi chưa mở cửa sổ: khởi tạo handle nền, không làm chớp cửa sổ chính.
+        var startHidden = ((StartHidden || AutoStart.LaunchedByStartup()) && settings.RunInBackground) || isRadialLaunch;
         if (startHidden)
         {
             // Cần handle để cửa sổ chính nhận IPC và hook chuột dù chưa từng hiện.
@@ -177,10 +183,20 @@ public partial class App : Application
             _mainWindow.Show();
         }
 
-        if (payload.Tool is not null) OpenToolFromPayload(payload);
+        if (isRadialLaunch) OpenRadialFromPayload(payload);
+        else if (payload.Tool is not null) OpenToolFromPayload(payload);
 
         // Đồng bộ giấy phép Store (chạy nền, không chặn khởi động).
         _ = RefreshLicenseAsync();
+    }
+
+    /// <summary>Mở Menu Tròn ngữ cảnh theo <c>--radial</c> tại vị trí con trỏ với các tệp trong payload.</summary>
+    private void OpenRadialFromPayload(IpcPayload payload)
+    {
+        if (_mainWindow is null) return;
+        var paths = new List<string>(payload.Paths.Where(p => !string.Equals(p, "--radial", StringComparison.OrdinalIgnoreCase)));
+        if (!string.IsNullOrWhiteSpace(payload.FileListPath)) paths.AddRange(FileListReader.ReadAndDelete(payload.FileListPath));
+        _mainWindow.ShowRadialAtCursorWithPaths(paths);
     }
 
     /// <summary>Mở công cụ tệp theo <c>--tool</c> với các tệp trong payload.</summary>
@@ -332,6 +348,19 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             if (payload.QuickPreset is not null) { _ = RunQuickAsync(payload); return; }
+            if (payload.Paths.Any(p => string.Equals(p, "--radial", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (_mainWindow == null)
+                {
+                    _mainWindow = new MainWindow(new IpcPayload(), _license);
+                    MainWindow = _mainWindow;
+                    _ = new System.Windows.Interop.WindowInteropHelper(_mainWindow).EnsureHandle();
+                    _mainWindow.ApplyShakeSetting();
+                    _mainWindow.ApplyHotkeySetting();
+                }
+                OpenRadialFromPayload(payload);
+                return;
+            }
             if (payload.Tool is not null)
             {
                 if (_mainWindow == null) EnsureMainWindow(new IpcPayload());

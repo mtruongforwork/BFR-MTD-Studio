@@ -12,9 +12,9 @@ internal static class OperationUndo
     /// <summary>
     /// Đảo ngược một bước đã thực hiện. Trả về null nếu thành công, ngược lại là thông báo lỗi (không ném lỗi).
     /// </summary>
-    public static string? Undo(IFileSystem fs, JournalEntry e)
+    public static string? Undo(IFileSystem fs, JournalEntry e, QuarantineStore? quarantine = null)
     {
-        var error = UndoCore(fs, e);
+        var error = UndoCore(fs, e, quarantine);
         if (error is null && OperationExecutor.ParseKind(e) != OperationKind.CreateDir) RemoveCreatedParents(fs, e.Aux);
         return error;
     }
@@ -38,7 +38,7 @@ internal static class OperationUndo
         }
     }
 
-    private static string? UndoCore(IFileSystem fs, JournalEntry e)
+    private static string? UndoCore(IFileSystem fs, JournalEntry e, QuarantineStore? quarantine)
     {
         var from = e.From ?? string.Empty;
         var to = e.To ?? string.Empty;
@@ -101,6 +101,22 @@ internal static class OperationUndo
                     fs.Move(e.Backup!, to, overwrite: false);
                     return null;
 
+                case OperationKind.CreateFile:
+                    if (!fs.FileExists(to)) return CoreText.Get("CoreUndoMissing", "Tệp tại vị trí mới không còn tồn tại");
+                    if (e.OutputSize.HasValue && fs.GetLength(to) != e.OutputSize.Value)
+                        return CoreText.Get("CoreUndoModified", "Tệp đích đã bị chỉnh sửa sau khi tạo nên không thể hoàn tác tự động");
+                    if (!string.IsNullOrEmpty(e.OutputHash))
+                    {
+                        var currentHash = OperationExecutor.ComputeSha256(fs, to);
+                        if (!string.Equals(currentHash, e.OutputHash, StringComparison.OrdinalIgnoreCase))
+                            return CoreText.Get("CoreUndoModified", "Tệp đích đã bị chỉnh sửa sau khi tạo nên không thể hoàn tác tự động");
+                    }
+                    var store = quarantine ?? new QuarantineStore(fs);
+                    var qPath = store.PathFor(string.IsNullOrEmpty(e.Id) ? "undo" : e.Id!, e.Seq, to);
+                    EnsureParent(fs, qPath);
+                    fs.Move(to, qPath, overwrite: false);
+                    return null;
+
                 default:
                     return null;
             }
@@ -128,6 +144,7 @@ internal static class OperationUndo
             OperationKind.SetTimestamps => Exists(fs, from) && e.After is { } after && fs.GetTimes(from) == after,
             OperationKind.SetAttributes => Exists(fs, from) && e.AttrAfter is { } attr && (int)fs.GetAttributes(from) == attr,
             OperationKind.WriteFile => fs.FileExists(to) && !fs.FileExists(from),
+            OperationKind.CreateFile => fs.FileExists(to) && !fs.FileExists(from),
             _ => false
         };
     }

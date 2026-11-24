@@ -258,10 +258,11 @@ public class ShellCommandTests : IDisposable
 
     // ---------------------------------------------------------------- Lệnh con
     [Fact]
-    public void SubCommands_AreElevenAndHaveUniqueNonEmptyNames()
+    public void SubCommands_AreTwelveAndHaveUniqueNonEmptyNames()
     {
         var all = ExplorerSubCommand.BuildAll();
-        Assert.Equal(11, all.Count);                       // 6 đổi tên nhanh + 5 công cụ v2.0 (CI cũng kiểm bằng COM smoke test)
+        Assert.Equal(12, all.Count);                       // Mở trong BFR + Menu Tròn v3.0 (--radial) + 5 preset nhanh + 5 công cụ
+        Assert.Contains(all.OfType<ExplorerSubCommand>(), c => c.IsRadial);
         var names = new HashSet<string>();
         foreach (var c in all)
         {

@@ -73,6 +73,32 @@ public sealed record LicenseLimits
     /// <summary>Số ngày tối đa người dùng được chọn để giữ khu cách ly (Free cố định 30 ngày, Pro chỉnh tới 90; khu cách ly không bao giờ dọn sớm hơn 30 ngày).</summary>
     public int MaxQuarantineDays { get; init; }
 
+    // ----- v3.0: File & Document Hub -----
+
+    /// <summary>Số tệp PDF tối đa mỗi lần gộp (Free: 3, Pro: không giới hạn).</summary>
+    public int MaxPdfMergeFiles { get; init; }
+
+    /// <summary>Số trang PDF tối đa mỗi lần tách/tổ chức (Free: 50, Pro: không giới hạn).</summary>
+    public int MaxPdfPages { get; init; }
+
+    /// <summary>Số ảnh tối đa chuyển sang PDF mỗi lần (Free: 20, Pro: không giới hạn).</summary>
+    public int MaxImageToPdfCount { get; init; }
+
+    /// <summary>Số trang OCR tối đa mỗi lần (Free: 3, Pro: không giới hạn).</summary>
+    public int MaxOcrPages { get; init; }
+
+    /// <summary>Cho phép xử lý tài liệu hàng loạt.</summary>
+    public bool AllowDocumentBatch { get; init; }
+
+    /// <summary>Cho phép khóa/mở khóa mật khẩu PDF, Watermark và đánh số trang.</summary>
+    public bool AllowPdfSecurityAndStamp { get; init; }
+
+    /// <summary>Cho phép chuyển đổi Office ↔ PDF đầy đủ &amp; PDF → DOCX/MD.</summary>
+    public bool AllowOfficeConversion { get; init; }
+
+    /// <summary>Cho phép dọn sạch dữ liệu ẩn Office hàng loạt.</summary>
+    public bool AllowOfficeDeepClean { get; init; }
+
     /// <summary>Giới hạn của bản miễn phí (PHẦN 3.6).</summary>
     public static LicenseLimits Free { get; } = new()
     {
@@ -97,7 +123,15 @@ public sealed record LicenseLimits
         AllowArchiveAdvanced = false,
         AllowAnalyzeExport = false,
         AllowWorkflow = false,
-        MaxQuarantineDays = 30
+        MaxQuarantineDays = 30,
+        MaxPdfMergeFiles = LicenseService.MaxFreePdfMergeFiles,
+        MaxPdfPages = LicenseService.MaxFreePdfPages,
+        MaxImageToPdfCount = LicenseService.MaxFreeImageToPdfCount,
+        MaxOcrPages = LicenseService.MaxFreeOcrPages,
+        AllowDocumentBatch = false,
+        AllowPdfSecurityAndStamp = false,
+        AllowOfficeConversion = false,
+        AllowOfficeDeepClean = false
     };
 
     /// <summary>Giới hạn của bản Pro: không giới hạn.</summary>
@@ -124,7 +158,15 @@ public sealed record LicenseLimits
         AllowArchiveAdvanced = true,
         AllowAnalyzeExport = true,
         AllowWorkflow = true,
-        MaxQuarantineDays = 90
+        MaxQuarantineDays = 90,
+        MaxPdfMergeFiles = int.MaxValue,
+        MaxPdfPages = int.MaxValue,
+        MaxImageToPdfCount = int.MaxValue,
+        MaxOcrPages = int.MaxValue,
+        AllowDocumentBatch = true,
+        AllowPdfSecurityAndStamp = true,
+        AllowOfficeConversion = true,
+        AllowOfficeDeepClean = true
     };
 
     public static LicenseLimits For(LicenseTier tier) =>

@@ -17,6 +17,7 @@ public sealed class ImageTool : ITool
     public string TitleKey => "ToolImagesTitle";
     public string DescriptionKey => "ToolImagesDesc";
     public string Icon => "";
+    public ToolCategory Category => ToolCategory.Images;
     public bool ReadOnly => false;
     public bool AcceptsFiles => true;
     public string? QuickOptionKey => "resize";
