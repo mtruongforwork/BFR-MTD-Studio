@@ -152,6 +152,8 @@ public class Phase3CliTests
                 StandardErrorEncoding = System.Text.Encoding.UTF8
             };
 
+            // bfr.dll (src/) khoá vào .NET 8; máy dev chỉ cài runtime mới hơn vẫn chạy được bài thử (chỉ ảnh hưởng tiến trình con của test).
+            psi.Environment["DOTNET_ROLL_FORWARD"] = "Major";
             psi.ArgumentList.Add(cliDll);
             foreach (var a in args) psi.ArgumentList.Add(a);
 

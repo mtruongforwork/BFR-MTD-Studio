@@ -793,6 +793,7 @@
     <sys:String x:Key="CoreWorkflowStepFailed">L'étape a échoué lors de la simulation</sys:String>
     <sys:String x:Key="CoreWorkflowStepError">Étape {0} ({1}) : {2}</sys:String>
     <sys:String x:Key="CoreWorkflowUnknownStep">Type d'étape non pris en charge</sys:String>
+    <sys:String x:Key="CoreWorkflowDocStepNeedsRunner">Les étapes de document (PDF/Office) ne s'exécutent que via Watch Folder ou la commande bfr workflow run</sys:String>
     <sys:String x:Key="CoreToolNoFiles">Aucun fichier pour l'instant. Ajoutez des fichiers ou des dossiers ci-dessus.</sys:String>
     <sys:String x:Key="CoreToolNoImageEngine">Cette fonction n'est disponible que sous Windows.</sys:String>
     <sys:String x:Key="CoreToolScanning">Analyse en cours…</sys:String>

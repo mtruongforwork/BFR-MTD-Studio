@@ -4,4 +4,10 @@
   <PropertyGroup>
     <Version>3.0.0</Version>
   </PropertyGroup>
+
+  <!-- Chỉ cho project trong tests/: chạy được trên runtime .NET mới hơn (máy dev chỉ cài .NET 10 vẫn `dotnet test` được).
+       Ứng dụng phát hành (src/) KHÔNG bị ảnh hưởng: vẫn khoá vào runtime .NET 8 như cũ. -->
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('/', '\').Contains('\tests\'))">
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
 </Project>

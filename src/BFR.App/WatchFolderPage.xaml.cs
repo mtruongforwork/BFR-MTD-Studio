@@ -534,7 +534,7 @@ public class WatchFolderPage : PageBase
             Stop();
 
             var metadata = new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader());
-            _manager = new WatchFolderManager(_fs, new WorkflowWatchProcessor(_fs, _journalDir, metadata));
+            _manager = new WatchFolderManager(_fs, new WorkflowWatchProcessor(_fs, _journalDir, metadata, documents: new BFR.Documents.Workflow.DocumentWorkflowStepExecutor(_license.Allows)));
             _manager.Logged += (_, e) => AppendLog(e.Rule, e.Entry);
             _manager.BatchProcessed += (_, e) => Dispatcher.Invoke(() =>
                 _status.Text = $"{DisplayName(e.Rule)}: " + Loc.F("WatchBatchDone", e.Result.Renamed, e.Result.Unchanged, e.Result.Skipped, e.Result.Failed));

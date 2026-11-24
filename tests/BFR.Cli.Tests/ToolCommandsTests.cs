@@ -232,6 +232,38 @@ public sealed class ToolCommandsTests : IDisposable
     }
 
     [Fact]
+    public void Workflow_WithDocumentStep_DryRunWritesNothing_ThenRunCreatesPdfAndOrganizesIt()
+    {
+        var md = Write("d/Notes.md", "# Ghi chú\n\nXin chào\n");
+        var definition = new WorkflowDefinition("docs", new List<WorkflowStep>
+        {
+            new RenameStep(BuiltInPresets.All.First(p => p.Name == "Chữ thường toàn bộ")),
+            new DocToPdfStep(PreferHighFidelity: false),
+            new OrganizeStep("{ext.upper}")
+        });
+        File.WriteAllText(P("wfd.json"), WorkflowSerializer.Serialize(definition));
+
+        Assert.Equal(0, Run("workflow", "run", P("wfd.json"), md, "--dry-run"));
+        Assert.True(File.Exists(md));                         // dry-run: kể cả bước đổi tên trước bước tài liệu cũng không chạy
+        Assert.False(Directory.Exists(P("d", "PDF")));
+
+        Assert.Equal(0, Run("workflow", "run", P("wfd.json"), md, "--yes"));
+        Assert.True(File.Exists(P("d", "notes.md")));         // tệp gốc chỉ được đổi tên, không bị ghi đè/xoá
+        Assert.True(File.Exists(P("d", "PDF", "notes.pdf")), _err.ToString());
+        Assert.StartsWith("%PDF-", File.ReadAllText(P("d", "PDF", "notes.pdf"))[..5]);
+    }
+
+    [Fact]
+    public void Workflow_ToolsPreview_DocumentStepIsReportedNotSilentlySkipped()
+    {
+        // Đường lập kế hoạch thuần (trang Tools dùng) không chạy được bước tài liệu: phải báo rõ thay vì "xong" mà không có PDF.
+        var file = FileScanner.FromFile(_fs, Write("p/a.pdf"));
+        var plan = WorkflowPlanner.Plan(new[] { file }, new WorkflowStep[] { new CompressPdfStep() }, _fs, new RuleContext(DateTime.Now, "s"));
+
+        Assert.False(plan.IsValid);
+    }
+
+    [Fact]
     public void StripGps_LeavesCleanFilesAlone()
     {
         var jpg = Write("g/a.jpg", "not really a jpeg");

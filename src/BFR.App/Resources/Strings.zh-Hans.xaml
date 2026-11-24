@@ -793,6 +793,7 @@
     <sys:String x:Key="CoreWorkflowStepFailed">该步骤在试运行中失败</sys:String>
     <sys:String x:Key="CoreWorkflowStepError">第 {0} 步({1}):{2}</sys:String>
     <sys:String x:Key="CoreWorkflowUnknownStep">不支持的步骤类型</sys:String>
+    <sys:String x:Key="CoreWorkflowDocStepNeedsRunner">文档步骤（PDF/Office）只能通过监视文件夹或 bfr workflow run 命令运行</sys:String>
     <sys:String x:Key="CoreToolNoFiles">尚无文件。请在上方添加文件或文件夹。</sys:String>
     <sys:String x:Key="CoreToolNoImageEngine">此功能仅在 Windows 上可用。</sys:String>
     <sys:String x:Key="CoreToolScanning">正在扫描…</sys:String>

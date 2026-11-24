@@ -71,27 +71,35 @@ public sealed record AttributeStep(FileAttributes Set = 0, FileAttributes Clear 
 
 // ----- v3.0: Document Workflow Steps -----
 
-public sealed record CompressPdfStep(string Quality = "Balanced") : WorkflowStep
+/// <summary>
+/// Đánh dấu bước xử lý NỘI DUNG tài liệu (PDF/Office). Các bước này sinh tệp mới nên không chạy thử được trên
+/// <see cref="OverlayFileSystem"/>: <see cref="WorkflowRunner"/> giao chúng cho <see cref="IDocumentStepExecutor"/> (cài trong BFR.Documents).
+/// </summary>
+public interface IDocumentWorkflowStep
+{
+}
+
+public sealed record CompressPdfStep(string Quality = "Balanced") : WorkflowStep, IDocumentWorkflowStep
 {
     public override string Kind => "compressPdf";
 }
 
-public sealed record ImagesToPdfStep(string PageSize = "A4", string OutputName = "combined.pdf") : WorkflowStep
+public sealed record ImagesToPdfStep(string PageSize = "A4", string OutputName = "combined.pdf") : WorkflowStep, IDocumentWorkflowStep
 {
     public override string Kind => "imagesToPdf";
 }
 
-public sealed record DocToPdfStep(bool PreferHighFidelity = true) : WorkflowStep
+public sealed record DocToPdfStep(bool PreferHighFidelity = true) : WorkflowStep, IDocumentWorkflowStep
 {
     public override string Kind => "docToPdf";
 }
 
-public sealed record StripDocMetadataStep(bool RemoveComments = true, bool RemoveRevisions = true) : WorkflowStep
+public sealed record StripDocMetadataStep(bool RemoveComments = true, bool RemoveRevisions = true) : WorkflowStep, IDocumentWorkflowStep
 {
     public override string Kind => "stripDocMetadata";
 }
 
-public sealed record WatermarkPdfStep(string Text = "CONFIDENTIAL", double Opacity = 0.25, double Angle = -45) : WorkflowStep
+public sealed record WatermarkPdfStep(string Text = "CONFIDENTIAL", double Opacity = 0.25, double Angle = -45) : WorkflowStep, IDocumentWorkflowStep
 {
     public override string Kind => "watermarkPdf";
 }

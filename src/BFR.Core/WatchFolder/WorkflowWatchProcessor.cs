@@ -15,11 +15,16 @@ public sealed class WorkflowWatchProcessor
     private readonly string _journalDir;
     private readonly Func<DateTime> _clock;
     private readonly IMetadataProvider? _metadata;
+    private readonly IDocumentStepExecutor? _documents;
 
-    public WorkflowWatchProcessor(IFileSystem fs, string? journalDir = null, IMetadataProvider? metadata = null, Func<DateTime>? clock = null)
+    /// <param name="documents">Bộ chạy bước tài liệu (PDF/Office, v3.0). Null = workflow có bước tài liệu bị báo lỗi, không chạy dở.</param>
+    public WorkflowWatchProcessor(
+        IFileSystem fs, string? journalDir = null, IMetadataProvider? metadata = null, Func<DateTime>? clock = null,
+        IDocumentStepExecutor? documents = null)
     {
         _fs = fs;
         _metadata = metadata;
+        _documents = documents;
         _clock = clock ?? (() => DateTime.UtcNow);
         _journalDir = journalDir ?? System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BatchFileRenamer", "journal");
@@ -45,31 +50,38 @@ public sealed class WorkflowWatchProcessor
         result.Candidates = files.Count;
         if (files.Count == 0) return result;
 
-        var plan = WorkflowPlanner.Plan(files, rule.Steps, _fs, new RuleContext(_clock(), Guid.NewGuid().ToString("N")), _metadata, rule.Folder, ct);
-        if (!plan.IsValid)
-        {
-            result.Skipped = files.Count;
-            foreach (var error in plan.Errors) result.Errors.Add((rule.Folder, error));
-            return result;
-        }
+        var run = WorkflowRunner.Run(
+            files, rule.Steps, _fs, new RuleContext(_clock(), Guid.NewGuid().ToString("N")), _journalDir,
+            _documents, _metadata, rule.Folder, options.DryRun, AppVersion.Current, ct);
 
-        if (plan.Operations.Count == 0)
+        if (!run.IsValid && run.Succeeded == 0)
         {
-            result.Unchanged = files.Count;
+            // Lỗi chặn trước khi có thay đổi nào: lô được bỏ nguyên vẹn như trước.
+            result.Skipped = files.Count;
+            foreach (var error in run.Errors) result.Errors.Add((rule.Folder, error));
             return result;
         }
 
         if (options.DryRun) return result;
 
-        var execution = new OperationExecutor(_fs, _journalDir).Execute(plan.Operations, AppVersion.Current, ct);
+        if (run.Succeeded == 0 && run.Failed == 0 && run.CreatedPaths.Count == 0)
+        {
+            result.Unchanged = files.Count;
+            return result;
+        }
 
-        result.JournalId = execution.JournalId;
-        result.JournalPath = execution.JournalPath;
-        result.Renamed = execution.Succeeded;
-        result.Failed = execution.Failed;
-        // Mọi đường dẫn cuối cùng (kể cả bản sao) là "do chính ta tạo ra": không xử lý lại.
-        result.RenamedPaths.AddRange(plan.FinalFiles.Select(f => f.FullPath));
-        foreach (var (step, error) in execution.Errors) result.Errors.Add((step, error));
+        result.JournalId = run.JournalId;
+        result.JournalPath = run.JournalPath ?? run.JournalPaths.LastOrDefault();
+        result.JournalPaths.AddRange(run.JournalPaths);
+        result.Renamed = run.Succeeded;
+        result.Failed = run.Failed;
+        // Mọi đường dẫn cuối cùng (kể cả bản sao) và mọi tệp do workflow sinh ra (PDF, tệp trung gian) là "do chính ta tạo ra":
+        // không xử lý lại — nếu thiếu, tệp PDF vừa sinh ra trong thư mục theo dõi sẽ kích hoạt workflow lần nữa (lặp vô hạn).
+        result.RenamedPaths.AddRange(run.FinalPaths);
+        result.RenamedPaths.AddRange(run.CreatedPaths);
+        foreach (var (step, error) in run.FileErrors) result.Errors.Add((step, error));
+        // Lỗi chặn ở đoạn sau bước tài liệu: các bước trước đã chạy (có journal), báo để người dùng biết chuỗi dừng ở đâu.
+        foreach (var error in run.Errors) result.Errors.Add((rule.Folder, error));
 
         return result;
     }

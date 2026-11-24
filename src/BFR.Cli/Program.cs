@@ -593,7 +593,8 @@ int WatchRules(string rulesFile)
         return 1;
     }
 
-    var processor = new WorkflowWatchProcessor(fs, journalDir, new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader()));
+    var processor = new WorkflowWatchProcessor(fs, journalDir, new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader()),
+        documents: new BFR.Documents.Workflow.DocumentWorkflowStepExecutor(licenseService.Allows));
     using var manager = new WatchFolderManager(fs, processor);
     manager.Logged += (_, e) => Console.WriteLine($"[{(string.IsNullOrWhiteSpace(e.Rule.Name) ? e.Rule.Folder : e.Rule.Name)}] {e.Entry.Format()}");
 

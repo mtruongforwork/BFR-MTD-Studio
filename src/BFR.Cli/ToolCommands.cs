@@ -749,6 +749,8 @@ internal sealed class ToolCommands
         var files = Scan(a, a.Positional.Skip(1));
         if (files.Count == 0) return Fail("Không tìm thấy tệp nào.");
 
+        if (WorkflowRunner.HasDocumentSteps(definition.Steps)) return RunDocumentWorkflow(definition, files, a);
+
         var plan = WorkflowPlanner.Plan(files, definition.Steps, _fs, Context(files), _metadata);
         foreach (var s in plan.Steps) Info(a).WriteLine($"Bước {s.Index + 1} ({s.Kind}): {s.Operations.Count} thao tác, {s.FilesIn} → {s.FilesOut} tệp");
         foreach (var e in plan.Errors) _err.WriteLine(e);
@@ -759,6 +761,73 @@ internal sealed class ToolCommands
         }
 
         return Apply("workflow:" + definition.Name, plan.Operations, a);
+    }
+
+    /// <summary>
+    /// Workflow có bước tài liệu (PDF/Office, v3.0): không lập kế hoạch trọn chuỗi trước được (bước tài liệu sinh tệp mới),
+    /// nên dry-run chỉ kiểm tra tới bước tài liệu đầu tiên; chạy thật thì từng tệp sinh ra đều có journal để hoàn tác.
+    /// </summary>
+    private int RunDocumentWorkflow(WorkflowDefinition definition, IReadOnlyList<FileItem> files, CliArgs a)
+    {
+        var info = Info(a);
+        var dryRun = a.Has("--dry-run");
+
+        var check = WorkflowRunner.Run(files, definition.Steps, _fs, Context(files), _journalDir,
+            new BFR.Documents.Workflow.DocumentWorkflowStepExecutor(_license.Allows), _metadata, dryRun: true, version: _version);
+        foreach (var s in check.Steps) info.WriteLine($"Bước {s.Index + 1} ({s.Kind}): {s.Operations.Count} thao tác, {s.FilesIn} → {s.FilesOut} tệp");
+        foreach (var e in check.Errors) _err.WriteLine(e);
+        if (!check.IsValid)
+        {
+            _err.WriteLine("Workflow có lỗi. Không thay đổi gì.");
+            return 2;
+        }
+
+        var docSteps = definition.Steps.Count(s => s is IDocumentWorkflowStep);
+        info.WriteLine($"Workflow có {docSteps} bước tài liệu (PDF/Office): tệp gốc giữ nguyên, kết quả là tệp mới.");
+        if (dryRun)
+        {
+            info.WriteLine($"Dry-run: {files.Count} tệp, không ghi gì (các bước từ bước tài liệu đầu tiên chỉ chạy khi áp dụng thật).");
+            return 0;
+        }
+
+        if (!a.Has("--yes"))
+        {
+            _err.Write($"Chạy workflow trên {files.Count} tệp? [y/N] ");
+            var answer = _in.ReadLine();
+            if (!string.Equals(answer, "y", StringComparison.OrdinalIgnoreCase) && !string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase))
+            {
+                info.WriteLine("Đã hủy.");
+                return 0;
+            }
+        }
+
+        var run = WorkflowRunner.Run(files, definition.Steps, _fs, Context(files), _journalDir,
+            new BFR.Documents.Workflow.DocumentWorkflowStepExecutor(_license.Allows), _metadata, version: _version);
+
+        foreach (var path in run.CreatedPaths.Distinct(StringComparer.OrdinalIgnoreCase)) info.WriteLine($"+ {path}");
+        foreach (var (path, error) in run.FileErrors) _err.WriteLine($"Lỗi {path}: {error}");
+        foreach (var e in run.Errors) _err.WriteLine(e);
+
+        if (Structured(a))
+        {
+            _out.WriteLine(JsonSerializer.Serialize(new
+            {
+                command = "workflow:" + definition.Name,
+                succeeded = run.Succeeded,
+                failed = run.Failed,
+                created = run.CreatedPaths,
+                final = run.FinalPaths,
+                journals = run.JournalPaths,
+                errors = run.Errors.Concat(run.FileErrors.Select(e => $"{e.Path}: {e.Error}"))
+            }, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        else
+        {
+            info.WriteLine($"Xong: {run.Succeeded} thành công, {run.Failed} lỗi. Journal: {run.JournalPaths.Count}.");
+        }
+
+        if (!run.IsValid) return 2;
+        return run.Failed > 0 ? 3 : 0;
     }
 
     private int Quarantine(string[] rest)

@@ -793,6 +793,7 @@
     <sys:String x:Key="CoreWorkflowStepFailed">The step failed during the dry run</sys:String>
     <sys:String x:Key="CoreWorkflowStepError">Step {0} ({1}): {2}</sys:String>
     <sys:String x:Key="CoreWorkflowUnknownStep">Unsupported step type</sys:String>
+    <sys:String x:Key="CoreWorkflowDocStepNeedsRunner">Document steps (PDF/Office) only run through Watch Folder or the bfr workflow run command</sys:String>
     <sys:String x:Key="CoreToolNoFiles">No files yet. Add files or folders above.</sys:String>
     <sys:String x:Key="CoreToolNoImageEngine">This feature is only available on Windows.</sys:String>
     <sys:String x:Key="CoreToolScanning">Scanning…</sys:String>

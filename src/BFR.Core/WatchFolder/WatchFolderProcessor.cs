@@ -38,6 +38,9 @@ public sealed class WatchFolderResult
     /// <summary>Đường dẫn tệp journal.</summary>
     public string? JournalPath { get; set; }
 
+    /// <summary>Mọi journal của lô (workflow có bước tài liệu ghi nhiều journal: mỗi tệp sinh ra một journal).</summary>
+    public List<string> JournalPaths { get; } = new();
+
     /// <summary>True nếu không có lỗi chặn.</summary>
     public bool Succeeded => Failed == 0;
 }

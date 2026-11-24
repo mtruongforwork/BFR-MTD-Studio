@@ -793,6 +793,7 @@
     <sys:String x:Key="CoreWorkflowStepFailed">Bước thất bại khi chạy thử</sys:String>
     <sys:String x:Key="CoreWorkflowStepError">Bước {0} ({1}): {2}</sys:String>
     <sys:String x:Key="CoreWorkflowUnknownStep">Loại bước không được hỗ trợ</sys:String>
+    <sys:String x:Key="CoreWorkflowDocStepNeedsRunner">Bước tài liệu (PDF/Office) chỉ chạy được qua Watch Folder hoặc lệnh bfr workflow run</sys:String>
     <sys:String x:Key="CoreToolNoFiles">Chưa có tệp nào. Thêm tệp hoặc thư mục ở phía trên.</sys:String>
     <sys:String x:Key="CoreToolNoImageEngine">Tính năng này chỉ có trên Windows.</sys:String>
     <sys:String x:Key="CoreToolScanning">Đang quét…</sys:String>

@@ -173,12 +173,11 @@ public static class WorkflowPlanner
             case AttributeStep attributes:
                 return Collect(AttributePlanner.Plan(files, attributes.Set, attributes.Clear, fs), issues, blocking: false);
 
-            case CompressPdfStep:
-            case ImagesToPdfStep:
-            case DocToPdfStep:
-            case StripDocMetadataStep:
-            case WatermarkPdfStep:
-                // Các bước xử lý nội dung tài liệu (v3.0) chạy ở tầng BFR.Documents; không tạo thao tác đổi đường dẫn trên lớp phủ.
+            case IDocumentWorkflowStep:
+                // Bước tài liệu (v3.0) sinh tệp mới nên không chạy thử được trên lớp phủ. Trước đây bước này bị bỏ qua
+                // trong im lặng (workflow "chạy xong" nhưng không có PDF nào); nay báo rõ để bên gọi dùng WorkflowRunner.
+                issues.Add(CoreText.Get("CoreWorkflowDocStepNeedsRunner",
+                    "Bước tài liệu (PDF/Office) chỉ chạy được qua Watch Folder hoặc lệnh bfr workflow run"));
                 return new List<Operation>();
 
             default:

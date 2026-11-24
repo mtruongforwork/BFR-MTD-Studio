@@ -33,6 +33,8 @@ public class GlobalInputTests
     [DllImport("user32.dll")] private static extern nint WindowFromPoint(POINT pt);
     [DllImport("user32.dll")] private static extern nint GetAncestor(nint hwnd, uint flags);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(nint hwnd, System.Text.StringBuilder sb, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(nint hwnd, System.Text.StringBuilder sb, int max);
 
     private static nint InvokeCallback(MouseHook hook, MethodInfo callback, int message, int x, int y, nint mem)
     {
@@ -142,7 +144,7 @@ public class GlobalInputTests
         const string script = """
             Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition 'using System.Windows.Forms; public class HungForm : Form { protected override bool ShowWithoutActivation { get { return true; } } }'
             $f = New-Object HungForm
-            $f.StartPosition = 'Manual'; $f.Location = New-Object System.Drawing.Point(320, 220); $f.Size = New-Object System.Drawing.Size(420, 300)
+            $f.StartPosition = 'Manual'; $f.Location = New-Object System.Drawing.Point(-20000, -20000); $f.Size = New-Object System.Drawing.Size(420, 300)
             $f.TopMost = $true; $f.ShowInTaskbar = $false; $f.Text = 'BFR hung-window test'
             $f.Show(); [System.Windows.Forms.Application]::DoEvents(); [System.Windows.Forms.Application]::DoEvents()
             [Console]::Out.WriteLine('ready'); [Console]::Out.Flush()
@@ -164,13 +166,27 @@ public class GlobalInputTests
             GetWindowRect(target, out var rect);
             POINT point = default;
             var found = false;
+            // Cửa sổ thử nằm NGOÀI mọi màn hình (-20000,-20000): không cửa sổ nào của người dùng (Chrome, IDE, toast...) đè lên được.
+            // Trước đây đặt ở (320,220) trên màn hình nên bài đo thất bại ngẫu nhiên khi có cửa sổ khác phủ lên vùng đó.
+            // WindowFromPoint không kiểm tra monitor; tiến trình treo vẫn bị Windows thay bằng "ghost window" như thường.
             for (var gx = 1; gx <= 5 && !found; gx++)
                 for (var gy = 1; gy <= 5 && !found; gy++)
                 {
                     var candidate = new POINT { X = rect.L + (rect.R - rect.L) * gx / 6, Y = rect.T + (rect.B - rect.T) * gy / 6 };
                     if (MeasureHitTest(candidate, out _, out var p, out _) && p == (uint)child.Id) { point = candidate; found = true; }
                 }
-            Assert.True(found, "Không có điểm nào của cửa sổ thử trả về đúng tiến trình thử trước khi treo: bài đo sẽ không có ý nghĩa");
+            if (!found)
+            {
+                // Ghi rõ cửa sổ nào đang che để phân biệt "môi trường bị che" với lỗi thật.
+                var c = new POINT { X = (rect.L + rect.R) / 2, Y = (rect.T + rect.B) / 2 };
+                MeasureHitTest(c, out var h, out var coverPid, out _);
+                var cls = new System.Text.StringBuilder(256);
+                var title = new System.Text.StringBuilder(256);
+                GetClassName(GetAncestor(h, 2), cls, 256);
+                GetWindowText(GetAncestor(h, 2), title, 256);
+                Assert.Fail($"Không có điểm nào của cửa sổ thử trả về đúng tiến trình thử trước khi treo: bài đo sẽ không có ý nghĩa. " +
+                    $"Cửa sổ che: class='{cls}' title='{title}' pid={coverPid} (tiến trình test={Environment.ProcessId}, cửa sổ thử={child.Id}).");
+            }
 
             var worst = 0.0;
             // Ngay sau khi treo, và sau khi Windows thay cửa sổ treo bằng "ghost window" (~5 s).
