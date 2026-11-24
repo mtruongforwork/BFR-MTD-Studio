@@ -266,7 +266,7 @@ public sealed class PdfOrganizer
             if (snap is not null) tempFiles.Add(snap);
 
             using var source = OpenForImport(readable, options.Password);
-            var baseName = options.BaseFileName ?? Path.GetFileNameWithoutExtension(inputPath);
+            var baseName = SafeBaseName(options.BaseFileName, Path.GetFileNameWithoutExtension(inputPath));
             Directory.CreateDirectory(options.OutputDirectory);
 
             var totalPagesProcessed = 0;
@@ -408,7 +408,10 @@ public sealed class PdfOrganizer
         if (desc.ErrorCode != DocumentErrorCode.None && desc.ErrorCode != DocumentErrorCode.LargeDocumentWarning)
             return DocumentResult.Fail(desc.ErrorCode, desc.ErrorMessage ?? "Unable to inspect PDF.");
 
-        var pages = ParsePageRanges(rangeSpec, desc.PageCount);
+        IReadOnlyList<int> pages;
+        try { pages = ParsePageRanges(rangeSpec, desc.PageCount); }
+        catch (ArgumentException ex) { return DocumentResult.Fail(DocumentErrorCode.Unknown, ex.Message); }
+
         var instructions = pages.Select(p => new PdfPageInstruction(inputPath, p, 0, password)).ToList();
         return BuildFromInstructions(instructions, outputPath, recordJournal, journalDir, ct);
     }
@@ -450,6 +453,9 @@ public sealed class PdfOrganizer
         string? journalDir = null,
         CancellationToken ct = default)
     {
+        if (angleDegrees % 90 != 0)
+            return DocumentResult.Fail(DocumentErrorCode.Unknown, "Rotation must be a multiple of 90 degrees.");
+
         var desc = new DocumentInspector().Inspect(inputPath, password);
         if (desc.ErrorCode != DocumentErrorCode.None && desc.ErrorCode != DocumentErrorCode.LargeDocumentWarning)
             return DocumentResult.Fail(desc.ErrorCode, desc.ErrorMessage ?? "Unable to inspect PDF.");
@@ -486,6 +492,9 @@ public sealed class PdfOrganizer
     {
         if (instructions is null || instructions.Count == 0)
             return DocumentResult.Fail(DocumentErrorCode.Unknown, "No pages selected.");
+
+        if (instructions.Any(i => i.RotationDegrees % 90 != 0))
+            return DocumentResult.Fail(DocumentErrorCode.Unknown, "Rotation must be a multiple of 90 degrees.");
 
         if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var code, out var msg))
             return DocumentResult.Fail(code, msg!);
@@ -557,6 +566,14 @@ public sealed class PdfOrganizer
             foreach (var d in openedDocs.Values) d.Dispose();
             foreach (var t in tempFiles) DocumentSafety.CleanupTempFile(t);
         }
+    }
+
+    /// <summary>Tên gốc cho các phần tách: chỉ lấy phần tên (bỏ thư mục, "..", ký tự cấm) để tệp luôn nằm trong thư mục đích.</summary>
+    internal static string SafeBaseName(string? requested, string fallback)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(Path.GetFileName((requested ?? string.Empty).Trim()).Where(c => !invalid.Contains(c)).ToArray()).Trim().Trim('.');
+        return cleaned.Length == 0 ? fallback : (cleaned.Length > 120 ? cleaned[..120] : cleaned);
     }
 
     internal static PdfDocument OpenForImport(string path, string? password) =>

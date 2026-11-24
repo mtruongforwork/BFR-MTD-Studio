@@ -43,12 +43,9 @@ public sealed class SpreadsheetConverter
         {
             var readable = DocumentSafety.EnsureReadablePath(xlsxPath, out snapshot, out var usedSnapshot);
             using var wb = new XLWorkbook(readable);
-            var ws = string.IsNullOrWhiteSpace(sheetName)
-                ? wb.Worksheets.FirstOrDefault()
-                : wb.Worksheets.FirstOrDefault(s => s.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase)) ?? wb.Worksheets.FirstOrDefault();
-
+            var ws = ResolveWorksheet(wb, sheetName, out var sheetError);
             if (ws is null)
-                return DocumentResult.Fail(DocumentErrorCode.Unknown, "Workbook contains no worksheets.");
+                return DocumentResult.Fail(DocumentErrorCode.Unknown, sheetError!);
 
             var range = ws.RangeUsed();
             var sb = new StringBuilder();
@@ -61,7 +58,7 @@ public sealed class SpreadsheetConverter
                     var cells = new string[colCount];
                     for (var c = 1; c <= colCount; c++)
                     {
-                        cells[c - 1] = ReportExporter.EscapeCsv(row.Cell(c).GetFormattedString());
+                        cells[c - 1] = CsvField(row.Cell(c));
                     }
                     sb.AppendLine(string.Join(',', cells));
                 }
@@ -205,12 +202,9 @@ public sealed class SpreadsheetConverter
         {
             var readable = DocumentSafety.EnsureReadablePath(xlsxPath, out snapshot, out var usedSnapshot);
             using var wb = new XLWorkbook(readable);
-            var ws = string.IsNullOrWhiteSpace(sheetName)
-                ? wb.Worksheets.FirstOrDefault()
-                : wb.Worksheets.FirstOrDefault(s => s.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase)) ?? wb.Worksheets.FirstOrDefault();
-
+            var ws = ResolveWorksheet(wb, sheetName, out var sheetError);
             if (ws is null)
-                return DocumentResult.Fail(DocumentErrorCode.Unknown, "Workbook contains no worksheets.");
+                return DocumentResult.Fail(DocumentErrorCode.Unknown, sheetError!);
 
             var records = new List<Dictionary<string, string>>();
             var range = ws.RangeUsed();
@@ -221,10 +215,11 @@ public sealed class SpreadsheetConverter
                 {
                     var colCount = range.ColumnCount();
                     var headers = new string[colCount];
+                    var usedHeaders = new HashSet<string>(StringComparer.Ordinal);
                     for (var c = 1; c <= colCount; c++)
                     {
                         var h = rows[0].Cell(c).GetFormattedString().Trim();
-                        headers[c - 1] = string.IsNullOrEmpty(h) ? $"Column{c}" : h;
+                        headers[c - 1] = UniqueHeader(string.IsNullOrEmpty(h) ? $"Column{c}" : h, usedHeaders);
                     }
 
                     for (var r = 1; r < rows.Count; r++)
@@ -270,6 +265,50 @@ public sealed class SpreadsheetConverter
             DocumentSafety.CleanupTempFile(tempOut);
             DocumentSafety.CleanupTempFile(snapshot);
         }
+    }
+
+    /// <summary>
+    /// Chọn sheet theo tên (không phân biệt hoa/thường); không chỉ định thì lấy sheet đầu.
+    /// Tên được chỉ định mà không có thì BÁO LỖI, không âm thầm xuất dữ liệu của sheet khác.
+    /// </summary>
+    private static IXLWorksheet? ResolveWorksheet(XLWorkbook wb, string? sheetName, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(sheetName))
+        {
+            var first = wb.Worksheets.FirstOrDefault();
+            if (first is null) error = "Workbook contains no worksheets.";
+            return first;
+        }
+
+        var match = wb.Worksheets.FirstOrDefault(w => w.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase));
+        if (match is null) error = $"Worksheet '{sheetName}' not found.";
+        return match;
+    }
+
+    /// <summary>
+    /// Một ô CSV. Ô SỐ/NGÀY/BOOL giữ nguyên (số âm như -5.5 là dữ liệu, không phải công thức);
+    /// chỉ ô VĂN BẢN bắt đầu bằng ký tự công thức (= + - @) mới được vô hiệu hoá bằng tiền tố ' (chống CSV injection).
+    /// </summary>
+    private static readonly char[] CsvSpecialChars = { '"', ',', '\n', '\r' };
+
+    private static string CsvField(IXLCell cell)
+    {
+        var text = cell.GetFormattedString();
+        if (cell.DataType is XLDataType.Number or XLDataType.DateTime or XLDataType.TimeSpan or XLDataType.Boolean)
+        {
+            return text.IndexOfAny(CsvSpecialChars) >= 0 ? "\"" + text.Replace("\"", "\"\"") + "\"" : text;
+        }
+
+        return ReportExporter.EscapeCsv(text);
+    }
+
+    /// <summary>Khoá JSON duy nhất: tiêu đề trùng thành "Name", "Name_2", "Name_3"... để không cột nào bị ghi đè.</summary>
+    private static string UniqueHeader(string header, HashSet<string> used)
+    {
+        var candidate = header;
+        for (var i = 2; !used.Add(candidate); i++) candidate = $"{header}_{i}";
+        return candidate;
     }
 
     internal static List<List<string>> ParseCsv(string content)

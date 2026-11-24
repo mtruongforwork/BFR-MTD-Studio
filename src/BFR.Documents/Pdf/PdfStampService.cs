@@ -69,6 +69,10 @@ public sealed class PdfStampService
         if (string.IsNullOrWhiteSpace(options.Text) && string.IsNullOrWhiteSpace(options.ImagePath))
             return DocumentResult.Fail(DocumentErrorCode.Unknown, "Watermark requires either Text or ImagePath.");
 
+        // Chỉ có ảnh mà ảnh không tồn tại: không có gì để đóng dấu. Báo lỗi thay vì trả về bản sao KHÔNG có watermark như thể đã thành công.
+        if (string.IsNullOrWhiteSpace(options.Text) && !File.Exists(options.ImagePath))
+            return DocumentResult.Fail(DocumentErrorCode.FileNotFound, $"Watermark image not found: {Path.GetFileName(options.ImagePath)}");
+
         if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var code, out var msg))
             return DocumentResult.Fail(code, msg!);
 
