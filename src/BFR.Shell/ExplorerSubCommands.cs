@@ -83,6 +83,34 @@ public sealed class EnumExplorerCommand : IEnumExplorerCommandServer
 }
 
 /// <summary>
+/// Điều kiện hiển thị của một lệnh con theo loại tệp đang chọn: chỉ hiện khi có ít nhất <see cref="MinMatches"/> tệp
+/// có đuôi trong <see cref="Extensions"/>. Giúp menu chuột phải của tệp .txt/.jpg không bị chèn các lệnh PDF.
+/// </summary>
+public sealed record ExplorerCommandFilter(IReadOnlyList<string> Extensions, int MinMatches = 1)
+{
+    /// <summary>Chỉ xem tối đa chừng này mục đầu của lựa chọn khi quyết định ẩn/hiện (menu phải mở tức thì).</summary>
+    public const int MaxItemsInspected = 500;
+
+    public bool Matches(IReadOnlyList<string> paths)
+    {
+        var matches = 0;
+        foreach (var path in paths)
+        {
+            var ext = Path.GetExtension(path);
+            if (ext.Length == 0) continue;
+            foreach (var allowed in Extensions)
+            {
+                if (!ext.Equals(allowed, StringComparison.OrdinalIgnoreCase)) continue;
+                if (++matches >= MinMatches) return true;
+                break;
+            }
+        }
+
+        return matches >= MinMatches;
+    }
+}
+
+/// <summary>
 /// Một lệnh con của menu: "Mở trong BFR" (khi <see cref="QuickKey"/> null) hoặc một preset đổi tên nhanh
 /// (chạy <c>BatchFileRenamer.exe --quick &lt;khoá&gt;</c>, áp dụng ngay không mở cửa sổ chính).
 /// </summary>
@@ -94,10 +122,16 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
     private readonly string _titleVi;
     private readonly string _titleEn;
 
-    public ExplorerSubCommand(Guid canonicalName, string titleVi, string titleEn, string? quickKey, string? toolKey = null, bool isRadial = false)
+    /// <summary>ECS_HIDDEN: Explorer không hiển thị lệnh.</summary>
+    internal const uint StateHidden = 0x2;
+
+    public ExplorerSubCommand(
+        Guid canonicalName, string titleVi, string titleEn, string? quickKey, string? toolKey = null, bool isRadial = false,
+        ExplorerCommandFilter? filter = null)
     {
         ToolKey = toolKey;
         IsRadial = isRadial;
+        Filter = filter;
         _canonicalName = canonicalName;
         _titleVi = titleVi;
         _titleEn = titleEn;
@@ -105,6 +139,9 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
     }
 
     public string? QuickKey { get; }
+
+    /// <summary>Điều kiện hiển thị theo loại tệp; null = luôn hiện.</summary>
+    public ExplorerCommandFilter? Filter { get; }
 
     /// <summary>Khoá công cụ tệp: mở trang Công cụ với các tệp đã chọn.</summary>
     public string? ToolKey { get; }
@@ -149,6 +186,19 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
     {
         ComServerLifetime.Touch();
         pCmdState = 0;   // ECS_ENABLED
+        if (Filter is null) return HResult.S_OK;
+
+        try
+        {
+            // Bấm vào nền thư mục (không có mục nào) hoặc không có tệp phù hợp: ẩn lệnh theo loại tệp.
+            var paths = ExplorerCommand.CollectPaths(psiItemArray, ExplorerCommandFilter.MaxItemsInspected);
+            if (!Filter.Matches(paths)) pCmdState = StateHidden;
+        }
+        catch
+        {
+            pCmdState = 0;   // không đọc được lựa chọn: hiện lệnh (công cụ tự báo "không có tệp phù hợp") thay vì làm hỏng menu
+        }
+
         return HResult.S_OK;
     }
 
@@ -212,6 +262,24 @@ public sealed class ExplorerSubCommand : IExplorerCommandServer
         {
             list.Add(new ExplorerSubCommand(
                 Guid.Parse($"b7a3c5d1-{id++:x4}-4e5f-8a6b-0f1e2d3c4b01"), vi, en, null, key));
+        }
+
+        // Công cụ PDF/Docs v3.0: chỉ hiện khi lựa chọn có tệp phù hợp. Luôn mở trang Công cụ để xem trước rồi mới áp dụng
+        // (có journal, hoàn tác được). Thêm CUỐI danh sách để GUID của các lệnh cũ không đổi.
+        var pdf = new[] { ".pdf" };
+        var office = new[] { ".docx", ".xlsx", ".pptx" };
+        var toPdf = new[] { ".docx", ".xlsx", ".pptx", ".md", ".markdown", ".txt", ".csv", ".tsv" };
+        var docTools = new (string Key, string Vi, string En, ExplorerCommandFilter Filter)[]
+        {
+            ("pdf-compress", "Nén PDF…", "Compress PDF…", new ExplorerCommandFilter(pdf)),
+            ("pdf-merge", "Gộp PDF…", "Merge PDFs…", new ExplorerCommandFilter(pdf, MinMatches: 2)),
+            ("doc-to-pdf", "Xuất sang PDF…", "Convert to PDF…", new ExplorerCommandFilter(toPdf)),
+            ("doc-clean-meta", "Xoá dữ liệu ẩn tài liệu Office…", "Remove hidden Office data…", new ExplorerCommandFilter(office))
+        };
+        foreach (var (key, vi, en, filter) in docTools)
+        {
+            list.Add(new ExplorerSubCommand(
+                Guid.Parse($"b7a3c5d1-{id++:x4}-4e5f-8a6b-0f1e2d3c4b01"), vi, en, null, key, filter: filter));
         }
 
         return list;

@@ -55,6 +55,14 @@ public sealed class ToolTests : IDisposable
     }
 
     [Fact]
+    public void KnownToolKeys_AreAllRealCatalogTools()
+    {
+        // KnownTools là danh sách trắng cho --tool/IPC (menu chuột phải Explorer...): khoá không có trong ToolCatalog sẽ mở nhầm về Trang chủ.
+        var catalog = ToolCatalog.Create().Select(t => t.Key).ToHashSet(StringComparer.Ordinal);
+        Assert.All(KnownTools.Keys, key => Assert.Contains(key, catalog));
+    }
+
+    [Fact]
     public void Catalog_HasConsistentOptionDescriptors()
     {
         var tools = ToolCatalog.Create();

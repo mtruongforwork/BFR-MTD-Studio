@@ -193,6 +193,14 @@ public class ToolPayloadTests
     }
 
     [Fact]
-    public void ToolKeysMatchTheCatalogue() =>
-        Assert.Equal(KnownTools.Keys.OrderBy(k => k), new[] { "analyze", "archive", "checksum", "duplicates", "folders", "images", "metadata", "organize", "workflow" });
+    public void ToolKeysMatchTheCatalogue()
+    {
+        // So sánh Ordinal: thứ tự theo culture bỏ qua dấu "-" nên không ổn định giữa các máy.
+        var expected = new[]
+        {
+            "analyze", "archive", "checksum", "doc-clean-meta", "doc-to-pdf", "duplicates", "folders", "images", "metadata",
+            "organize", "pdf-compress", "pdf-merge", "workflow"
+        };
+        Assert.Equal(expected.OrderBy(k => k, StringComparer.Ordinal), KnownTools.Keys.OrderBy(k => k, StringComparer.Ordinal));
+    }
 }

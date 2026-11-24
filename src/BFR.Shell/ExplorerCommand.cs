@@ -94,12 +94,14 @@ public sealed class ExplorerCommand : IExplorerCommand
     private static bool IsVietnamese() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("vi", StringComparison.OrdinalIgnoreCase);
 
-    internal static List<string> CollectPaths(IShellItemArray? itemArray)
+    /// <param name="maxItems">Giới hạn số mục đọc (GetState chỉ cần xem vài trăm mục đầu, không đọc cả lựa chọn hàng chục nghìn tệp).</param>
+    internal static List<string> CollectPaths(IShellItemArray? itemArray, int maxItems = int.MaxValue)
     {
         var paths = new List<string>();
         if (itemArray is null) return paths;
 
         if (itemArray.GetCount(out var count) != HResult.S_OK) return paths;
+        if (count > (uint)maxItems) count = (uint)maxItems;
 
         for (uint i = 0; i < count; i++)
         {

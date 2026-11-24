@@ -29,7 +29,9 @@ public static class KnownTools
 {
     public static readonly IReadOnlyList<string> Keys = new[]
     {
-        "organize", "duplicates", "folders", "metadata", "images", "archive", "checksum", "analyze", "workflow"
+        "organize", "duplicates", "folders", "metadata", "images", "archive", "checksum", "analyze", "workflow",
+        // v3.0: lệnh PDF/Docs trong menu chuột phải Explorer (khoá phải có trong ToolCatalog; test đối chiếu hai danh sách).
+        "pdf-compress", "pdf-merge", "doc-to-pdf", "doc-clean-meta"
     };
 
     public static bool IsKnown(string? key) =>

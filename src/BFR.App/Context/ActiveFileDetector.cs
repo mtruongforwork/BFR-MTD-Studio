@@ -144,7 +144,8 @@ public sealed class ActiveFileDetector
         }
         else if (IsExplorerOrDesktop(fgClass, fgProcessName))
         {
-            var explorer = await RunStaWithTimeoutAsync(() => QueryExplorerSelection(fgHwnd), Tier1TimeoutMs, ct).ConfigureAwait(false);
+            var isDesktop = IsDesktopWindow(fgClass);
+            var explorer = await RunStaWithTimeoutAsync(() => QueryExplorerSelection(fgHwnd, isDesktop), Tier1TimeoutMs, ct).ConfigureAwait(false);
             if (explorer is { Kind: not RadialContextKind.Empty })
             {
                 onCandidate(explorer);
@@ -186,11 +187,19 @@ public sealed class ActiveFileDetector
 
     // ----------------------------------------------------------------- Tier 1: Explorer / Desktop
 
-    private static bool IsExplorerOrDesktop(string className, string processName) =>
-        className is "CabinetWClass" or "ExploreWClass" or "Progman" or "WorkerW"
+    /// <summary>Cửa sổ nền Desktop (Progman, hoặc WorkerW khi có hình nền động/slideshow).</summary>
+    internal static bool IsDesktopWindow(string className) => className is "Progman" or "WorkerW";
+
+    internal static bool IsExplorerOrDesktop(string className, string processName) =>
+        IsDesktopWindow(className)
+        || className is "CabinetWClass" or "ExploreWClass"
         || string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase);
 
-    private static RadialContextInfo? QueryExplorerSelection(nint fgHwnd)
+    // IShellWindows::FindWindowSW: CSIDL_DESKTOP + SWC_DESKTOP trả về cửa sổ Desktop (Windows() KHÔNG liệt kê Desktop).
+    private const int SwcDesktop = 0x8;
+    private const int SwfoNeedDispatch = 0x1;
+
+    private static RadialContextInfo? QueryExplorerSelection(nint fgHwnd, bool isDesktop)
     {
         object? shell = null;
         object? windows = null;
@@ -206,63 +215,52 @@ public sealed class ActiveFileDetector
             windows = dynShell.Windows();
             if (windows is null) return null;
 
-            dynamic dynWindows = windows;
-            int count = (int)dynWindows.Count;
             var paths = new List<string>();
 
-            for (var i = 0; i < count; i++)
+            if (isDesktop)
             {
-                object? win = null;
-                object? doc = null;
-                object? selected = null;
-                try
+                // Desktop không nằm trong danh sách Windows(): hỏi thẳng IShellWindows bằng FindWindowSW.
+                TryCollectDesktopSelection(windows, paths);
+            }
+            else
+            {
+                dynamic dynWindows = windows;
+                int count = (int)dynWindows.Count;
+
+                for (var i = 0; i < count; i++)
                 {
-                    win = dynWindows.Item(i);
-                    if (win is null) continue;
-                    dynamic dynWin = win;
-
-                    long hwndVal = 0;
-                    try { hwndVal = Convert.ToInt64(dynWin.HWND); } catch { continue; }
-                    if (fgHwnd != 0 && hwndVal != fgHwnd.ToInt64()) continue;
-
-                    doc = dynWin.Document;
-                    if (doc is null) continue;
-                    dynamic dynDoc = doc;
-                    selected = dynDoc.SelectedItems();
-                    if (selected is null) continue;
-
-                    dynamic dynSelected = selected;
-                    int selCount = (int)dynSelected.Count;
-                    for (var j = 0; j < selCount; j++)
+                    object? win = null;
+                    object? doc = null;
+                    object? selected = null;
+                    try
                     {
-                        object? item = null;
-                        try
-                        {
-                            item = dynSelected.Item(j);
-                            if (item is null) continue;
-                            string? path = ((dynamic)item).Path as string;
-                            if (!string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path)))
-                            {
-                                paths.Add(path);
-                            }
-                        }
-                        finally
-                        {
-                            ReleaseCom(item);
-                        }
-                    }
+                        win = dynWindows.Item(i);
+                        if (win is null) continue;
+                        dynamic dynWin = win;
 
-                    if (paths.Count > 0) break;
-                }
-                catch
-                {
-                    // Bỏ qua cửa sổ Shell không phải File Explorer (ví dụ IE/WebBrowser control).
-                }
-                finally
-                {
-                    ReleaseCom(selected);
-                    ReleaseCom(doc);
-                    ReleaseCom(win);
+                        long hwndVal = 0;
+                        try { hwndVal = Convert.ToInt64(dynWin.HWND); } catch { continue; }
+                        if (fgHwnd != 0 && hwndVal != fgHwnd.ToInt64()) continue;
+
+                        doc = dynWin.Document;
+                        if (doc is null) continue;
+                        dynamic dynDoc = doc;
+                        selected = dynDoc.SelectedItems();
+                        if (selected is null) continue;
+
+                        AddSelectedPaths(selected, paths);
+                        if (paths.Count > 0) break;
+                    }
+                    catch
+                    {
+                        // Bỏ qua cửa sổ Shell không phải File Explorer (ví dụ IE/WebBrowser control).
+                    }
+                    finally
+                    {
+                        ReleaseCom(selected);
+                        ReleaseCom(doc);
+                        ReleaseCom(win);
+                    }
                 }
             }
 
@@ -277,6 +275,69 @@ public sealed class ActiveFileDetector
         {
             ReleaseCom(windows);
             ReleaseCom(shell);
+        }
+    }
+
+    /// <summary>
+    /// Đọc các mục đang chọn trên Desktop. Trả true nếu chạm được shell view của Desktop (kể cả khi không chọn gì);
+    /// false nếu Desktop chưa sẵn sàng hoặc lời gọi COM hỏng. Lỗi COM không bao giờ ném ra ngoài.
+    /// </summary>
+    internal static bool TryCollectDesktopSelection(object windows, List<string> paths)
+    {
+        object? disp = null;
+        object? doc = null;
+        object? selected = null;
+        try
+        {
+            object location = 0;      // CSIDL_DESKTOP
+            object? root = null;      // VT_EMPTY
+            disp = ((dynamic)windows).FindWindowSW(ref location, ref root, SwcDesktop, out int _, SwfoNeedDispatch);
+            if (disp is null) return false;
+
+            doc = ((dynamic)disp).Document;
+            if (doc is null) return false;
+
+            selected = ((dynamic)doc).SelectedItems();
+            if (selected is null) return false;
+
+            AddSelectedPaths(selected, paths);
+            return true;
+        }
+        catch
+        {
+            // Desktop chưa có shell view (đang khởi động lại Explorer...): không có lựa chọn.
+            return false;
+        }
+        finally
+        {
+            ReleaseCom(selected);
+            ReleaseCom(doc);
+            ReleaseCom(disp);
+        }
+    }
+
+    /// <summary>Thêm đường dẫn thật trên đĩa của các mục trong <c>FolderItems</c> (bỏ qua mục ảo như "This PC", "Recycle Bin").</summary>
+    private static void AddSelectedPaths(object selected, List<string> paths)
+    {
+        dynamic dynSelected = selected;
+        int selCount = (int)dynSelected.Count;
+        for (var j = 0; j < selCount; j++)
+        {
+            object? item = null;
+            try
+            {
+                item = dynSelected.Item(j);
+                if (item is null) continue;
+                string? path = ((dynamic)item).Path as string;
+                if (!string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path)))
+                {
+                    paths.Add(path);
+                }
+            }
+            finally
+            {
+                ReleaseCom(item);
+            }
         }
     }
 

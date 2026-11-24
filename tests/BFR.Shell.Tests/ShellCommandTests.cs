@@ -258,10 +258,10 @@ public class ShellCommandTests : IDisposable
 
     // ---------------------------------------------------------------- Lệnh con
     [Fact]
-    public void SubCommands_AreTwelveAndHaveUniqueNonEmptyNames()
+    public void SubCommands_AreSixteenAndHaveUniqueNonEmptyNames()
     {
         var all = ExplorerSubCommand.BuildAll();
-        Assert.Equal(12, all.Count);                       // Mở trong BFR + Menu Tròn v3.0 (--radial) + 5 preset nhanh + 5 công cụ
+        Assert.Equal(16, all.Count);                       // Mở trong BFR + Menu Tròn v3.0 (--radial) + 5 preset nhanh + 5 công cụ + 4 công cụ PDF/Docs
         Assert.Contains(all.OfType<ExplorerSubCommand>(), c => c.IsRadial);
         var names = new HashSet<string>();
         foreach (var c in all)
@@ -290,7 +290,113 @@ public class ShellCommandTests : IDisposable
         ex = Record.Exception(() => cmd.Invoke(new FakeArray(new IShellItem?[] { Item(@"C:\a.txt") }, countHr: HResult.E_FAIL), IntPtr.Zero));
         Assert.Null(ex);
     }
+
+    // ---------------------------------------------------------------- Lệnh PDF/Docs v3.0
+    private static ExplorerSubCommand Tool(string key) =>
+        ExplorerSubCommand.BuildAll().OfType<ExplorerSubCommand>().Single(c => c.ToolKey == key);
+
+    private static uint StateOf(ExplorerSubCommand command, params string[] paths)
+    {
+        var items = paths.Select(p => (IShellItem?)Item(p)).ToList();
+        Assert.Equal(HResult.S_OK, command.GetState(new FakeArray(items), 0, out var state));
+        return state;
+    }
+
+    [Fact]
+    public void ExistingCommandGuids_AreStable_AndNewOnesAreAppendedAtTheEnd()
+    {
+        // Tên chuẩn (GUID) của lệnh đã phát hành không được đổi: Windows lưu cấu hình theo tên này.
+        var guids = ExplorerSubCommand.BuildAll().Select(c =>
+        {
+            Assert.Equal(HResult.S_OK, c.GetCanonicalName(out var g));
+            return g.ToString();
+        }).ToList();
+
+        var expectedHead = new[] { "0001", "00ff" }.Concat(Enumerable.Range(2, 10).Select(i => i.ToString("x4")))
+            .Select(h => $"b7a3c5d1-{h}-4e5f-8a6b-0f1e2d3c4b01").ToList();
+        Assert.Equal(expectedHead, guids.Take(12).ToList());
+        Assert.Equal(16, guids.Distinct().Count());
+        Assert.Equal(new[] { "pdf-compress", "pdf-merge", "doc-to-pdf", "doc-clean-meta" },
+            ExplorerSubCommand.BuildAll().OfType<ExplorerSubCommand>().Skip(12).Select(c => c.ToolKey!).ToArray());
+    }
+
+    [Fact]
+    public void PdfCommands_AreHidden_UnlessThePdfSelectionFits()
+    {
+        Assert.Equal(0u, StateOf(Tool("pdf-compress"), @"C:\x\a.pdf"));
+        Assert.Equal(0u, StateOf(Tool("pdf-compress"), @"C:\x\readme.txt", @"C:\x\B.PDF"));        // chỉ cần một tệp PDF, không phân biệt hoa/thường
+        Assert.Equal(ExplorerSubCommand.StateHidden, StateOf(Tool("pdf-compress"), @"C:\x\photo.jpg", @"C:\x\notes.txt"));
+        Assert.Equal(ExplorerSubCommand.StateHidden, StateOf(Tool("pdf-compress"), @"C:\x\folder"));  // thư mục không có đuôi
+    }
+
+    [Fact]
+    public void MergePdf_NeedsAtLeastTwoPdfs()
+    {
+        Assert.Equal(ExplorerSubCommand.StateHidden, StateOf(Tool("pdf-merge"), @"C:\x\a.pdf"));
+        Assert.Equal(ExplorerSubCommand.StateHidden, StateOf(Tool("pdf-merge"), @"C:\x\a.pdf", @"C:\x\b.txt"));
+        Assert.Equal(0u, StateOf(Tool("pdf-merge"), @"C:\x\a.pdf", @"C:\x\b.pdf"));
+    }
+
+    [Theory]
+    [InlineData("doc-to-pdf", "letter.docx", false)]
+    [InlineData("doc-to-pdf", "notes.md", false)]
+    [InlineData("doc-to-pdf", "table.csv", false)]
+    [InlineData("doc-to-pdf", "scan.pdf", true)]       // đã là PDF
+    [InlineData("doc-to-pdf", "photo.png", true)]
+    [InlineData("doc-clean-meta", "report.xlsx", false)]
+    [InlineData("doc-clean-meta", "slides.pptx", false)]
+    [InlineData("doc-clean-meta", "notes.txt", true)]  // chỉ định dạng OpenXML
+    public void OfficeCommands_AppearOnlyForTheirFileTypes(string toolKey, string file, bool hidden) =>
+        Assert.Equal(hidden ? ExplorerSubCommand.StateHidden : 0u, StateOf(Tool(toolKey), @"C:\x\" + file));
+
+    [Fact]
+    public void FilteredCommands_AreHiddenOnFolderBackground_ButOlderCommandsStayVisible()
+    {
+        // Bấm chuột phải vào nền thư mục: IShellItemArray null.
+        foreach (var c in ExplorerSubCommand.BuildAll().OfType<ExplorerSubCommand>())
+        {
+            Assert.Equal(HResult.S_OK, c.GetState(null, 0, out var state));
+            Assert.Equal(c.Filter is null ? 0u : ExplorerSubCommand.StateHidden, state);
+        }
+    }
+
+    [Fact]
+    public void GetState_BrokenSelection_NeverThrowsToExplorer()
+    {
+        // Đọc số lượng thất bại: không có tệp nào đọc được nên lệnh theo loại tệp bị ẩn, nhưng không ném lỗi.
+        var broken = new FakeArray(new IShellItem?[] { Item(@"C:\a.pdf") }, countHr: HResult.E_FAIL);
+        Assert.Equal(HResult.S_OK, Tool("pdf-compress").GetState(broken, 0, out var hidden));
+        Assert.Equal(ExplorerSubCommand.StateHidden, hidden);
+
+        // Lỗi bất ngờ khi đọc từng mục: hiện lệnh (công cụ tự báo "không có tệp phù hợp") thay vì làm hỏng cả menu.
+        var throwing = new FakeArray(new IShellItem?[] { Item(@"C:\a.pdf") }, itemHr: _ => throw new InvalidOperationException("boom"));
+        Assert.Equal(HResult.S_OK, Tool("pdf-compress").GetState(throwing, 0, out var shown));
+        Assert.Equal(0u, shown);
+    }
+
+    [Fact]
+    public void GetState_OnHugeSelection_InspectsOnlyTheFirstItems()
+    {
+        var calls = 0;
+        var items = Enumerable.Range(0, 100_000).Select(i => (IShellItem?)Item($@"C:\x\f{i}.txt")).ToList();
+        var array = new FakeArray(items, itemHr: _ => { calls++; return HResult.S_OK; });
+
+        Assert.Equal(HResult.S_OK, Tool("pdf-compress").GetState(array, 0, out var state));
+
+        Assert.Equal(ExplorerSubCommand.StateHidden, state);
+        Assert.True(calls <= ExplorerCommandFilter.MaxItemsInspected, $"GetState đọc {calls} mục");
+    }
+
+    [Fact]
+    public void CollectPaths_WithMax_StopsEarly_AndWithoutMaxReadsEverything()
+    {
+        var items = Enumerable.Range(0, 1_000).Select(i => (IShellItem?)Item($@"C:\x\f{i}.pdf")).ToList();
+
+        Assert.Equal(10, ExplorerCommand.CollectPaths(new FakeArray(items), 10).Count);
+        Assert.Equal(1_000, ExplorerCommand.CollectPaths(new FakeArray(items)).Count);
+    }
 }
 
 [CollectionDefinition("shell-env", DisableParallelization = true)]
-public class ShellEnvCollection { }
+public class ShellEnvCollection { 
+}
