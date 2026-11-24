@@ -14,13 +14,31 @@ using System.Text;
 /// </summary>
 public static class Program
 {
-    private sealed record Measurement(string Name, string Target, double Milliseconds, double LimitMs, string Note);
+    /// <param name="Unit">Đơn vị của <paramref name="Milliseconds"/> và <paramref name="LimitMs"/> ("ms", "MB", "handle"...). Tên trường giữ nguyên cho các phép đo cũ.</param>
+    internal sealed record Measurement(string Name, string Target, double Milliseconds, double LimitMs, string Note, string Unit = "ms");
 
     public static int Main(string[] args)
     {
-        var reportPath = args.Length > 0 ? args[0] : null;
+        var pdfOnly = args.Contains("--pdf-only", StringComparer.Ordinal);
+        var reportPath = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
         var measurements = new List<Measurement>();
 
+        if (!pdfOnly) AddRenameGates(measurements);
+        measurements.AddRange(PdfGates.Run());
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Báo cáo hiệu năng — Batch File Renamer");
+        sb.AppendLine();
+        sb.AppendLine($"Ngày đo: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · Máy: {Environment.ProcessorCount} luồng xử lý");
+        sb.AppendLine();
+        sb.AppendLine("| Phép đo | Mục tiêu | Kết quả | Ngưỡng | Đạt |");
+        sb.AppendLine("| :--- | :--- | ---: | ---: | :---: |");
+
+        return Report(measurements, sb, reportPath);
+    }
+
+    private static void AddRenameGates(List<Measurement> measurements)
+    {
         measurements.Add(MeasurePreview(10_000, limitMs: 300));
         measurements.Add(MeasurePreview(100_000, limitMs: 3_000));
         measurements.Add(MeasurePreviewMemory(100_000, limitMb: 250));
@@ -31,22 +49,17 @@ public static class Program
         measurements.Add(MeasureListMap(10_000, limitMs: 500));
         measurements.Add(MeasureReplaceDict(10_000, pairs: 500, limitMs: 1_500));
         measurements.Add(MeasureAutoResolve(100_000, limitMs: 3_000));
+    }
 
-        var sb = new StringBuilder();
-        sb.AppendLine("# Báo cáo hiệu năng — Batch File Renamer (Giai đoạn 4)");
-        sb.AppendLine();
-        sb.AppendLine($"Ngày đo: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · Máy: {Environment.ProcessorCount} luồng xử lý");
-        sb.AppendLine();
-        sb.AppendLine("| Phép đo | Mục tiêu | Kết quả | Ngưỡng | Đạt |");
-        sb.AppendLine("| :--- | :--- | ---: | ---: | :---: |");
-
+    private static int Report(List<Measurement> measurements, StringBuilder sb, string? reportPath)
+    {
         var failed = 0;
         foreach (var m in measurements)
         {
             var ok = m.Milliseconds <= m.LimitMs;
             if (!ok) failed++;
 
-            sb.AppendLine($"| {m.Name} | {m.Target} | {m.Milliseconds:F0} ms | {m.LimitMs:F0} ms | {(ok ? "CÓ" : "**KHÔNG**")} |");
+            sb.AppendLine($"| {m.Name} | {m.Target} | {m.Milliseconds:F0} {m.Unit} | {m.LimitMs:F0} {m.Unit} | {(ok ? "CÓ" : "**KHÔNG**")} |");
 
             if (!string.IsNullOrEmpty(m.Note))
             {
@@ -115,7 +128,8 @@ public static class Program
             $"< {limitMb:F0} MB cấp phát",
             mb,
             limitMb,
-            $"cấp phát {mb:F1} MB trong {sw.Elapsed.TotalMilliseconds:F0} ms");
+            $"cấp phát {mb:F1} MB trong {sw.Elapsed.TotalMilliseconds:F0} ms",
+            "MB");
     }
 
     private static Measurement MeasureMetadataSkip(int count, double limitMs)

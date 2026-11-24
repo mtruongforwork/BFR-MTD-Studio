@@ -2,7 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- Windows TFM: gate PDF (v3.0) đo PdfThumbnailCache dùng Windows.Data.Pdf (WinRT). Các gate Rename cũ chỉ dùng BFR.Core nên không đổi. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>BFR.PerfGate</RootNamespace>
@@ -11,7 +14,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Dự án WPF không tự using System.IO (xem BFR.Documents.csproj). -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\BFR.Core\BFR.Core.csproj" />
+    <ProjectReference Include="..\..\src\BFR.Documents\BFR.Documents.csproj" />
   </ItemGroup>
 
 </Project>

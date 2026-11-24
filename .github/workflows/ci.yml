@@ -49,10 +49,13 @@ jobs:
       - name: Run Media Tests (WIC image processor)
         run: dotnet test tests/BFR.Media.Tests/BFR.Media.Tests.csproj -c Release --no-build --verbosity normal
 
+      - name: Run Documents Tests (v3.0 PDF/Office engines, thumbnail cache, workflow steps)
+        run: dotnet test tests/BFR.Documents.Tests/BFR.Documents.Tests.csproj -c Release --no-build --verbosity normal
+
       - name: Run Property-Based Tests (FsCheck 1000 runs)
         run: dotnet test tests/BFR.Core.PropertyTests/BFR.Core.PropertyTests.csproj -c Release --no-build --verbosity normal
 
-      - name: Performance Gate (NFR-1..NFR-5)
+      - name: Performance Gate (NFR-1..NFR-5 và PDF 1.000 trang - bộ nhớ thumbnail, rò handle)
         shell: powershell
         run: |
           dotnet run --project tests/BFR.PerfGate/BFR.PerfGate.csproj -c Release --no-build -- artifacts/perf-report.md
