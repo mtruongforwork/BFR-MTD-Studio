@@ -85,7 +85,10 @@ public partial class MainWindow : FluentWindow
             // Trang chủ là điểm vào mặc định; mở từ Explorer/IPC kèm tệp thì vào thẳng Đổi tên.
             bool hasStartupFiles;
             lock (_collectorBuffer) hasStartupFiles = _collectorBuffer.Count > 0;
-            if (!hasStartupFiles && _vm.Rows.Count == 0) NavigateTo("Home");
+            // Tệp đi kèm lúc khởi động được ViewModel nạp bất đồng bộ nên bảng có thể còn trống ở đây: xét thẳng payload.
+            var openedWithFiles = initialPayload is not null
+                && (initialPayload.Paths.Count > 0 || !string.IsNullOrWhiteSpace(initialPayload.FileListPath));
+            if (!hasStartupFiles && !openedWithFiles && _vm.Rows.Count == 0) NavigateTo("Home");
         };
 
         PresetCombo.ItemsSource = _vm.Presets;
@@ -129,8 +132,6 @@ public partial class MainWindow : FluentWindow
             _floatingOrb = null;
             _shelf?.Close();
         };
-        ShelfButtonText.Text = Loc.T("ShelfButton");
-        ShelfButton.ToolTip = Loc.T("ShelfTooltip");
 
         Loc.LanguageChanged += OnLanguageChanged;
         ThemeManager.ThemeChanged += OnThemeChanged;
@@ -143,8 +144,6 @@ public partial class MainWindow : FluentWindow
 
     private void OnLanguageChanged(string _)
     {
-        ShelfButtonText.Text = Loc.T("ShelfButton");
-        ShelfButton.ToolTip = Loc.T("ShelfTooltip");
         LocalizeShell();
         RefreshSidebarFavorites();
         UpdateLicenseState();
@@ -227,6 +226,9 @@ public partial class MainWindow : FluentWindow
         {
             SyncFilterUi();
         }
+
+        if (e.PropertyName == nameof(MainViewModel.SuccessMessage)) SyncSuccessBanner();
+        else if (e.PropertyName == nameof(MainViewModel.SelectedRow)) SyncTraceEmptyText();
     }
 
     private void SyncMascotMood()
@@ -786,17 +788,6 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    private void KpiTile_Invoked(object? sender, EventArgs e)
-    {
-        if (sender is Controls.GlassTile { Tag: string tag }
-            && Enum.TryParse<PreviewFilter>(tag, out var filter))
-        {
-            // Bấm lại ô đang chọn sẽ quay về "Tất cả".
-            _vm.Filter = _vm.Filter == filter ? PreviewFilter.All : filter;
-            SyncFilterUi();
-        }
-    }
-
     private void SyncFilterUi()
     {
         _syncingFilter = true;
@@ -808,14 +799,6 @@ public partial class MainWindow : FluentWindow
             FilterUnchanged.IsChecked = f == PreviewFilter.Unchanged;
             FilterProblems.IsChecked = f == PreviewFilter.Problems;
 
-            var accent = TryFindResource("BfrAccFg") as Brush ?? Brushes.DeepSkyBlue;
-            var bad = TryFindResource("BfrBad") as Brush ?? accent;
-            KpiWillChange.IsActive = f == PreviewFilter.WillChange;
-            KpiUnchanged.IsActive = f == PreviewFilter.Unchanged;
-            KpiProblems.IsActive = f == PreviewFilter.Problems;
-            KpiWillChangeRing.BorderBrush = f == PreviewFilter.WillChange ? accent : Brushes.Transparent;
-            KpiUnchangedRing.BorderBrush = f == PreviewFilter.Unchanged ? accent : Brushes.Transparent;
-            KpiProblemsRing.BorderBrush = f == PreviewFilter.Problems ? bad : Brushes.Transparent;
         }
         finally
         {
@@ -831,8 +814,12 @@ public partial class MainWindow : FluentWindow
     /// <summary>Menu "⋯ Thêm": gom mọi tính năng nâng cao ra khỏi luồng chính.</summary>
     private void MoreMenu_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
+        var menu = new ContextMenu { Style = (Style)FindResource("Mac.ContextMenu") };
 
+        var sendToTools = MenuItem(Loc.T("SendToToolsButton"), SendToTools_Click);
+        sendToTools.IsEnabled = _vm.Rows.Count > 0;
+        menu.Items.Add(sendToTools);
+        menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem(Loc.T("MenuCopyNamesClipboard"), CopyNamesClipboard_Click));
         menu.Items.Add(MenuItem(Loc.T("MenuExportNamesCsv"), ExportNamesCsv_Click));
         menu.Items.Add(MenuItem(Loc.T("MenuPasteNamesClipboard"), PasteNamesClipboard_Click));
@@ -930,7 +917,7 @@ public partial class MainWindow : FluentWindow
 
     private void PresetMenu_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
+        var menu = new ContextMenu { Style = (Style)FindResource("Mac.ContextMenu") };
         menu.Items.Add(MenuItem(Loc.T("RuleMenuSave"), SavePreset_Click));
         menu.Items.Add(MenuItem(Loc.T("RuleMenuImport"), ImportPreset_Click));
         menu.Items.Add(MenuItem(Loc.T("RuleMenuExport"), ExportPreset_Click));
@@ -1029,12 +1016,11 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is not FrameworkElement { Tag: RuleCardViewModel card } btn) return;
 
-        var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
+        var menu = new ContextMenu { Style = (Style)FindResource("Mac.ContextMenu") };
 
         var expandItem = new MenuItem
         {
             Header = card.IsExpanded ? Loc.T("RuleCollapse") : Loc.T("RuleEditHint"),
-            Style = (Style)FindResource("AppMenuItemStyle")
         };
         System.Windows.Automation.AutomationProperties.SetName(expandItem, "Rule menu expand");
         expandItem.Click += (_, _) => card.IsExpanded = !card.IsExpanded;
@@ -1043,7 +1029,6 @@ public partial class MainWindow : FluentWindow
         var cloneItem = new MenuItem
         {
             Header = Loc.T("RuleClone"),
-            Style = (Style)FindResource("AppMenuItemStyle")
         };
         cloneItem.Click += (_, _) => _vm.CloneRule(card);
         menu.Items.Add(cloneItem);
@@ -1051,7 +1036,6 @@ public partial class MainWindow : FluentWindow
         var resetItem = new MenuItem
         {
             Header = Loc.T("RuleReset"),
-            Style = (Style)FindResource("AppMenuItemStyle")
         };
         resetItem.Click += (_, _) => _vm.ResetRule(card);
         menu.Items.Add(resetItem);
@@ -1061,7 +1045,6 @@ public partial class MainWindow : FluentWindow
         var upItem = new MenuItem
         {
             Header = Loc.T("RuleMoveUp"),
-            Style = (Style)FindResource("AppMenuItemStyle"),
             IsEnabled = card.MoveUpCommand.CanExecute(null)
         };
         System.Windows.Automation.AutomationProperties.SetName(upItem, "Rule menu move up");
@@ -1071,7 +1054,6 @@ public partial class MainWindow : FluentWindow
         var downItem = new MenuItem
         {
             Header = Loc.T("RuleMoveDown"),
-            Style = (Style)FindResource("AppMenuItemStyle"),
             IsEnabled = card.MoveDownCommand.CanExecute(null)
         };
         System.Windows.Automation.AutomationProperties.SetName(downItem, "Rule menu move down");
@@ -1083,7 +1065,6 @@ public partial class MainWindow : FluentWindow
             var regexItem = new MenuItem
             {
                 Header = Loc.T("RegexTesterTitle"),
-                Style = (Style)FindResource("AppMenuItemStyle")
             };
             regexItem.Click += (_, _) => OpenRegexTesterFor(card);
             menu.Items.Add(regexItem);
@@ -1094,7 +1075,6 @@ public partial class MainWindow : FluentWindow
         var deleteItem = new MenuItem
         {
             Header = Loc.T("RuleDelete"),
-            Style = (Style)FindResource("AppMenuItemStyle")
         };
         deleteItem.Click += (_, _) => _vm.RemoveRule(card);
         menu.Items.Add(deleteItem);
@@ -1122,50 +1102,7 @@ public partial class MainWindow : FluentWindow
         finally
         {
             if (cardBorder is not null) cardBorder.Opacity = 1.0;
-        }
-    }
-
-    private void RuleCard_DragEnter(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(typeof(RuleCardViewModel)) && sender is Border border)
-        {
-            SetDropIndicator(border, Visibility.Visible);
-        }
-    }
-
-    private void RuleCard_DragLeave(object sender, DragEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            SetDropIndicator(border, Visibility.Collapsed);
-        }
-    }
-
-    private void RuleCard_DragOver(object sender, DragEventArgs e)
-    {
-        var isRule = e.Data.GetDataPresent(typeof(RuleCardViewModel));
-        e.Effects = isRule ? DragDropEffects.Move : DragDropEffects.None;
-        if (isRule && sender is Border border) SetDropIndicator(border, Visibility.Visible);
-        e.Handled = true;
-    }
-
-    private void RuleCard_Drop(object sender, DragEventArgs e)
-    {
-        if (sender is Border border) SetDropIndicator(border, Visibility.Collapsed);
-        if (e.Data.GetData(typeof(RuleCardViewModel)) is not RuleCardViewModel dragged) return;
-        if (sender is not FrameworkElement { DataContext: RuleCardViewModel target }) return;
-        if (ReferenceEquals(dragged, target)) return;
-
-        _vm.MoveRuleTo(dragged, _vm.Rules.IndexOf(target));
-        e.Handled = true;
-    }
-
-    private static void SetDropIndicator(Border cardBorder, Visibility visibility)
-    {
-        if (VisualTreeHelper.GetParent(cardBorder) is StackPanel parent)
-        {
-            var indicator = FindVisualChild<Border>(parent, "DropIndicator");
-            if (indicator is not null) indicator.Visibility = visibility;
+            ResetRuleOffsets(animate: true);
         }
     }
 
@@ -1316,7 +1253,7 @@ public partial class MainWindow : FluentWindow
 
     private void ImportExportPreset_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
+        var menu = new ContextMenu { Style = (Style)FindResource("Mac.ContextMenu") };
         menu.Items.Add(MenuItem(Loc.T("RuleMenuImport"), ImportPreset_Click));
         menu.Items.Add(MenuItem(Loc.T("RuleMenuExport"), ExportPreset_Click));
 
@@ -1326,22 +1263,6 @@ public partial class MainWindow : FluentWindow
     }
 
     // ----------------------------------------------------------------- Áp dụng / hoàn tác
-
-    private async void Apply_Click(object sender, RoutedEventArgs e)
-    {
-        var summary = _vm.BuildApplySummary();
-        if (summary.FileCount == 0) return;
-
-        var confirmed = await ShowDialogAsync(
-            ApplyConfirmContent.Title(summary),
-            ApplyConfirmContent.Build(summary),
-            primaryText: Loc.T("ConfirmApplyButton"),
-            closeText: Loc.T("ConfirmCancel"));
-        if (!confirmed) return;
-
-        await _vm.ApplyAsync();
-        CheckAndPromptStoreRating();
-    }
 
     private async void Undo_Click(object sender, RoutedEventArgs e)
     {
@@ -1915,6 +1836,13 @@ public partial class MainWindow : FluentWindow
 
     private void Window_DragEnter(object sender, DragEventArgs e)
     {
+        if (SheetHost.IsOpen)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         if (_currentPage == "Rename" && e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             DropOverlay.Visibility = Visibility.Visible;
@@ -1923,6 +1851,13 @@ public partial class MainWindow : FluentWindow
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
+        if (SheetHost.IsOpen)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         if (_currentPage != "Rename")
         {
             DropOverlay.Visibility = Visibility.Collapsed;
@@ -1950,6 +1885,13 @@ public partial class MainWindow : FluentWindow
 
     private void Window_Drop(object sender, DragEventArgs e)
     {
+        if (SheetHost.IsOpen)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         DropOverlay.Visibility = Visibility.Collapsed;
         if (_currentPage != "Rename") return;
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
@@ -1961,6 +1903,8 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindow_KeyDown(object sender, KeyEventArgs e)
     {
+        if (SheetHost.IsOpen) return;
+
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
             if (e.Key == Key.S)

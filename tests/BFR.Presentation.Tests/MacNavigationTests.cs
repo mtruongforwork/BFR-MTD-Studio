@@ -45,7 +45,7 @@ public class MacNavigationTests
         var fromData = MacNavigation.AllItems.Select(i => i.TitleKey)
             .Concat(MacNavigation.Sections.Select(s => s.TitleKey).OfType<string>())
             .Concat(MacAccents.All.Select(a => "MacAccent" + a.Id));
-        var sources = new[] { "MainWindow.Shell.cs", Path.Combine("Controls", "Mac", "MacSourceList.cs"), Path.Combine("Controls", "Mac", "MacUnifiedToolbar.cs") };
+        var sources = new[] { "MainWindow.Shell.cs", "MainWindow.Rename.cs", Path.Combine("Controls", "Mac", "MacSourceList.cs"), Path.Combine("Controls", "Mac", "MacUnifiedToolbar.cs") };
         var fromCode = sources.SelectMany(f => Regex.Matches(File.ReadAllText(Path.Combine(App, f)),
                 @"(?:Loc\.T|\btext|_text|Name)\(\s*(?:_\w+,\s*)?""((?:Mac|Nav|Title|Window)\w+)""")
             .Select(m => m.Groups[1].Value));

@@ -1329,4 +1329,11 @@
     <sys:String x:Key="MacAccentYellow">Jaune</sys:String>
     <sys:String x:Key="MacAccentGreen">Vert</sys:String>
     <sys:String x:Key="MacAccentGraphite">Graphite</sys:String>
+    <sys:String x:Key="MacTabRules">Règles</sys:String>
+    <sys:String x:Key="MacTabDetails">Détails</sys:String>
+    <sys:String x:Key="MacTraceEmpty">Sélectionnez un fichier pour voir l’effet de chaque règle sur son nom.</sys:String>
+    <sys:String x:Key="MacSearchFiles">Filtrer</sys:String>
+    <sys:String x:Key="MacRenameAdd">Ajouter des fichiers ou des dossiers</sys:String>
+    <sys:String x:Key="MacDismiss">Fermer</sys:String>
+    <sys:String x:Key="MacUndo">Annuler</sys:String>
 </ResourceDictionary>

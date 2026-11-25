@@ -1329,4 +1329,11 @@
     <sys:String x:Key="MacAccentYellow">黄色</sys:String>
     <sys:String x:Key="MacAccentGreen">绿色</sys:String>
     <sys:String x:Key="MacAccentGraphite">石墨色</sys:String>
+    <sys:String x:Key="MacTabRules">规则</sys:String>
+    <sys:String x:Key="MacTabDetails">详情</sys:String>
+    <sys:String x:Key="MacTraceEmpty">选择一个文件，查看每条规则如何改变它的名称。</sys:String>
+    <sys:String x:Key="MacSearchFiles">筛选</sys:String>
+    <sys:String x:Key="MacRenameAdd">添加文件或文件夹</sys:String>
+    <sys:String x:Key="MacDismiss">关闭</sys:String>
+    <sys:String x:Key="MacUndo">撤销</sys:String>
 </ResourceDictionary>

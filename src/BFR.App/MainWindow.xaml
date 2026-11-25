@@ -5,6 +5,7 @@
         xmlns:conv="clr-namespace:BFR.App.Converters"
         xmlns:ctl="clr-namespace:BFR.App.Controls"
         xmlns:mac="clr-namespace:BFR.App.Controls.Mac"
+        xmlns:mac2="clr-namespace:BFR.App.Infrastructure"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="{DynamicResource WindowTitle}" Height="820" Width="1380"
         MinHeight="620" MinWidth="1020"
@@ -29,183 +30,139 @@
             </ResourceDictionary.MergedDictionaries>
 
         <!-- Menu ngữ cảnh cho từng dòng trong bảng xem trước (v1.0.2) -->
-        <ContextMenu x:Key="RowContextMenu" Style="{StaticResource AppContextMenuStyle}">
-            <MenuItem Header="{DynamicResource CtxOpenFile}" Click="ContextMenu_OpenFile_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE7C3;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
-            <MenuItem Header="{DynamicResource CtxOpenFolder}" Click="ContextMenu_OpenFolder_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
+        <ContextMenu x:Key="RowContextMenu" Style="{StaticResource Mac.ContextMenu}">
+            <MenuItem Header="{DynamicResource CtxOpenFile}" Click="ContextMenu_OpenFile_Click" />
+            <MenuItem Header="{DynamicResource CtxOpenFolder}" Click="ContextMenu_OpenFolder_Click" />
             <Separator />
-            <MenuItem Header="{DynamicResource CtxCopyOldName}" Click="ContextMenu_CopyOldName_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE8C8;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
-            <MenuItem Header="{DynamicResource CtxCopyNewName}" Click="ContextMenu_CopyNewName_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE8C8;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
+            <MenuItem Header="{DynamicResource CtxCopyOldName}" Click="ContextMenu_CopyOldName_Click" />
+            <MenuItem Header="{DynamicResource CtxCopyNewName}" Click="ContextMenu_CopyNewName_Click" />
             <Separator />
-            <MenuItem Header="{DynamicResource CtxManualRename}" InputGestureText="F2" Click="ContextMenu_ManualRename_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE70F;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
-            <MenuItem Header="{DynamicResource CtxResetManualName}" Click="ContextMenu_ResetManualName_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource TextSecondary}" />
-                </MenuItem.Icon>
-            </MenuItem>
+            <MenuItem Header="{DynamicResource CtxManualRename}" InputGestureText="F2" Click="ContextMenu_ManualRename_Click" />
+            <MenuItem Header="{DynamicResource CtxResetManualName}" Click="ContextMenu_ResetManualName_Click" />
             <Separator />
-            <MenuItem Header="{DynamicResource CtxToggleSelect}" Click="ContextMenu_ToggleSelect_Click" Style="{StaticResource AppMenuItemStyle}" />
-            <MenuItem Header="{DynamicResource CtxRemoveFromList}" Click="ContextMenu_RemoveFromList_Click" Style="{StaticResource AppMenuItemStyle}">
-                <MenuItem.Icon>
-                    <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Error}" />
-                </MenuItem.Icon>
-            </MenuItem>
+            <MenuItem Header="{DynamicResource CtxToggleSelect}" Click="ContextMenu_ToggleSelect_Click" />
+            <MenuItem Header="{DynamicResource CtxRemoveFromList}" Click="ContextMenu_RemoveFromList_Click" />
         </ContextMenu>
 
-        <!-- Thẻ quy tắc hiện đại phong cách PowerToys / WinUI 3 -->
+        <!-- Thẻ quy tắc: một nhóm kiểu inset grouped trong inspector 300 px; tham số mở tại chỗ, nhãn nằm trên ô nhập. -->
         <DataTemplate x:Key="RuleCardTemplate">
-            <StackPanel>
-                <!-- Vạch chỉ báo vị trí chèn khi kéo-thả sắp xếp quy tắc -->
-                <Border x:Name="DropIndicator" Height="3" CornerRadius="2" Margin="4,0,4,4"
-                        Background="{DynamicResource BfrAccFg}" Visibility="Collapsed" IsHitTestVisible="False" />
-                <Border x:Name="CardBorder" Style="{StaticResource InteractiveCardStyle}" Margin="0,0,0,8" Padding="12,10"
-                        AllowDrop="True" DragEnter="RuleCard_DragEnter" DragOver="RuleCard_DragOver" DragLeave="RuleCard_DragLeave" Drop="RuleCard_Drop">
-                    <StackPanel>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+            <Border x:Name="CardBorder" Style="{StaticResource Mac.Group}" Padding="8,8,6,8" Margin="0,0,0,8">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                            <!-- Tay nắm kéo thả -->
-                            <TextBlock Grid.Column="0" Text="&#xE700;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="14" Foreground="{DynamicResource TextDisabled}"
-                                       VerticalAlignment="Center" Cursor="SizeAll" Background="Transparent"
-                                       MouseLeftButtonDown="RuleDragStart_Click" Margin="0,0,10,0"
-                                       ToolTip="{DynamicResource RuleDragHint}"
-                                       AutomationProperties.Name="{DynamicResource RuleDragHandleA11y}" />
-
-                            <!-- Tên & Tóm tắt tham số quy tắc (bấm để mở rộng/thu gọn) -->
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0"
-                                        Cursor="Hand" Background="Transparent" MouseLeftButtonUp="RuleHeader_Click">
-                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"
-                                           Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionTextStyle}"
-                                           Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-
-                            <!-- Toggle Switch bật/tắt nhanh quy tắc -->
-                            <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                       Margin="6,0,4,0"
-                                      VerticalAlignment="Center"
-                                      AutomationProperties.Name="{DynamicResource RuleToggleA11y}" />
-
-                            <!-- Nút mở Regex Tester (nếu quy tắc hỗ trợ) -->
-                            <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Content="&#xE946;"
-                                    Click="RuleRegexTester_Click" Tag="{Binding}" Margin="2,0"
-                                    ToolTip="{DynamicResource RegexTesterOpen}"
-                                    Visibility="{Binding CanOpenRegexTester, Converter={StaticResource BoolToVis}}"
-                                    AutomationProperties.Name="Open regex tester" />
-
-                            <!-- Nút menu thao tác quy tắc (⋯) -->
-                            <Button Grid.Column="4" Style="{StaticResource IconButtonStyle}" Content="&#xE712;"
-                                    Click="RuleMoreMenu_Click" Tag="{Binding}" Margin="2,0,0,0"
-                                    ToolTip="{DynamicResource RuleEditHint}"
-                                    AutomationProperties.Name="Rule actions" />
-                        </Grid>
-
-                        <!-- Bảng tham số chỉnh sửa accordion tại chỗ -->
-                        <Border Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}"
-                                Margin="0,10,0,0" Padding="12,10" CornerRadius="6"
-                                Background="{DynamicResource SurfaceHover}" BorderBrush="{DynamicResource Divider}" BorderThickness="1">
-                            <ItemsControl ItemsSource="{Binding Parameters}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="150" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
-                                                       Style="{StaticResource CaptionTextStyle}" />
-                                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding BoolValue, Mode=TwoWay}"
-                                                      Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Toggle}" />
-                                            <StackPanel Grid.Column="1"
-                                                        Visibility="{Binding Kind, Converter={StaticResource ParameterKindToTextVis}, ConverterParameter=Text}">
-                                                <TextBox x:Name="ParamTextBox" Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}" />
-                                                <ContentControl x:Name="TokenPickerHost" Margin="0,6,0,0" Visibility="Collapsed"
-                                                                Loaded="TokenPickerHost_Loaded" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1"
-                                                        Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Multiline}">
-                                                <TextBox Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}"
-                                                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                                                         MinHeight="90" MaxHeight="180"
-                                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                                         AutomationProperties.Name="{Binding Label}" />
-                                                <ui:Button Appearance="Secondary" Margin="0,6,0,0" Click="ImportListFile_Click"
-                                                           Content="{DynamicResource ListImportButton}"
-                                                           Visibility="{Binding CanImportFile, Converter={StaticResource BoolToVis}}"
-                                                           AutomationProperties.Name="Import list from file" />
-                                            </StackPanel>
-                                            <ComboBox Grid.Column="1" ItemsSource="{Binding Options}"
-                                                      SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                                      Visibility="{Binding Kind, Converter={StaticResource ParameterKindToChoiceVis}, ConverterParameter=Choice}">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Label}" />
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                        <!-- Tay nắm kéo thả -->
+                        <Border Grid.Column="0" Background="Transparent" Cursor="SizeAll" Padding="0,6,8,6" VerticalAlignment="Center"
+                                MouseLeftButtonDown="RuleDragStart_Click"
+                                ToolTip="{DynamicResource RuleDragHint}" AutomationProperties.Name="{DynamicResource RuleDragHandleA11y}">
+                            <mac:MacIcon Data="{StaticResource Icon.GripVertical}" Size="14" Foreground="{DynamicResource Mac.Label3}" />
                         </Border>
+
+                        <!-- Tên và tóm tắt (bấm để mở/gập tham số) -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,6,0"
+                                    Cursor="Hand" Background="Transparent" MouseLeftButtonUp="RuleHeader_Click">
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource Mac.Headline}" />
+                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Mac.Callout}" FontSize="11" />
+                        </StackPanel>
+
+                        <ToggleButton Grid.Column="2" Style="{StaticResource Mac.Switch}" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                      VerticalAlignment="Center" AutomationProperties.Name="{DynamicResource RuleToggleA11y}" />
+
+                        <Button Grid.Column="3" Style="{StaticResource Mac.ToolbarButton}" MinWidth="24" Height="24" Padding="3,0" Margin="4,0,0,0"
+                                Click="RuleRegexTester_Click" Tag="{Binding}" ToolTip="{DynamicResource RegexTesterOpen}"
+                                Visibility="{Binding CanOpenRegexTester, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.Name="Open regex tester">
+                            <mac:MacIcon Data="{StaticResource Icon.Info}" Size="14" />
+                        </Button>
+
+                        <Button Grid.Column="4" Style="{StaticResource Mac.ToolbarButton}" MinWidth="24" Height="24" Padding="3,0"
+                                Click="RuleMoreMenu_Click" Tag="{Binding}" ToolTip="{DynamicResource RuleEditHint}"
+                                AutomationProperties.Name="Rule actions">
+                            <mac:MacIcon Data="{StaticResource Icon.Ellipsis}" Size="15" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}" Margin="0,6,2,0">
+                        <Border Style="{StaticResource Mac.RowLine}" Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding Parameters}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,4">
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource Mac.Callout}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,3" />
+                                        <ToggleButton Style="{StaticResource Mac.Switch}" HorizontalAlignment="Left" IsChecked="{Binding BoolValue, Mode=TwoWay}"
+                                                      AutomationProperties.Name="{Binding Label}"
+                                                      Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Toggle}" />
+                                        <StackPanel Visibility="{Binding Kind, Converter={StaticResource ParameterKindToTextVis}, ConverterParameter=Text}">
+                                            <TextBox x:Name="ParamTextBox" Style="{StaticResource Mac.TextBox}" AutomationProperties.Name="{Binding Label}"
+                                                     Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ContentControl x:Name="TokenPickerHost" Margin="0,6,0,0" Visibility="Collapsed" Loaded="TokenPickerHost_Loaded" />
+                                        </StackPanel>
+                                        <StackPanel Visibility="{Binding Kind, Converter={StaticResource ParameterKindToVis}, ConverterParameter=Multiline}">
+                                            <TextBox Text="{Binding TextValue, UpdateSourceTrigger=PropertyChanged}"
+                                                     AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                                                     MinHeight="90" MaxHeight="180"
+                                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                                     AutomationProperties.Name="{Binding Label}" />
+                                            <Button Style="{StaticResource Mac.Button.Small}" Margin="0,6,0,0" HorizontalAlignment="Left" Click="ImportListFile_Click"
+                                                    Content="{DynamicResource ListImportButton}"
+                                                    Visibility="{Binding CanImportFile, Converter={StaticResource BoolToVis}}"
+                                                    AutomationProperties.Name="Import list from file" />
+                                        </StackPanel>
+                                        <ComboBox Style="{StaticResource Mac.ComboBox}" ItemsSource="{Binding Options}"
+                                                  SelectedItem="{Binding SelectedOption, Mode=TwoWay}" AutomationProperties.Name="{Binding Label}"
+                                                  Visibility="{Binding Kind, Converter={StaticResource ParameterKindToChoiceVis}, ConverterParameter=Choice}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                </Border>
-            </StackPanel>
+                </StackPanel>
+            </Border>
         </DataTemplate>
 
-        <!-- Cột tên cũ có highlight đoạn bị thay đổi -->
+        <!-- Một đoạn chữ của tên cũ/mới. Dòng đang chọn: chữ theo màu chọn để luôn đọc được trên nền nhấn. -->
+        <Style x:Key="DiffText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="DiffRemovedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource DiffText}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Highlight}" Value="True">
+                    <Setter Property="TextDecorations" Value="Strikethrough" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DiffSegment" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="1,0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!-- Cột tên cũ: đoạn bị thay đổi có nền đỏ và gạch ngang -->
         <DataTemplate x:Key="OldNameTemplate">
-            <ItemsControl ItemsSource="{Binding OldSegments}" VerticalAlignment="Center">
+            <ItemsControl ItemsSource="{Binding OldSegments}" VerticalAlignment="Center" Focusable="False">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border x:Name="SegBorder" CornerRadius="3" Padding="2,0" Background="Transparent">
-                            <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="TextDecorations" Value="None" />
-                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                                <Setter Property="Foreground" Value="{DynamicResource DiffRemovedText}" />
-                                                <Setter Property="TextDecorations" Value="Strikethrough" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                        <Border x:Name="SegBorder" Style="{StaticResource DiffSegment}">
+                            <TextBlock Text="{Binding DisplayText}" Style="{StaticResource DiffRemovedTextStyle}" />
                         </Border>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource DiffRemoved}" />
+                                <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource Mac.DiffDelBg}" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
                     </DataTemplate>
@@ -213,62 +170,194 @@
             </ItemsControl>
         </DataTemplate>
 
-        <!-- Cột tên mới có highlight đoạn thêm mới + sửa thủ công tại chỗ (F2 / nhấp đúp) + huy hiệu Manual -->
+        <!-- Cột tên mới: đoạn thêm mới có nền xanh (tương phản cao: gạch chân), sửa tại chỗ bằng F2 hoặc nhấp đúp -->
         <DataTemplate x:Key="NewNameTemplate">
             <Grid Background="Transparent" MouseLeftButtonDown="NewNameCell_MouseDown" ToolTip="{DynamicResource InlineRenameHint}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ItemsControl x:Name="NewNameSegments" Grid.Column="0" ItemsSource="{Binding NewSegments}" VerticalAlignment="Center">
+                <ItemsControl x:Name="NewNameSegments" Grid.Column="0" ItemsSource="{Binding NewSegments}" VerticalAlignment="Center" Focusable="False">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="SegBorder" CornerRadius="3" Padding="2,0" Background="Transparent">
-                                <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource DiffAddedText}" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                            <Border x:Name="SegBorder" Style="{StaticResource DiffSegment}">
+                                <TextBlock x:Name="SegText" Text="{Binding DisplayText}" Style="{StaticResource DiffText}" />
                             </Border>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding Highlight}" Value="True">
-                                    <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource DiffAdded}" />
+                                    <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource Mac.DiffAddBg}" />
+                                    <Setter TargetName="SegBorder" Property="BorderThickness" Value="0,0,0,1" />
+                                    <Setter TargetName="SegBorder" Property="BorderBrush" Value="{DynamicResource Mac.DiffAddLine}" />
+                                    <Setter TargetName="SegText" Property="FontWeight" Value="SemiBold" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBox x:Name="InlineRenameBox" Grid.Column="0" Grid.ColumnSpan="2"
-                         Visibility="Collapsed" Padding="4,1" FontSize="12.5"
-                         VerticalAlignment="Center"
-                         KeyDown="InlineRenameBox_KeyDown"
-                         LostFocus="InlineRenameBox_LostFocus" />
-                <Border x:Name="ManualBadge" Grid.Column="1" CornerRadius="6" Padding="5,1" Margin="6,0,0,0"
-                        Background="{DynamicResource AccentSoft}" BorderBrush="{DynamicResource AccentBorder}" BorderThickness="1"
-                        VerticalAlignment="Center"
+                <TextBox x:Name="InlineRenameBox" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource Mac.TextBox}" Height="22"
+                         Visibility="Collapsed" FontSize="12.5" VerticalAlignment="Center"
+                         KeyDown="InlineRenameBox_KeyDown" LostFocus="InlineRenameBox_LostFocus" />
+                <Border x:Name="ManualBadge" Grid.Column="1" CornerRadius="5" Padding="5,0" Margin="6,0,0,0"
+                        Background="{DynamicResource Mac.AccentSoft}" VerticalAlignment="Center"
                         Visibility="{Binding HasManualOverride, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{DynamicResource ManualBadge}" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Accent}" />
+                    <TextBlock Text="{DynamicResource ManualBadge}" FontSize="10" FontWeight="SemiBold" />
                 </Border>
             </Grid>
         </DataTemplate>
+
+        <!-- Nút lọc kiểu thanh phạm vi (scope bar) của Finder -->
+        <Style x:Key="ScopeButton" TargetType="RadioButton">
+            <Setter Property="FontFamily" Value="{DynamicResource Mac.FontMedium}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid Background="Transparent">
+                            <Border x:Name="Wash" CornerRadius="6" Background="{DynamicResource Mac.Hover}" Opacity="0" />
+                            <Border x:Name="Sel" CornerRadius="6" Background="{DynamicResource Mac.Track}" Visibility="Collapsed" />
+                            <Border x:Name="Ring" CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                            <ContentPresenter Margin="9,3" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Wash" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Sel" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         </ResourceDictionary>
     </Window.Resources>
 
     <Grid>
+        <!-- Phần của trang Đổi tên nằm trên khung (toolbar, inspector). Khai báo ở đây để giữ x:Name và trình xử lý;
+             InitializeRenameShell tháo ra và giao cho khung khi mở trang Đổi tên. -->
+        <Grid x:Name="RenameParts" Visibility="Collapsed">
+            <StackPanel x:Name="RenameToolbarCenter" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="AddMenuButton" Style="{StaticResource Mac.ToolbarButton}" Click="AddMenu_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <mac:MacIcon Data="{StaticResource Icon.Plus}" Size="17" />
+                        <mac:MacIcon Data="{StaticResource Icon.ChevronDown}" Size="10" Margin="2,0,0,0" />
+                    </StackPanel>
+                </Button>
+                <ComboBox x:Name="SortCombo" Style="{StaticResource Mac.ComboBox}" Width="138" MinWidth="100" Margin="8,0,6,0"
+                          SelectionChanged="SortCombo_SelectionChanged" ToolTip="{DynamicResource SortByLabel}" AutomationProperties.Name="Sort order">
+                    <ComboBoxItem Content="{DynamicResource SortNameNatural}" Tag="NameNatural" />
+                    <ComboBoxItem Content="{DynamicResource SortName}" Tag="NameOrdinal" />
+                    <ComboBoxItem Content="{DynamicResource SortCreated}" Tag="Created" />
+                    <ComboBoxItem Content="{DynamicResource SortModified}" Tag="Modified" />
+                    <ComboBoxItem Content="{DynamicResource SortSize}" Tag="Size" />
+                    <ComboBoxItem Content="{DynamicResource SortLoadOrder}" Tag="LoadOrder" />
+                </ComboBox>
+                <Button Style="{StaticResource Mac.ToolbarButton}" Click="ClearList_Click" ToolTip="{DynamicResource ClearListButton}"
+                        AutomationProperties.Name="Clear list">
+                    <mac:MacIcon Data="{StaticResource Icon.Trash2}" Size="15" />
+                </Button>
+                <Button Style="{StaticResource Mac.ToolbarButton}" Click="MoreMenu_Click" ToolTip="{DynamicResource MoreMenu}"
+                        AutomationProperties.Name="More actions">
+                    <mac:MacIcon Data="{StaticResource Icon.Ellipsis}" Size="17" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="RenameToolbarTrailing" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBox x:Name="PreviewSearchBox" Style="{StaticResource Mac.SearchBox}" Width="128" Margin="0,0,10,0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search files" />
+                <Button x:Name="ApplyButton" Style="{StaticResource Mac.Button.Primary}" Click="Apply_Click" IsEnabled="{Binding CanApply}"
+                        AutomationProperties.Name="Apply renaming">
+                    <Grid>
+                        <TextBlock Text="{Binding ApplyButtonText}" Typography.NumeralAlignment="Tabular"
+                                   Visibility="{Binding IsBusy, Converter={StaticResource InverseBoolToVis}}" />
+                        <TextBlock Text="{Binding BusyText}" MaxWidth="150" TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
+                </Button>
+            </StackPanel>
+
+            <DockPanel x:Name="RenameInspector">
+                <mac:MacSegmentedControl x:Name="InspectorTabs" DockPanel.Dock="Top" Margin="12,10,12,4" />
+
+                <Border x:Name="RulesFooter" DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,1,0,0" Padding="12,10">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Primary}" Click="AddRule_Click"
+                                AutomationProperties.Name="Add rule button">
+                            <StackPanel Orientation="Horizontal">
+                                <mac:MacIcon Data="{StaticResource Icon.Plus}" Size="13" Foreground="{DynamicResource Mac.OnAccent}" Margin="0,0,5,0" />
+                                <TextBlock Text="{DynamicResource AddRuleButton}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource Mac.Button}" HorizontalAlignment="Left" Click="SavePreset_Click" MaxWidth="140" Margin="0,0,8,0"
+                                ToolTip="{DynamicResource SaveAsPresetButton}" AutomationProperties.Name="Save as preset button">
+                            <TextBlock Text="{DynamicResource SaveAsPresetButton}" TextTrimming="CharacterEllipsis" />
+                        </Button>
+                    </DockPanel>
+                </Border>
+
+                <Grid>
+                    <DockPanel x:Name="RulesPanel">
+                        <DockPanel DockPanel.Dock="Top" Margin="12,8,10,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Mac.ToolbarButton}" MinWidth="26" Height="24" Padding="3,0" Margin="6,0,0,0"
+                                    Click="PresetMenu_Click" ToolTip="{DynamicResource RuleMenuManage}" AutomationProperties.Name="Preset menu">
+                                <mac:MacIcon Data="{StaticResource Icon.Ellipsis}" Size="15" />
+                            </Button>
+                            <ComboBox x:Name="PresetCombo" Style="{StaticResource Mac.ComboBox}" SelectionChanged="PresetCombo_SelectionChanged"
+                                      AutomationProperties.Name="Preset selection">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="{DynamicResource RuleBuilderHeader}" Style="{StaticResource Mac.Section}" Margin="16,2,12,6" />
+                        <TextBlock DockPanel.Dock="Top" Text="{DynamicResource RulesEmpty}" Style="{StaticResource Mac.Callout}" TextWrapping="Wrap" Margin="16,0,16,8"
+                                   Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVis}}" />
+                        <ScrollViewer Style="{StaticResource Mac.ScrollViewer}">
+                            <ItemsControl x:Name="RulesItems" ItemsSource="{Binding Rules}" ItemTemplate="{StaticResource RuleCardTemplate}"
+                                          Margin="12,0,12,4" Background="Transparent" Focusable="False"
+                                          AllowDrop="True" DragOver="RuleList_DragOver" DragLeave="RuleList_DragLeave" Drop="RuleList_Drop" />
+                        </ScrollViewer>
+                    </DockPanel>
+
+                    <ScrollViewer x:Name="TracePanel" Style="{StaticResource Mac.ScrollViewer}" Visibility="Collapsed">
+                        <StackPanel Margin="12,8">
+                            <TextBlock x:Name="TraceEmptyText" Style="{StaticResource Mac.Callout}" TextWrapping="Wrap" Margin="4,0" />
+                            <StackPanel x:Name="TraceContent" Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVis}}">
+                                <TextBlock Text="{DynamicResource TraceHeader}" Style="{StaticResource Mac.Section}" TextWrapping="Wrap" Margin="4,0,0,6" />
+                                <Border Style="{StaticResource Mac.Group}">
+                                    <ItemsControl ItemsSource="{Binding TraceSteps}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,8">
+                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Mac.Headline}" FontSize="12" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Mac.Callout}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </DockPanel>
+        </Grid>
+
         <!-- Khung kiểu macOS: thanh bên | toolbar hợp nhất + (trang | inspector) + thanh trạng thái -->
-        <Grid>
+        <Grid x:Name="ShellRoot">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -310,579 +399,254 @@
                         </Border>
                     </Border>
 
-                <!-- Vùng trang: trang Đổi tên là phần nội dung cũ; các trang khác được tạo khi cần -->
+                <!-- Vùng trang: trang Đổi tên khai báo sẵn ở đây; các trang khác được tạo khi cần -->
                 <Grid x:Name="PageHost" Grid.Row="1">
-                <Grid x:Name="RenamePage">
+                <Grid x:Name="RenamePage" Background="{DynamicResource Mac.ContentBg}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" /> <!-- CommandBar -->
-                        <RowDefinition Height="*" />    <!-- Stage Left + 300px Right Inspector -->
+                        <RowDefinition Height="Auto" /> <!-- Thanh phạm vi -->
+                        <RowDefinition Height="Auto" /> <!-- Cảnh báo -->
+                        <RowDefinition Height="*" />    <!-- Bảng xem trước -->
+                        <RowDefinition Height="Auto" /> <!-- Thanh trạng thái -->
                     </Grid.RowDefinitions>
 
-        <!-- ================= 1. Thanh công cụ (CommandBar) ================= -->
-        <Border Grid.Row="0" Background="{DynamicResource BfrGlassFillStrong}"
-                BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,1,0,1" Padding="14,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Nhóm nạp tệp nguồn -->
-                    <Button Style="{StaticResource BfrPrimaryButton}" Click="AddFiles_Click" Padding="14,6" AutomationProperties.Name="{DynamicResource AddFilesButton}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource AddFilesButton}" Margin="6,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-
-                    <ui:Button Appearance="Secondary" Click="AddFolder_Click" Margin="6,0,0,0" Padding="12,6" AutomationProperties.Name="{DynamicResource AddFolderButton}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource AddFolderButton}" Margin="6,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:Button>
-
-                    <Rectangle Style="{StaticResource VerticalDividerStyle}" />
-
-                    <ui:Button x:Name="ShelfButton" Appearance="Secondary" Click="Shelf_Click" Margin="6,0,0,0" Padding="12,6" AutomationProperties.Name="{DynamicResource ShelfCommand}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8A1;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                            <TextBlock x:Name="ShelfButtonText" Margin="6,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:Button>
-
-                    <Rectangle Style="{StaticResource VerticalDividerStyle}" />
-
-                    <!-- Nhóm tùy chọn quét -->
-                    <ToggleButton Style="{StaticResource ChipToggleStyle}" Content="{DynamicResource RecursiveChip}"
-                                  IsChecked="{Binding IsRecursive, Mode=TwoWay}"
-                                  AutomationProperties.Name="Include subfolders" />
-                    <ToggleButton Style="{StaticResource ChipToggleStyle}" Content="{DynamicResource IncludeFoldersChip}"
-                                  IsChecked="{Binding IncludeFolders, Mode=TwoWay}"
-                                  AutomationProperties.Name="Include folders" />
-
-                    <Rectangle Style="{StaticResource VerticalDividerStyle}" />
-
-                    <!-- Bộ chọn sắp xếp -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{DynamicResource SortByLabel}" VerticalAlignment="Center"
-                                   Style="{StaticResource CaptionTextStyle}" Margin="0,0,6,0" />
-                        <ComboBox x:Name="SortCombo" Width="170" SelectionChanged="SortCombo_SelectionChanged"
-                                  AutomationProperties.Name="Sort order">
-                            <ComboBoxItem Content="{DynamicResource SortNameNatural}" Tag="NameNatural" />
-                            <ComboBoxItem Content="{DynamicResource SortName}" Tag="NameOrdinal" />
-                            <ComboBoxItem Content="{DynamicResource SortCreated}" Tag="Created" />
-                            <ComboBoxItem Content="{DynamicResource SortModified}" Tag="Modified" />
-                            <ComboBoxItem Content="{DynamicResource SortSize}" Tag="Size" />
-                            <ComboBoxItem Content="{DynamicResource SortLoadOrder}" Tag="LoadOrder" />
-                        </ComboBox>
-                    </StackPanel>
-                </WrapPanel>
-
-                <!-- Nhóm thao tác bên phải -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ui:Button Appearance="Transparent" Click="SendToTools_Click"
-                            ToolTip="{DynamicResource SendToToolsTip}" Margin="0,0,4,0"
-                            AutomationProperties.Name="Send to tools">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE90F;" FontFamily="{StaticResource IconFont}" FontSize="13" />
-                            <TextBlock Text="{DynamicResource SendToToolsButton}" Margin="6,0,0,0" />
-                        </StackPanel>
-                    </ui:Button>
-                    <ui:Button Appearance="Transparent" Click="ClearList_Click"
-                            ToolTip="{DynamicResource ClearListButton}" Margin="0,0,4,0"
-                            AutomationProperties.Name="Clear list">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" FontSize="13" />
-                            <TextBlock Text="{DynamicResource ClearListButton}" Margin="6,0,0,0" />
-                        </StackPanel>
-                    </ui:Button>
-
-                    <ui:Button Appearance="Secondary" Click="MoreMenu_Click" Padding="10,5"
-                            AutomationProperties.Name="More actions">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="13" />
-                            <TextBlock Text="{DynamicResource MoreMenu}" Margin="6,0,0,0" />
-                        </StackPanel>
-                    </ui:Button>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ================= 2. Vùng làm việc macOS (Stage Left + 300px Right Inspector) ================= -->
-        <Grid Grid.Row="1" Margin="16,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="460" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="300" MinWidth="260" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Cột phải: macOS Right Inspector (#252525 + 1px left divider) -->
-            <Border Grid.Column="2" Background="{DynamicResource BfrInspectorFill}"
-                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="1,1,0,0"
-                    CornerRadius="0" Padding="14">
-                <DockPanel>
-                    <!-- Tiêu đề & Chọn Preset -->
-                    <Grid DockPanel.Dock="Top" Margin="2,2,2,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="{DynamicResource RuleBuilderHeader}" Style="{StaticResource PanelHeaderTextStyle}" />
-                            <ComboBox x:Name="PresetCombo" Margin="0,6,0,0"
-                                      SelectionChanged="PresetCombo_SelectionChanged"
-                                      AutomationProperties.Name="Preset selection">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayName}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Content="&#xE712;"
-                                Click="PresetMenu_Click" VerticalAlignment="Bottom" Margin="4,0,0,0"
-                                ToolTip="{DynamicResource RuleMenuManage}"
-                                AutomationProperties.Name="Preset menu" />
-                    </Grid>
-
-                    <!-- Sticky Bottom Inspector Footer: Nút thêm quy tắc + Thanh tóm tắt + CTA chính -->
-                    <StackPanel DockPanel.Dock="Bottom" Margin="2,10,2,0">
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ui:Button Grid.Column="0" Appearance="Secondary" Click="SavePreset_Click" Margin="0,0,6,0"
-                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    ToolTip="{DynamicResource SaveAsPresetButton}"
-                                    AutomationProperties.Name="Save as preset button">
+                    <!-- Thanh phạm vi: lọc bảng xem trước, mỗi mục kèm số lượng chạy theo thay đổi -->
+                    <Border Grid.Row="0" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,0,0,1" Padding="12,7">
+                        <WrapPanel>
+                            <RadioButton x:Name="FilterAll" Style="{StaticResource ScopeButton}" GroupName="PreviewFilter" IsChecked="True"
+                                         Checked="Filter_Checked" Tag="All" AutomationProperties.Name="Filter all">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE74E;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                                    <TextBlock Text="{DynamicResource SaveAsPresetButton}" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{DynamicResource FilterAll}" />
+                                    <TextBlock x:Name="CountAll" Margin="6,0,0,0" Opacity="0.75" mac2:Motion.CountValue="{Binding TotalCount}" />
                                 </StackPanel>
-                            </ui:Button>
-                            <Button Grid.Column="1" Style="{StaticResource BfrPrimaryButton}" Click="AddRule_Click"
-                                    AutomationProperties.Name="Add rule button">
+                            </RadioButton>
+                            <RadioButton x:Name="FilterWillChange" Style="{StaticResource ScopeButton}" GroupName="PreviewFilter"
+                                         Checked="Filter_Checked" Tag="WillChange" AutomationProperties.Name="Filter will change">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                                    <TextBlock Text="{DynamicResource AddRuleButton}" Margin="6,0,0,0" />
+                                    <TextBlock Text="{DynamicResource FilterWillChange}" />
+                                    <TextBlock x:Name="CountWillChange" Margin="6,0,0,0" Foreground="{DynamicResource Mac.AccentText}" mac2:Motion.CountValue="{Binding WillChangeCount}" />
                                 </StackPanel>
-                            </Button>
-                        </Grid>
+                            </RadioButton>
+                            <RadioButton x:Name="FilterUnchanged" Style="{StaticResource ScopeButton}" GroupName="PreviewFilter"
+                                         Checked="Filter_Checked" Tag="Unchanged" AutomationProperties.Name="Filter unchanged">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{DynamicResource FilterUnchanged}" />
+                                    <TextBlock x:Name="CountUnchanged" Margin="6,0,0,0" Opacity="0.75" mac2:Motion.CountValue="{Binding UnchangedCount}" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="FilterProblems" Style="{StaticResource ScopeButton}" GroupName="PreviewFilter"
+                                         Checked="Filter_Checked" Tag="Problems" AutomationProperties.Name="Filter problems">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{DynamicResource FilterProblems}" />
+                                    <TextBlock x:Name="CountProblems" Margin="6,0,0,0" Foreground="{DynamicResource Mac.Bad}" mac2:Motion.CountValue="{Binding ErrorCount}" />
+                                </StackPanel>
+                            </RadioButton>
+                        </WrapPanel>
+                    </Border>
 
-                        <Border BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
-                            <StackPanel>
-                                <DockPanel Margin="0,0,0,8">
-                                    <ui:Button DockPanel.Dock="Right" Appearance="Secondary" Content="{DynamicResource Undo}" Click="Undo_Click"
-                                               IsEnabled="{Binding CanUndo}" Padding="10,4" FontSize="12"
-                                               AutomationProperties.Name="Undo last rename" />
-                                    <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
-                                               Typography.NumeralAlignment="Tabular"
-                                               Foreground="{DynamicResource BfrFg2}" TextTrimming="CharacterEllipsis" />
-                                </DockPanel>
-
-                                <!-- Báo thành công / Huỷ -->
-                                <Border Margin="0,0,0,8" Style="{StaticResource BfrToast}" Padding="10,6"
-                                        Background="{DynamicResource SuccessSoft}" BorderBrush="{DynamicResource Success}"
-                                        Visibility="{Binding HasSuccessMessage, Converter={StaticResource BoolToVis}}"
-                                        AutomationProperties.Name="Success banner">
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource Undo}" Click="Undo_Click" Padding="6,2" FontSize="11.5" />
-                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuHistory}" Click="History_Click" Padding="6,2" FontSize="11.5" />
-                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuExportReport}" Click="ExportReport_Click" Padding="6,2" FontSize="11.5" />
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding SuccessMessage}" Foreground="{DynamicResource TextPrimary}"
-                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" />
-                                    </DockPanel>
-                                </Border>
-
-                                <ui:Button Appearance="Transparent" Content="{DynamicResource Cancel}"
-                                           Click="CancelWork_Click" Padding="8,4" Margin="0,0,0,6" HorizontalAlignment="Right"
-                                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-
-                                <Button x:Name="ApplyButton" Style="{StaticResource BfrPrimaryButton}" Click="Apply_Click"
-                                        IsEnabled="{Binding CanApply}" HorizontalAlignment="Stretch" Height="40"
-                                        AutomationProperties.Name="Apply renaming">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                    Visibility="{Binding IsBusy, Converter={StaticResource InverseBoolToVis}}">
-                                            <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
-                                                       Margin="0,0,8,0" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding ApplyButtonText}" FontWeight="SemiBold" FontSize="13"
-                                                       Typography.NumeralAlignment="Tabular" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                            <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="0,0,8,0"
-                                                             Foreground="{DynamicResource TextOnAccent}" />
-                                            <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="13"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Button>
-                            </StackPanel>
+                    <StackPanel Grid.Row="1">
+                        <!-- Cảnh báo trùng tên: một nút tự thêm (2), (3)… -->
+                        <Border Margin="12,8,12,0" Padding="12,7" CornerRadius="8" Background="{DynamicResource Mac.WarnSoft}"
+                                Visibility="{Binding HasConflicts, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.Name="Conflict banner">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Small}" Margin="12,0,0,0"
+                                        Content="{DynamicResource ConflictAutoFix}" Command="{Binding ResolveConflictsCommand}"
+                                        AutomationProperties.Name="Fix conflicts automatically" />
+                                <mac:MacIcon Data="{StaticResource Icon.TriangleAlert}" Size="16" Foreground="{DynamicResource Mac.Warn}" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding ConflictBannerText}" Style="{StaticResource Mac.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <!-- Sau khi bật tự xử lý: cho biết đã làm gì và cho tắt -->
+                        <Border Margin="12,8,12,0" Padding="12,7" CornerRadius="8" Background="{DynamicResource Mac.AccentSoft}"
+                                Visibility="{Binding HasAutoResolved, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.Name="Auto resolved banner">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Small}" Margin="12,0,0,0"
+                                        Content="{DynamicResource ConflictAutoOff}" Command="{Binding StopAutoResolveCommand}"
+                                        AutomationProperties.Name="Turn off auto resolve" />
+                                <mac:MacIcon Data="{StaticResource Icon.Info}" Size="16" Foreground="{DynamicResource Mac.Accent}" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding AutoResolvedText}" Style="{StaticResource Mac.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
                         </Border>
                     </StackPanel>
 
-                    <!-- Danh sách rỗng -->
-                    <Grid DockPanel.Dock="Top" Margin="2,4">
-                        <TextBlock Text="{DynamicResource RulesEmpty}" Style="{StaticResource CaptionTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVis}}" />
-                    </Grid>
-
-                    <!-- Cuộn danh sách thẻ quy tắc -->
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="2,2,4,2">
-                        <ItemsControl x:Name="RulesItems" ItemsSource="{Binding Rules}"
-                                      ItemTemplate="{StaticResource RuleCardTemplate}" />
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-
-            <!-- Thanh kéo phân chia độ rộng -->
-            <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch"
-                          Background="Transparent" ResizeBehavior="PreviousAndNext"
-                          AutomationProperties.Name="Resize rule panel" />
-
-            <!-- Cột trái: Stage / Bảng xem trước kết quả đổi tên -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!-- Hàng ô thống kê (bento tương tác): bấm trực tiếp để lọc bảng xem trước -->
-                <Grid Grid.Row="0" Margin="0,0,0,10" Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource InverseBoolToVis}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border x:Name="KpiWillChangeRing" Grid.Column="0" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="0">
-                        <ctl:GlassTile x:Name="KpiWillChange" IsInteractive="True" Tag="WillChange" Invoked="KpiTile_Invoked"
-                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
-                                       AutomationProperties.Name="{DynamicResource FilterWillChange}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding WillChangeCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
-                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrAccFg}" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource FilterWillChange}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </ctl:GlassTile>
-                    </Border>
-                    <Border x:Name="KpiUnchangedRing" Grid.Column="1" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="10,0,0,0">
-                        <ctl:GlassTile x:Name="KpiUnchanged" IsInteractive="True" Tag="Unchanged" Invoked="KpiTile_Invoked"
-                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
-                                       AutomationProperties.Name="{DynamicResource FilterUnchanged}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding UnchangedCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
-                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrFg2}" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource FilterUnchanged}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </ctl:GlassTile>
-                    </Border>
-                    <Border x:Name="KpiProblemsRing" Grid.Column="2" CornerRadius="{DynamicResource BfrRadiusTileSm}" BorderThickness="2" BorderBrush="Transparent" Margin="10,0,0,0">
-                        <ctl:GlassTile x:Name="KpiProblems" IsInteractive="True" Tag="Problems" Invoked="KpiTile_Invoked"
-                                       CornerRadius="{DynamicResource BfrRadiusTileSm}" Padding="16,10"
-                                       AutomationProperties.Name="{DynamicResource FilterProblems}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding ErrorCount}" FontFamily="{DynamicResource BfrFontDisplay}" FontSize="26"
-                                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrBad}" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource FilterProblems}" Style="{StaticResource CaptionTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </ctl:GlassTile>
-                    </Border>
-                </Grid>
-
-            <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}"
-                    BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1"
-                    CornerRadius="{DynamicResource BfrRadiusTile}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!-- Thanh bộ lọc dạng Segmented Tab + Ô tìm kiếm (đặt trên bảng xem trước) -->
-                    <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="12,8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Segmented Filter Container -->
-                            <Border Grid.Column="0" Background="{DynamicResource ChipBackground}"
-                                    CornerRadius="8" Padding="3" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
-                                    <RadioButton x:Name="FilterAll" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterAll}"
-                                                 IsChecked="True" Checked="Filter_Checked" Tag="All"
-                                                 AutomationProperties.Name="Filter all" />
-                                    <RadioButton x:Name="FilterWillChange" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterWillChange}"
-                                                 Checked="Filter_Checked" Tag="WillChange"
-                                                 AutomationProperties.Name="Filter will change" />
-                                    <RadioButton x:Name="FilterUnchanged" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterUnchanged}"
-                                                 Checked="Filter_Checked" Tag="Unchanged"
-                                                 AutomationProperties.Name="Filter unchanged" />
-                                    <RadioButton x:Name="FilterProblems" Style="{StaticResource SegmentedRadioButtonStyle}" GroupName="PreviewFilter" Content="{DynamicResource FilterProblems}"
-                                                 Checked="Filter_Checked" Tag="Problems"
-                                                 AutomationProperties.Name="Filter problems" />
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Ô tìm kiếm tệp -->
-                            <ui:TextBox Grid.Column="1" Width="230" VerticalAlignment="Center" x:Name="PreviewSearchBox"
-                                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                        Icon="{ui:SymbolIcon Search24}" ClearButtonEnabled="True"
-                                        AutomationProperties.Name="Search files" />
-                        </Grid>
-                    </Border>
-
-                    <DockPanel Grid.Row="1">
-                        <StackPanel DockPanel.Dock="Top">
-                            <!-- Cảnh báo trùng tên: một nút tự thêm (2), (3)… -->
-                            <Border Margin="10,10,10,0" Padding="12,8" CornerRadius="8" BorderThickness="1"
-                                    Background="{DynamicResource WarningSoft}" BorderBrush="{DynamicResource Warning}"
-                                    Visibility="{Binding HasConflicts, Converter={StaticResource BoolToVis}}"
-                                    AutomationProperties.Name="Conflict banner">
-                                <DockPanel>
-                                    <ui:Button DockPanel.Dock="Right" Appearance="Secondary" Margin="12,0,0,0"
-                                               Content="{DynamicResource ConflictAutoFix}"
-                                               Command="{Binding ResolveConflictsCommand}"
-                                               AutomationProperties.Name="Fix conflicts automatically" />
-                                    <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="16"
-                                               Foreground="{DynamicResource Warning}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                    <TextBlock Text="{Binding ConflictBannerText}" TextWrapping="Wrap" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextPrimary}" />
-                                </DockPanel>
-                            </Border>
-                            <!-- Sau khi bật tự xử lý: cho biết đã làm gì và cho tắt -->
-                            <Border Margin="10,10,10,0" Padding="12,8" CornerRadius="8" BorderThickness="1"
-                                    Background="{DynamicResource AccentSoft}" BorderBrush="{DynamicResource AccentBorder}"
-                                    Visibility="{Binding HasAutoResolved, Converter={StaticResource BoolToVis}}"
-                                    AutomationProperties.Name="Auto resolved banner">
-                                <DockPanel>
-                                    <ui:Button DockPanel.Dock="Right" Appearance="Secondary" Margin="12,0,0,0"
-                                               Content="{DynamicResource ConflictAutoOff}"
-                                               Command="{Binding StopAutoResolveCommand}"
-                                               AutomationProperties.Name="Turn off auto resolve" />
-                                    <TextBlock Text="&#xE946;" FontFamily="{StaticResource IconFont}" FontSize="16"
-                                               Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                    <TextBlock Text="{Binding AutoResolvedText}" TextWrapping="Wrap" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextPrimary}" />
-                                </DockPanel>
-                            </Border>
-                        </StackPanel>
-                    <DataGrid x:Name="PreviewGrid" Style="{StaticResource PreviewDataGridStyle}"
-                              ColumnHeaderStyle="{StaticResource PreviewHeaderStyle}"
-                              CellStyle="{StaticResource PreviewCellStyle}"
-                              ItemsSource="{Binding FilteredRows}"
-                              SelectionChanged="PreviewGrid_SelectionChanged"
-                              PreviewKeyDown="PreviewGrid_PreviewKeyDown"
+                    <DataGrid x:Name="PreviewGrid" Grid.Row="2" Style="{StaticResource Mac.DataGrid}" Padding="0,2,0,0"
+                              ItemsSource="{Binding FilteredRows}" IsReadOnly="True" CanUserSortColumns="True"
+                              SelectionChanged="PreviewGrid_SelectionChanged" PreviewKeyDown="PreviewGrid_PreviewKeyDown"
                               AutomationProperties.Name="Preview table">
                         <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow" BasedOn="{StaticResource PreviewRowStyle}">
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource Mac.Row}">
                                 <Setter Property="ContextMenu" Value="{StaticResource RowContextMenu}" />
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <!-- Cột Checkbox chọn từng dòng -->
-                            <DataGridTemplateColumn Width="48" CanUserSort="False">
+                            <DataGridTemplateColumn Width="46" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.HeaderTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding DataContext.AreAllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay}"
-                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  Style="{StaticResource AppCheckBoxStyle}"
-                                                  ToolTip="{DynamicResource ColSelectTooltip}"
+                                                  Style="{StaticResource Mac.CheckBox}" ToolTip="{DynamicResource ColSelectTooltip}"
                                                   AutomationProperties.Name="Select or deselect all files" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" Focusable="False"
-                                                  Style="{StaticResource AppCheckBoxStyle}"
-                                                  AutomationProperties.Name="Include file in rename" />
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Focusable="False"
+                                                  Style="{StaticResource Mac.CheckBox}" AutomationProperties.Name="Include file in rename" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Cột Tên cũ -->
-                            <DataGridTemplateColumn Header="{DynamicResource ColOld}" Width="*" MinWidth="130"
-                                                    SortMemberPath="OldName" CanUserSort="True"
-                                                    CellTemplate="{StaticResource OldNameTemplate}" />
+                            <DataGridTemplateColumn Header="{DynamicResource ColOld}" Width="*" MinWidth="120"
+                                                    SortMemberPath="OldName" CellTemplate="{StaticResource OldNameTemplate}" />
 
-                            <!-- Cột Tên mới -->
-                            <DataGridTemplateColumn Header="{DynamicResource ColNew}" Width="*" MinWidth="130"
-                                                    SortMemberPath="NewName" CanUserSort="True"
-                                                    CellTemplate="{StaticResource NewNameTemplate}" />
+                            <DataGridTemplateColumn Header="{DynamicResource ColNew}" Width="*" MinWidth="120"
+                                                    SortMemberPath="NewName" CellTemplate="{StaticResource NewNameTemplate}" />
 
-                            <!-- Cột Trạng thái dạng Pill Badge hiện đại -->
-                            <DataGridTemplateColumn Header="{DynamicResource ColStatus}" Width="124"
-                                                    SortMemberPath="StatusText" CanUserSort="True">
+                            <DataGridTemplateColumn Header="{DynamicResource ColStatus}" Width="112" SortMemberPath="StatusText">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border x:Name="StatusPill" CornerRadius="10" Padding="8,3"
-                                                HorizontalAlignment="Left" VerticalAlignment="Center"
-                                                Background="{DynamicResource ChipBackground}">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock x:Name="StatusIcon" Text="{Binding StatusIcon}"
-                                                           FontFamily="{StaticResource IconFont}" FontSize="11"
-                                                           Margin="0,0,5,0" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextSecondary}" />
-                                                <TextBlock x:Name="StatusLabel" Text="{Binding StatusText}"
-                                                           FontSize="11" FontWeight="Medium" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextSecondary}" />
-                                            </StackPanel>
-                                        </Border>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding StatusText}">
+                                            <TextBlock x:Name="StatusIcon" Text="{Binding StatusIcon}" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StatusLabel" Text="{Binding StatusText}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
                                         <DataTemplate.Triggers>
+                                            <!-- Màu theo trạng thái chỉ đặt lên icon: chữ luôn theo màu dòng nên đọc được cả khi đang chọn.
+                                                 Trạng thái còn được phân biệt bằng icon và chữ, không chỉ bằng màu. -->
                                             <DataTrigger Binding="{Binding Status}" Value="Ok">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource SuccessSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Success}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Success}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Ok}" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding Status}" Value="Conflict">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource WarningSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Warning}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Warning}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Status}" Value="InvalidName">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Status}" Value="PathTooLong">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Status}" Value="Locked">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Status}" Value="Protected">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Warn}" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding Status}" Value="MissingData">
-                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource WarningSoft}" />
-                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Warning}" />
-                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Warning}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Warn}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="InvalidName">
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Bad}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="PathTooLong">
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Bad}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Locked">
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Bad}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Protected">
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.Bad}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Mac.SelectedFg}" />
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Cột Thư mục -->
-                            <DataGridTemplateColumn Header="{DynamicResource ColFolder}" Width="0.7*" MinWidth="70" SortMemberPath="FolderText" CanUserSort="True">
+                            <DataGridTemplateColumn Header="{DynamicResource ColFolder}" Width="0.7*" MinWidth="60" SortMemberPath="FolderText">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FolderText}" TextTrimming="CharacterEllipsis"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   VerticalAlignment="Center"
-                                                   ToolTip="{Binding FolderText}" />
+                                        <TextBlock Text="{Binding FolderText}" TextTrimming="CharacterEllipsis" FontSize="12" Opacity="0.75"
+                                                   VerticalAlignment="Center" ToolTip="{Binding FolderText}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                    </DockPanel>
 
-                    <!-- Ngăn Rule Trace (tự thu gọn khi chưa chọn dòng) -->
-                    <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="12,8"
-                            Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVis}}">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource TraceHeader}" Style="{StaticResource PanelHeaderTextStyle}" Margin="0,0,0,4" />
-                            <ItemsControl ItemsSource="{Binding TraceSteps}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="16" />
-                                                <ColumnDefinition Width="160" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="&#xE16A;" FontSize="11"
-                                                       FontFamily="{StaticResource IconFont}"
-                                                       Foreground="{DynamicResource Accent}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="SemiBold"
-                                                       FontSize="11.5" Foreground="{DynamicResource TextPrimary}"
-                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="11.5"
-                                                       Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                    <!-- Thanh trạng thái của trang: Huỷ và Hoàn tác luôn dùng được kể cả khi đã ẩn inspector -->
+                    <Border Grid.Row="3" Background="{DynamicResource Mac.ToolbarBg}" BorderBrush="{DynamicResource Mac.Separator}"
+                            BorderThickness="0,1,0,0" Padding="12,3" MinHeight="30">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Small}" Click="Undo_Click" IsEnabled="{Binding CanUndo}"
+                                    AutomationProperties.Name="Undo last rename">
+                                <StackPanel Orientation="Horizontal">
+                                    <mac:MacIcon Data="{StaticResource Icon.Undo2}" Size="12" Margin="0,0,5,0" />
+                                    <TextBlock Text="{DynamicResource MacUndo}" />
+                                </StackPanel>
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Small}" Margin="0,0,8,0" Content="{DynamicResource Cancel}"
+                                    Click="CancelWork_Click" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                            <mac:MacSpinner DockPanel.Dock="Left" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource Mac.Label2}"
+                                            AutomationProperties.Name="{Binding BusyText}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock DockPanel.Dock="Left" x:Name="SummaryText" Text="{Binding StatusSummary}" Style="{StaticResource Mac.Callout}" FontSize="11"
+                                       VerticalAlignment="Center" Typography.NumeralAlignment="Tabular" />
+                            <TextBlock x:Name="StatusText" Style="{StaticResource Mac.Callout}" FontSize="11" Margin="14,0,8,0" VerticalAlignment="Center"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </DockPanel>
                     </Border>
+
+                    <!-- Thông báo kiểu Notification Center ở góc trên phải (M12) -->
+                    <Border x:Name="SuccessBanner" Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="20" Visibility="Collapsed"
+                            Width="340" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Padding="12"
+                            CornerRadius="12" Background="{DynamicResource Mac.SheetBg}" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="1"
+                            AutomationProperties.Name="Success banner">
+                        <Border.Effect><DropShadowEffect BlurRadius="20" ShadowDepth="5" Direction="270" Opacity="0.28" /></Border.Effect>
+                        <DockPanel>
+                            <mac:MacCheckDraw x:Name="SuccessCheck" DockPanel.Dock="Left" VerticalAlignment="Top" Margin="0,0,10,0" />
+                            <Button DockPanel.Dock="Right" x:Name="DismissBannerButton" Style="{StaticResource Mac.ToolbarButton}" MinWidth="22" Height="22" Padding="2,0"
+                                    VerticalAlignment="Top" Click="DismissBanner_Click">
+                                <mac:MacIcon Data="{StaticResource Icon.X}" Size="12" />
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Text="{Binding SuccessMessage}" Style="{StaticResource Mac.Text}" TextWrapping="Wrap" TextTrimming="None"
+                                           AutomationProperties.LiveSetting="Assertive" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Style="{StaticResource Mac.Button.Small}" Margin="0,0,6,0" Content="{DynamicResource MacUndo}" Click="Undo_Click" IsEnabled="{Binding CanUndo}" />
+                                    <Button Style="{StaticResource Mac.Button.Small}" Margin="0,0,6,0" Content="{DynamicResource MenuHistory}" Click="History_Click" />
+                                    <Button Style="{StaticResource Mac.Button.Small}" Content="{DynamicResource MenuExportReport}" Click="ExportReport_Click" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Trạng thái rỗng: phủ thanh lọc và bảng, chừa thanh trạng thái -->
+                    <ScrollViewer Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="10" Style="{StaticResource Mac.ScrollViewer}"
+                                  Background="{DynamicResource Mac.ContentBg}"
+                                  Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BoolToVis}}">
+                        <Grid Margin="24" MaxWidth="620" VerticalAlignment="Center">
+                            <Rectangle RadiusX="14" RadiusY="14" Stroke="{DynamicResource Mac.Label4}" StrokeThickness="1.5" StrokeDashArray="5 4" />
+                            <StackPanel Margin="24,22">
+                                <ctl:TemMascot x:Name="EmptyMascot" Width="68" Height="72" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                <TextBlock Text="{DynamicResource EmptyTitle}" Style="{StaticResource Mac.Title2}" FontSize="18" HorizontalAlignment="Center"
+                                           TextAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock Text="{DynamicResource EmptyHint}" Style="{StaticResource Mac.Callout}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                                <WrapPanel HorizontalAlignment="Center" Margin="0,16,0,0">
+                                    <Button Style="{StaticResource Mac.Button.Primary}" Click="AddFiles_Click" Content="{DynamicResource AddFilesButton}" Margin="5,3" />
+                                    <Button Style="{StaticResource Mac.Button}" Click="AddFolder_Click" Content="{DynamicResource AddFolderButton}" Margin="5,3" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{DynamicResource EmptySuggestions}" Style="{StaticResource Mac.Section}" HorizontalAlignment="Center" Margin="0,20,0,6" />
+                                <WrapPanel HorizontalAlignment="Center">
+                                    <Button Style="{StaticResource Mac.Button.Small}" Margin="4,3" Click="SuggestPreset_Click" Tag="Đánh số theo thứ tự" Content="{DynamicResource SuggestNumbering}" />
+                                    <Button Style="{StaticResource Mac.Button.Small}" Margin="4,3" Click="SuggestPreset_Click" Tag="Dọn dẹp tên tệp" Content="{DynamicResource SuggestTrim}" />
+                                    <Button Style="{StaticResource Mac.Button.Small}" Margin="4,3" Click="SuggestPreset_Click" Tag="Ảnh theo ngày chụp" Content="{DynamicResource SuggestDate}" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{DynamicResource EmptyTips}" Style="{StaticResource Mac.Callout}" FontSize="11" TextAlignment="Center"
+                                           TextWrapping="Wrap" Margin="0,18,0,0" AutomationProperties.Name="Empty state tips" />
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
                 </Grid>
-            </Border>
-
-            <!-- Màn hình trạng thái rỗng (Empty State Hero) -->
-            <Border Grid.Column="0" Grid.ColumnSpan="3" Background="{DynamicResource AppBackground}"
-                    CornerRadius="{StaticResource RadiusCard}"
-                    Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BoolToVis}}">
-                <Border VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640" Padding="40,32"
-                        CornerRadius="16" BorderThickness="2" BorderBrush="{DynamicResource Divider}"
-                        Background="{DynamicResource SurfaceBackground}">
-                <StackPanel>
-                    <ctl:TemMascot x:Name="EmptyMascot" Width="76" Height="80" HorizontalAlignment="Center" Margin="0,0,0,12" />
-                    <TextBlock Text="{DynamicResource EmptyTitle}" FontSize="22" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
-                    <TextBlock Text="{DynamicResource EmptyHint}" Style="{StaticResource BodyTextStyle}"
-                               Foreground="{DynamicResource TextSecondary}" TextAlignment="Center" TextWrapping="Wrap"
-                               Margin="0,8,0,0" />
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                        <Button Style="{StaticResource BfrPrimaryButton}" Click="AddFiles_Click" Content="{DynamicResource AddFilesButton}" Padding="16,8" />
-                        <ui:Button Appearance="Secondary" Click="AddFolder_Click" Margin="10,0,0,0"
-                                Content="{DynamicResource AddFolderButton}" Padding="14,8" />
-                    </StackPanel>
-
-                    <TextBlock Text="{DynamicResource EmptySuggestions}" Style="{StaticResource PanelHeaderTextStyle}"
-                               HorizontalAlignment="Center" Margin="0,28,0,10" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <ui:Button Appearance="Secondary" Click="SuggestPreset_Click" Tag="Đánh số theo thứ tự"
-                                Content="{DynamicResource SuggestNumbering}" Padding="10,6" />
-                        <ui:Button Appearance="Secondary" Click="SuggestPreset_Click" Tag="Dọn dẹp tên tệp"
-                                Content="{DynamicResource SuggestTrim}" Margin="8,0,0,0" Padding="10,6" />
-                        <ui:Button Appearance="Secondary" Click="SuggestPreset_Click" Tag="Ảnh theo ngày chụp"
-                                Content="{DynamicResource SuggestDate}" Margin="8,0,0,0" Padding="10,6" />
-                    </StackPanel>
-
-                    <!-- Mẹo: ba cách khác để đưa tệp vào mà không cần mở cửa sổ này -->
-                    <TextBlock Text="{DynamicResource EmptyTips}" Style="{StaticResource CaptionTextStyle}"
-                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,24,0,0"
-                               AutomationProperties.Name="Empty state tips" />
-                </StackPanel>
-                </Border>
-            </Border>
-            </Grid>
-        </Grid>
                 </Grid>
                 </Grid>
             </Grid>
         </Grid>
 
             <!-- Traffic light nằm đè góc trái trên nên không đổi chỗ khi thu thanh bên -->
-            <!-- Trải cả hai cột: nếu chỉ nằm ở cột đầu thì cột thanh bên không co được dưới độ rộng cụm nút. -->
-            <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,20,0,0" Background="Transparent">
+            <!-- Nằm ngoài ShellRoot: không được nằm trong cột thanh bên, nếu không cột đó không co về 0 được. -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,20,0,0" Background="Transparent">
                 <Button x:Name="CloseDot" Style="{DynamicResource Mac.TrafficDot}" Background="#FF5F57" Tag="×" Click="CloseDot_Click" />
                 <Button x:Name="MinimizeDot" Style="{DynamicResource Mac.TrafficDot}" Background="#FEBC2E" Tag="–" Click="MinimizeDot_Click" />
                 <Button x:Name="ZoomDot" Style="{DynamicResource Mac.TrafficDot}" Background="#28C840" Tag="+" Click="ZoomDot_Click" />
             </StackPanel>
 
+            <!-- Sheet kiểu macOS (xác nhận áp dụng): phủ cả cửa sổ, khoá ShellRoot khi mở -->
+            <mac:MacSheetHost x:Name="SheetHost" />
+
             <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên toàn cửa sổ -->
-            <ui:ContentDialogHost x:Name="DialogHost" Grid.ColumnSpan="2" />
-        </Grid>
+            <ui:ContentDialogHost x:Name="DialogHost" />
 
         <!-- Lớp phủ kính mờ khi kéo tệp vào bất kỳ vị trí nào trên cửa sổ -->
         <Border x:Name="DropOverlay" Grid.RowSpan="2" Panel.ZIndex="100"

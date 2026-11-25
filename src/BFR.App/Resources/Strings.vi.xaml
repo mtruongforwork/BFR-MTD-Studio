@@ -1329,4 +1329,11 @@
     <sys:String x:Key="MacAccentYellow">Vàng</sys:String>
     <sys:String x:Key="MacAccentGreen">Xanh lá</sys:String>
     <sys:String x:Key="MacAccentGraphite">Than chì</sys:String>
+    <sys:String x:Key="MacTabRules">Quy tắc</sys:String>
+    <sys:String x:Key="MacTabDetails">Chi tiết</sys:String>
+    <sys:String x:Key="MacTraceEmpty">Chọn một tệp để xem từng quy tắc đổi tên nó ra sao.</sys:String>
+    <sys:String x:Key="MacSearchFiles">Lọc</sys:String>
+    <sys:String x:Key="MacRenameAdd">Thêm tệp hoặc thư mục</sys:String>
+    <sys:String x:Key="MacDismiss">Đóng thông báo</sys:String>
+    <sys:String x:Key="MacUndo">Hoàn tác</sys:String>
 </ResourceDictionary>

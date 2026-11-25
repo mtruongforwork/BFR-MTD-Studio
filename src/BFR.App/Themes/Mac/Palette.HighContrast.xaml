@@ -47,4 +47,5 @@
     <SolidColorBrush x:Key="Mac.OkSoft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Mac.BadSoft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Mac.WarnSoft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="Mac.DiffAddLine" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
 </ResourceDictionary>

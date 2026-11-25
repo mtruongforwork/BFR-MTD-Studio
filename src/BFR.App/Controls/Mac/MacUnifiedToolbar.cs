@@ -23,6 +23,8 @@ public sealed class MacUnifiedToolbar : Border
     private readonly Button _forward;
     private readonly Button _inspector;
     private readonly Button _search = new();
+    private readonly TextBlock _searchShortcut = new() { Text = "Ctrl K", FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+    private readonly MacIcon _searchGlyph = new() { Size = 13, Margin = new Thickness(0, 0, 7, 0) };
     private readonly TextBlock _searchLabel = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _title = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 16, 0), MaxWidth = 320 };
     private readonly ContentPresenter _center = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -92,16 +94,14 @@ public sealed class MacUnifiedToolbar : Border
         _search.Margin = new Thickness(0, 0, 6, 0);
 
         var row = new DockPanel();
-        var shortcut = new TextBlock { Text = "Ctrl K", FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
-        shortcut.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label3");
-        DockPanel.SetDock(shortcut, Dock.Right);
-        row.Children.Add(shortcut);
+        _searchShortcut.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label3");
+        DockPanel.SetDock(_searchShortcut, Dock.Right);
+        row.Children.Add(_searchShortcut);
 
-        var glyph = new MacIcon { Size = 13, Margin = new Thickness(0, 0, 7, 0) };
-        glyph.SetResourceReference(MacIcon.DataProperty, "Icon.Search");
-        glyph.SetResourceReference(MacIcon.ForegroundProperty, "Mac.Label3");
-        DockPanel.SetDock(glyph, Dock.Left);
-        row.Children.Add(glyph);
+        _searchGlyph.SetResourceReference(MacIcon.DataProperty, "Icon.Search");
+        _searchGlyph.SetResourceReference(MacIcon.ForegroundProperty, "Mac.Label3");
+        DockPanel.SetDock(_searchGlyph, Dock.Left);
+        row.Children.Add(_searchGlyph);
 
         _searchLabel.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label3");
         row.Children.Add(_searchLabel);
@@ -147,6 +147,15 @@ public sealed class MacUnifiedToolbar : Border
     {
         Swap(_center, center);
         Swap(_trailing, trailing);
+        SetSearchCompact(center is not null || trailing is not null);
+    }
+
+    private void SetSearchCompact(bool compact)
+    {
+        _search.Width = compact ? 30 : 200;
+        _searchLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _searchShortcut.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _searchGlyph.Margin = new Thickness(compact ? -3 : 0, 0, compact ? -3 : 7, 0);
     }
 
     private static void Swap(ContentPresenter host, FrameworkElement? content)

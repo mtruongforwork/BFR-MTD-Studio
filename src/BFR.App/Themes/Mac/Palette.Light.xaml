@@ -46,4 +46,5 @@
     <SolidColorBrush x:Key="Mac.OkSoft" Color="#1A1E7B34" />
     <SolidColorBrush x:Key="Mac.BadSoft" Color="#1AC9251C" />
     <SolidColorBrush x:Key="Mac.WarnSoft" Color="#1A8A5300" />
+    <SolidColorBrush x:Key="Mac.DiffAddLine" Color="#00000000" />
 </ResourceDictionary>

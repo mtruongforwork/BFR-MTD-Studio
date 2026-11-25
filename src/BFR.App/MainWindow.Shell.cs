@@ -46,6 +46,7 @@ public partial class MainWindow
         ApplySidebarState(animate: false);
 
         PreviewKeyDown += OnShellShortcut;
+        InitializeRenameShell();
         SyncShell();
     }
 
@@ -53,6 +54,7 @@ public partial class MainWindow
     {
         Sidebar.Localize(Loc.T);
         Toolbar.Localize(Loc.T);
+        if (_renameShell is not null) LocalizeRename();
         CloseDot.ToolTip = Loc.T("TitleClose");
         MinimizeDot.ToolTip = Loc.T("TitleMinimize");
         ZoomDot.ToolTip = Loc.T("TitleMaximize");
@@ -181,7 +183,7 @@ public partial class MainWindow
         Sidebar.SetShelfCount(_shelfModel.Items.Count);
         Toolbar.SetTitle(PageBreadcrumbTitle(_currentPage));
         Toolbar.SetHistory(_backStack.Count > 0, _forwardStack.Count > 0);
-        BindShellContent(page as IMacShellContent);
+        BindShellContent(_currentPage == "Rename" ? _renameShell : page as IMacShellContent);
     }
 
     /// <summary>Gọi từ GetPage: trang tự đổi chế độ (bấm tab trong trang) thì thanh bên đổi theo.</summary>
@@ -240,9 +242,29 @@ public partial class MainWindow
     {
         var width = open ? InspectorOpenWidth : 0;
         InspectorClip.IsEnabled = open;
-        if (Math.Abs(InspectorClip.Width - width) < 0.5) return;
-        if (animate) Motion.AnimateWidth(InspectorClip, width);
-        else InspectorClip.Width = width;
+        if (open) InspectorContent.Visibility = Visibility.Visible;
+
+        // Đã đóng thì ẩn hẳn: chỉ co về 0 thì trình đọc màn hình vẫn thấy các điều khiển của trang trước.
+        void HideWhenClosed()
+        {
+            if (!InspectorClip.IsEnabled) InspectorContent.Visibility = Visibility.Collapsed;
+        }
+
+        if (Math.Abs(InspectorClip.Width - width) < 0.5)
+        {
+            if (!open) HideWhenClosed();
+            return;
+        }
+
+        if (animate)
+        {
+            Motion.To(InspectorClip, WidthProperty, width, MotionKind.Standard, open ? null : HideWhenClosed);
+        }
+        else
+        {
+            InspectorClip.Width = width;
+            if (!open) HideWhenClosed();
+        }
     }
 
     private void ToggleInspector()
@@ -278,6 +300,8 @@ public partial class MainWindow
 
     private void OnShellShortcut(object sender, KeyEventArgs e)
     {
+        if (SheetHost.IsOpen) return;   // sheet đang mở thì nó giữ bàn phím
+
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var modifiers = Keyboard.Modifiers;
 
