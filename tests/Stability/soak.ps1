@@ -84,13 +84,7 @@ try {
 
     function Go-Rename {
         if ($null -ne (Find-Visible $win 'Preview table')) { return }
-        Select-Nav $win 'Nav home'
-        Start-Sleep -Milliseconds 250
-        foreach ($lbl in @('Batch Rename', 'Đổi tên hàng loạt')) {
-            $card = Find-Visible $win $lbl
-            if ($null -ne $card) { $card.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return }
-        }
-        throw "Không tìm thấy thẻ Batch Rename trên Trang chủ"
+        Select-Nav $win 'Nav rename'
     }
 
     function Rename-Cycle {
@@ -125,23 +119,18 @@ try {
         $langIndex = $rng.Next(0, 4)
         [void](Select-ComboIndex $win 'Language selector' $langIndex)
         $script:lang = $langCodes[$langIndex]
-        $accent = @('Aurora', 'Mint', 'Sunset')[$rng.Next(3)]
-        Select-Item $win $accent
+        Select-Accent $win @('Blue', 'Purple', 'Green')[$rng.Next(3)]
         $stats.Appearance++
-    }
-
-    function Get-ToolTiles {
-        @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button })
     }
 
     # Vào trang Công cụ ở màn hình lưới (nếu đang kẹt trong một công cụ thì quay lại), trả về các ô.
     function Enter-ToolsHome {
         Select-Nav $win 'Nav tools'
         Start-Sleep -Milliseconds 300
-        $tiles = Get-ToolTiles
+        $tiles = @(Get-ToolTiles $win)
         if ($tiles.Count -eq 0) {
             $back = Find-Visible $win 'Back to tools home'
-            if ($back) { $back.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 400; $tiles = Get-ToolTiles }
+            if ($back) { $back.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 400; $tiles = @(Get-ToolTiles $win) }
         }
         if ($tiles.Count -eq 0) { throw "Không thấy ô công cụ. Nút đang hiện: $(Get-VisibleButtonNames $win)" }
         return $tiles

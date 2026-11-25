@@ -8,10 +8,10 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using BFR.App.Infrastructure;
 using BFR.Core;
 using BFR.Core.Licensing;
 using BFR.Presentation.Tools;
-using Ui = Wpf.Ui.Controls;
 
 /// <summary>
 /// Trang "Công cụ": danh sách các công cụ tệp bên trái, khung công cụ dùng chung bên phải, cộng thêm màn quản lý khu cách ly.
@@ -91,14 +91,16 @@ public sealed class ToolsPage : PageBase, IMacShellContent
         left.Visibility = Visibility.Collapsed;
 
         var backContent = new StackPanel { Orientation = Orientation.Horizontal };
-        backContent.Children.Add(new TextBlock { Text = "", FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        var chevron = new MacIcon { Size = 14, Margin = new Thickness(0, 0, 4, 0) };
+        chevron.SetResourceReference(MacIcon.DataProperty, "Icon.ChevronLeft");
+        backContent.Children.Add(chevron);
         backContent.Children.Add(new TextBlock { Text = Loc.T("ToolsHomeTitle"), VerticalAlignment = VerticalAlignment.Center });
         _back.Content = backContent;
-        _back.Style = (Style)Application.Current.FindResource("BfrGhostButton");
+        _back.SetResourceReference(StyleProperty, "Mac.ToolbarButton");
         _back.HorizontalAlignment = HorizontalAlignment.Left;
         _back.Margin = new Thickness(18, 12, 0, 0);
         _back.Visibility = Visibility.Collapsed;
-        _back.Click += (_, _) => _list.SelectedItem = _entries.First(e => e.Key == "home");
+        _back.Click += (_, _) => BackToHome();
         System.Windows.Automation.AutomationProperties.SetName(_back, "Back to tools home");
 
         var right = new Grid();
@@ -162,6 +164,15 @@ public sealed class ToolsPage : PageBase, IMacShellContent
               </StackPanel>
             </DataTemplate>
             """);
+    }
+
+    /// <summary>Quay về lưới công cụ; công cụ đang mở thu về đúng ô của nó (M2).</summary>
+    private void BackToHome()
+    {
+        var leaving = (_list.SelectedItem as Entry)?.Key;
+        MacZoom.Close(
+            () => _list.SelectedItem = _entries.First(e => e.Key == "home"),
+            () => leaving is null ? null : _home?.IconOf(leaving));
     }
 
     private void Show(Entry entry)
@@ -229,7 +240,7 @@ public sealed class ToolsPage : PageBase, IMacShellContent
     public void OpenTool(string key, IEnumerable<string> paths, IReadOnlyDictionary<string, string>? values = null)
     {
         AddPending(paths);
-        var target = KnownTools.IsKnown(key) ? key : "home";
+        var target = _entries.Any(e => e.Key == key) ? key : "home";   // gồm cả mục chỉ mở từ lưới (OCR, khu cách ly)
         OpenTool(target);
 
         if (values is { Count: > 0 } && _views.TryGetValue(target, out var view) && view is ToolView toolView) toolView.ApplyValues(values);
@@ -307,9 +318,10 @@ internal sealed class QuarantineView : UserControl
         panel.Children.Add(_usage);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        var open = new Ui.Button { Content = Loc.T("ToolQuarantineOpen"), Appearance = Ui.ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(14, 6, 14, 6) };
+        var open = MacDetailPane.CreateButton(Loc.T("ToolQuarantineOpen"));
+        open.Margin = new Thickness(0, 0, 8, 0);
         open.Click += (_, _) => Open();
-        var purge = new Ui.Button { Content = Loc.F("ToolQuarantinePurge", QuarantineStore.DefaultRetentionDays), Appearance = Ui.ControlAppearance.Secondary, Padding = new Thickness(14, 6, 14, 6) };
+        var purge = MacDetailPane.CreateButton(Loc.F("ToolQuarantinePurge", QuarantineStore.DefaultRetentionDays));
         purge.Click += (_, _) => Purge();
         buttons.Children.Add(open);
         buttons.Children.Add(purge);

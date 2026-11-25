@@ -12,6 +12,7 @@ Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
 using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
 public static class StabNative {
   [DllImport("user32.dll")] public static extern uint GetGuiResources(IntPtr hProcess, uint flags); // 0 = GDI, 1 = USER
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
   [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
@@ -105,9 +106,9 @@ function Invoke-WarmUp($win) {
     }
     try {
         Select-Nav $win 'Nav tools'; Start-Sleep -Milliseconds 400
-        $count = @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button }).Count
+        $count = @(Get-ToolTiles $win).Count
         for ($i = 0; $i -lt $count; $i++) {
-            $tiles = @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button })
+            $tiles = @(Get-ToolTiles $win)
             if ($tiles.Count -eq 0) { break }
             $tiles[$i % $tiles.Count].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Start-Sleep -Milliseconds 400
@@ -135,8 +136,50 @@ function Get-MainWindow($proc, [int]$timeoutMs = 45000) {
     return $script:__w
 }
 
+# Bấm Yes trên hộp thoại MessageBox của app. Một số bản Windows không cho nút của hộp thoại này InvokePattern,
+# nên gửi WM_COMMAND (IDYES = 6) thẳng tới đúng hộp thoại đó: không dùng chuột hay bàn phím.
+function Confirm-MessageBox($win) {
+    $cond = New-Object System.Windows.Automation.AndCondition((Prop-Cond $script:AE::ControlTypeProperty $script:CT::Window), (Prop-Cond $script:AE::ClassNameProperty '#32770'))
+    $box = $win.FindFirst($script:TS::Descendants, $cond)
+    if ($null -eq $box) { return $false }
+    return [StabNative]::PostMessage([IntPtr]$box.Current.NativeWindowHandle, 0x0111, [IntPtr]6, [IntPtr]::Zero)
+}
+
+function Find-ById($parent, [string]$id) {
+    $parent.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::AutomationIdProperty $id))
+}
+
+function Invoke-Id($win, [string]$id) {
+    $el = Find-ById $win $id
+    if ($null -eq $el) { throw "Không thấy '$id'" }
+    $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
+
+# Màu nhấn trên trang Cài đặt (tên hiển thị đổi theo ngôn ngữ nên chọn theo AutomationId).
+function Select-Accent($win, [string]$accent) {
+    $el = Find-ById $win "Accent.$accent"
+    if ($null -eq $el) { throw "Không thấy màu nhấn '$accent'" }
+    $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+}
+
+# Ô công cụ trên lưới đang hiện (không tính bốn ô mở trang Studio/Đổi tên).
+function Get-ToolTiles($win) {
+    $out = @()
+    foreach ($e in $win.FindAll($script:TS::Descendants, (Prop-Cond $script:AE::ControlTypeProperty $script:CT::Button))) {
+        $id = $e.Current.AutomationId
+        if ($id -like 'Tile.*' -and $id -notlike 'Tile.page:*' -and -not $e.Current.IsOffscreen) { $out += $e }
+    }
+    return $out
+}
+
+# Mục thanh bên: 'Nav home', 'Nav watch folder'... đổi thành AutomationId 'Nav.home', 'Nav.watch'
+# (thanh bên kiểu macOS đặt tên hiển thị theo ngôn ngữ, chỉ AutomationId là cố định).
 function Select-Nav($win, [string]$name) {
-    $nav = Find-Visible $win $name
+    $nav = $null
+    if ($name -match '^Nav (\S+)') { $nav = Find-ById $win ("Nav." + $Matches[1]) }
+    # Thanh bên đã thu thì bị vô hiệu hoá (không Tab hay chọn được): mở ra trước, như người dùng làm.
+    if ($null -ne $nav -and -not $nav.Current.IsEnabled) { Invoke-Id $win 'Shell.ToggleSidebar'; Start-Sleep -Milliseconds 450 }
+    if ($null -eq $nav) { $nav = Find-Visible $win $name }
     if ($null -eq $nav) { $nav = $win.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::NameProperty $name)) }
     if ($null -eq $nav) { throw "Không thấy mục '$name'" }
     $sel = $null

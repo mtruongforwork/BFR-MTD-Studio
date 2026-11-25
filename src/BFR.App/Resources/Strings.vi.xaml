@@ -1336,4 +1336,34 @@
     <sys:String x:Key="MacRenameAdd">Thêm tệp hoặc thư mục</sys:String>
     <sys:String x:Key="MacDismiss">Đóng thông báo</sys:String>
     <sys:String x:Key="MacUndo">Hoàn tác</sys:String>
+    <!-- v3.2 P6: Start, All tools, library pages -->
+    <sys:String x:Key="MacToolsNoMatch">Không có công cụ nào khớp.</sys:String>
+    <sys:String x:Key="MacGreetingMorning">Chào buổi sáng</sys:String>
+    <sys:String x:Key="MacGreetingAfternoon">Chào buổi chiều</sys:String>
+    <sys:String x:Key="MacGreetingEvening">Chào buổi tối</sys:String>
+    <sys:String x:Key="MacHomeDropHint">Chọn hoặc kéo thả tệp, rồi chọn thao tác phù hợp. Mọi thứ chạy ngay trên máy.</sys:String>
+    <sys:String x:Key="MacHomeRecent">Gần đây</sys:String>
+    <sys:String x:Key="MacHomeAllHistory">Xem lịch sử</sys:String>
+    <sys:String x:Key="MacHomeRecentEmpty">Chưa có thao tác nào. Những lần xử lý tệp gần nhất sẽ hiện ở đây.</sys:String>
+    <sys:String x:Key="MacHomeFavoritesHint">Bấm ★ trên một công cụ trong “Tất cả công cụ” để ghim vào đây và lên thanh bên.</sys:String>
+    <sys:String x:Key="MacHomeWatching">Đang theo dõi thư mục · {0} quy tắc</sys:String>
+    <sys:String x:Key="MacHomeWatchIdle">Theo dõi thư mục đang dừng · {0} quy tắc</sys:String>
+    <sys:String x:Key="MacHistoryRunDefault">Xử lý tệp</sys:String>
+    <sys:String x:Key="MacHistoryCount">{0} lần xử lý</sys:String>
+    <sys:String x:Key="MacHistorySelectHint">Chọn một lần xử lý để xem trước việc hoàn tác.</sys:String>
+    <sys:String x:Key="MacFilesCount">{0} tệp</sys:String>
+    <sys:String x:Key="MacDayToday">Hôm nay</sys:String>
+    <sys:String x:Key="MacDayYesterday">Hôm qua</sys:String>
+    <sys:String x:Key="MacDayPreviousWeek">7 ngày trước đó</sys:String>
+    <sys:String x:Key="MacDayEarlier">Cũ hơn</sys:String>
+    <sys:String x:Key="MacShelfEmptyTitle">Shelf đang trống</sys:String>
+    <sys:String x:Key="MacShelfSelectHint">Chọn một mục để xem chi tiết.</sys:String>
+    <sys:String x:Key="MacShelfRemove">Bỏ khỏi Shelf</sys:String>
+    <sys:String x:Key="MacShowInExplorer">Hiện trong Explorer</sys:String>
+    <sys:String x:Key="MacSelectedCount">Đã chọn {0} mục</sys:String>
+    <sys:String x:Key="MacDetailFolder">Thư mục</sys:String>
+    <sys:String x:Key="MacDetailSize">Kích thước</sys:String>
+    <sys:String x:Key="MacDetailModified">Sửa đổi</sys:String>
+    <sys:String x:Key="MacDetailState">Trạng thái</sys:String>
+    <sys:String x:Key="MacPresetSelectHint">Chọn một preset để xem chuỗi quy tắc.</sys:String>
 </ResourceDictionary>

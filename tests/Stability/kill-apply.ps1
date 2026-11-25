@@ -83,7 +83,7 @@ try {
             Select-Nav $win 'Nav history'
             Start-Sleep -Milliseconds 800
             $grid = Find-Visible $win 'Rename Runs History Table'
-            $items = if ($grid) { @($grid.FindAll($script:TS::Descendants, (Prop-Cond $script:AE::ControlTypeProperty $script:CT::DataItem))) } else { @() }
+            $items = if ($grid) { @($grid.FindAll($script:TS::Descendants, (Prop-Cond $script:AE::ControlTypeProperty $script:CT::ListItem))) } else { @() }
             $row.HistoryRows = $items.Count
 
             if ($st.Renamed -gt 0) {
@@ -97,7 +97,9 @@ try {
                     Invoke-Named $win 'Undo Selected Run'
                     # Có thể có hộp thoại xác nhận hoàn tác: bấm nút xác nhận nếu có.
                     Start-Sleep -Milliseconds 800
-                    foreach ($label in 'Undo', 'Yes', 'OK') { $b = Find-WithPattern $win $label ([System.Windows.Automation.InvokePattern]::Pattern); if ($b) { $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); break } }
+                    $pressed = $false
+                    foreach ($label in 'Undo', 'Yes', 'OK') { $b = Find-WithPattern $win $label ([System.Windows.Automation.InvokePattern]::Pattern); if ($b) { $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); $pressed = $true; break } }
+                    if (-not $pressed) { [void](Confirm-MessageBox $win) }
                     [void](Wait-For { (Get-State $data).Renamed -eq 0 } 60000 500)
                     $after = Get-State $data
                     $row.Restored = if ($after.Renamed -eq 0 -and $after.Missing -eq 0 -and $after.Temps -eq 0) { 'đúng nguyên trạng' } else { "còn $($after.Renamed) tệp đổi, $($after.Temps) tên tạm" }

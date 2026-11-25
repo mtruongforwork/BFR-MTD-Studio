@@ -183,4 +183,15 @@ public sealed class WatchRuleTests : IDisposable
         }
         return condition();
     }
+
+    [Fact]
+    public void Store_Save_CreatesTheFolderOnAMachineThatNeverUsedWatch()
+    {
+        var path = Path.Combine(_root, "fresh", "watch", "rules.json");
+        var store = new WatchRuleStore(new RealFileSystem(), path);
+
+        store.Save(new List<WatchRule> { new() { Name = "new rule" } });
+
+        Assert.True(File.Exists(path));
+    }
 }

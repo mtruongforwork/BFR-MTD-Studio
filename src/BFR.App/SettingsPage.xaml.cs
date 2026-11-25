@@ -127,6 +127,7 @@ public class SettingsPage : PageBase
                 IsChecked = accent.Id == savedAccent.Id
             };
             AutomationProperties.SetName(option, label);
+            AutomationProperties.SetAutomationId(option, "Accent." + accent.Id);
             var chosen = accent.Id;
             option.Checked += (_, _) =>
             {

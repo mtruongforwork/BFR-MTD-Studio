@@ -54,7 +54,7 @@ try {
                 0 { [void](Select-ComboIndex $win 'Theme selector' $rng.Next(1, 3)) }
                 1 { [void](Select-ComboIndex $win 'Language selector' $rng.Next(0, 4)) }
                 default {
-                    Select-Item $win @('Aurora', 'Mint', 'Sunset')[$rng.Next(3)]
+                    Select-Accent $win @('Blue', 'Purple', 'Green')[$rng.Next(3)]
                 }
             }
             $ms = $sw.ElapsedMilliseconds

@@ -4,50 +4,40 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Media;
-using BFR.App.Controls;
+using BFR.App.Controls.Mac;
+using BFR.App.Infrastructure;
 using BFR.Core;
+using BFR.Presentation.Design;
 using BFR.Presentation.Tools;
 
 /// <summary>
-/// Trang chủ của All Tools v3.0: tab phân loại kiểu iLovePDF (All, ★ Favorites, PDF, Docs &amp; Data, Images,
-/// Organize &amp; Rename, Security), nút gắn sao yêu thích ★ lưu trong SettingsStore.FavoriteTools,
-/// tìm kiếm tức thì và bố cục Bento cân đối.
+/// "Tất cả công cụ" (v3.2): lưới ô biểu tượng theo ba nhóm PDF / Tài liệu / Tệp &amp; ảnh kiểu Launchpad,
+/// ô lọc làm các ô còn lại trượt về chỗ mới, nút ★ ghim công cụ lên thanh bên và trang chủ.
 /// </summary>
 internal sealed class ToolsHomeView : UserControl
 {
-    private const string TabAll = "all";
-    private const string TabFavorites = "favorites";
+    private sealed record Entry(MacToolTile Tile, string Description, MacToolGroup Group);
 
-    private sealed record ToolCardEntry(
-        string Key,
-        string Icon,
-        string Title,
-        string Description,
-        ToolCategory Category,
-        bool IsPro);
+    private sealed record GroupView(MacToolGroup Group, TextBlock Header, WrapPanel Panel);
 
-    private readonly List<ToolCardEntry> _entries = new();
+    private readonly List<Entry> _entries = new();
+    private readonly List<GroupView> _groups = new();
     private readonly HashSet<string> _favorites;
     private readonly Action<string> _open;
     private readonly Action<string>? _navigatePage;
-    private readonly TextBlock _pending = new();
+    private readonly TextBlock _pending = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Border _banner = new();
     private readonly TextBox _search = new();
-    private readonly WrapPanel _categoryTabs = new() { Margin = new Thickness(0, 0, 0, 14) };
-    private readonly UniformGrid _grid = new() { Columns = 3, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-6, 0, -6, 16) };
-    private readonly TextBlock _emptyFavorites = new();
-
-    private string _activeCategory = TabAll;
+    private readonly TextBlock _noMatch = new() { Margin = new Thickness(2, 12, 0, 0) };
 
     public ToolsHomeView(IReadOnlyList<ITool> tools, Action<string> open, Action<IEnumerable<string>> drop, Action<string>? navigatePage = null)
     {
         _open = open;
         _navigatePage = navigatePage;
-        var saved = SettingsStore.Load().FavoriteTools ?? new List<string>();
-        _favorites = new HashSet<string>(saved, StringComparer.OrdinalIgnoreCase);
+        _favorites = new HashSet<string>(SettingsStore.Load().FavoriteTools ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
 
         AllowDrop = true;
         Drop += (_, e) =>
@@ -61,319 +51,195 @@ internal sealed class ToolsHomeView : UserControl
             e.Handled = true;
         };
 
+        var root = new StackPanel { Margin = new Thickness(28, 18, 28, 24), MaxWidth = 1100 };
+        root.Children.Add(BuildHeader());
+
+        _pending.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        _banner.Child = _pending;
+        _banner.CornerRadius = new CornerRadius(8);
+        _banner.Padding = new Thickness(12, 8, 12, 8);
+        _banner.Margin = new Thickness(0, 12, 0, 0);
+        _banner.SetResourceReference(Border.BackgroundProperty, "Mac.AccentSoft");
+        _banner.Visibility = Visibility.Collapsed;
+        root.Children.Add(_banner);
+
+        foreach (var group in new[] { MacToolGroup.Pdf, MacToolGroup.Documents, MacToolGroup.Files })
+        {
+            var header = new TextBlock { Text = Loc.T(MacToolGroups.TitleKey(group)), Margin = new Thickness(2, 18, 0, 8) };
+            header.SetResourceReference(StyleProperty, "Mac.Section");
+            var panel = new WrapPanel();
+            _groups.Add(new GroupView(group, header, panel));
+            root.Children.Add(header);
+            root.Children.Add(panel);
+        }
+
+        BuildEntries(tools);
+
+        _noMatch.Text = Loc.T("MacToolsNoMatch");
+        _noMatch.SetResourceReference(StyleProperty, "Mac.Callout");
+        _noMatch.Visibility = Visibility.Collapsed;
+        root.Children.Add(_noMatch);
+
+        var scroll = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        scroll.SetResourceReference(StyleProperty, "Mac.ScrollViewer");
+        Content = scroll;
+        SetPending(0);
+    }
+
+    /// <summary>Biểu tượng của một công cụ trên lưới, nếu đang được hiển thị (đích của hiệu ứng thu về).</summary>
+    public MacToolIcon? IconOf(string key) =>
+        _entries.FirstOrDefault(e => string.Equals(e.Tile.Key, key, StringComparison.OrdinalIgnoreCase)) is { Tile.IsVisible: true } entry
+            ? entry.Tile.Icon
+            : null;
+
+    private FrameworkElement BuildHeader()
+    {
+        var row = new DockPanel();
+
+        _search.SetResourceReference(StyleProperty, "Mac.SearchBox");
+        _search.Width = 220;
+        _search.VerticalAlignment = VerticalAlignment.Top;
+        _search.Margin = new Thickness(16, 4, 0, 0);
+        _search.Tag = TryLoc("ToolsSearchPlaceholder", "Filter tools…");
+        _search.TextChanged += (_, _) => ApplyFilter();
+        AutomationProperties.SetName(_search, "Filter tools");
+        DockPanel.SetDock(_search, Dock.Right);
+        row.Children.Add(_search);
+
+        var titles = new StackPanel();
+        var title = new TextBlock { Text = Loc.T("ToolsHomeTitle") };
+        title.SetResourceReference(StyleProperty, "Mac.LargeTitle");
+        titles.Children.Add(title);
+        var subtitle = new TextBlock { Text = Loc.T("ToolsHomeSubtitle"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        subtitle.SetResourceReference(StyleProperty, "Mac.Callout");
+        titles.Children.Add(subtitle);
+        row.Children.Add(titles);
+        return row;
+    }
+
+    private void BuildEntries(IReadOnlyList<ITool> tools)
+    {
         if (_navigatePage is not null)
         {
-            _entries.Add(new ToolCardEntry("page:PdfStudio", "\uEA90", Loc.T("NavPdfStudio"), TryLoc("HomePdfStudioSub", "Tổ chức, nén, đóng dấu, bảo mật và chuyển đổi PDF"), ToolCategory.Pdf, false));
-            _entries.Add(new ToolCardEntry("page:DocsOcr", "\uE8A5", Loc.T("NavDocsOcr"), TryLoc("HomeDocsOcrSub", "Office sang PDF, OCR ngoại tuyến, dọn dữ liệu ẩn & bảng tính"), ToolCategory.Docs, false));
-            _entries.Add(new ToolCardEntry("page:Rename", "\uE8AC", Loc.T("NavRename"), TryLoc("HomeRenameSub", "Chuỗi quy tắc đổi tên hàng loạt, xem trước trực tiếp & hoàn tác"), ToolCategory.Organize, false));
-            _entries.Add(new ToolCardEntry("page:MediaClean", "\uEB9F", Loc.T("NavMediaClean"), TryLoc("HomeMediaSub", "Tách nền AI, phóng nét ảnh & tìm tệp trùng lặp"), ToolCategory.Images, false));
+            Add("page:PdfStudio", Loc.T("NavPdfStudio"), TryLoc("HomePdfStudioSub", "Organize, compress, stamp, secure and convert PDFs"), ToolCategory.Pdf);
+            Add("page:DocsOcr", Loc.T("NavDocsOcr"), TryLoc("HomeDocsOcrSub", "Office to PDF, offline OCR, privacy cleanup & spreadsheets"), ToolCategory.Docs);
+            Add("page:Rename", Loc.T("NavRename"), TryLoc("HomeRenameSub", "Batch rename rule chains with live preview and undo"), ToolCategory.Organize);
+            Add("page:MediaClean", Loc.T("NavMediaClean"), TryLoc("HomeMediaSub", "AI background removal & duplicate finder"), ToolCategory.Images);
         }
 
         foreach (var tool in tools)
         {
-            var isPro = string.Equals(tool.Key, "workflow", StringComparison.OrdinalIgnoreCase);
-            _entries.Add(new ToolCardEntry(
-                tool.Key,
-                tool.Icon,
-                TryLoc(tool.TitleKey, tool.Key),
-                TryLoc(tool.DescriptionKey, string.Empty),
-                tool.Category,
-                isPro));
+            Add(tool.Key, TryLoc(tool.TitleKey, tool.Key), TryLoc(tool.DescriptionKey, string.Empty), tool.Category,
+                isPro: string.Equals(tool.Key, "workflow", StringComparison.OrdinalIgnoreCase));
         }
-        _entries.Add(new ToolCardEntry(
-            "quarantine",
-            "\uE74D",
-            Loc.T("ToolQuarantineTitle"),
-            Loc.F("ToolQuarantineDesc", QuarantineStore.DefaultRetentionDays),
-            ToolCategory.Security,
-            false));
 
-        var root = new StackPanel { Margin = new Thickness(24, 18, 24, 24), MaxWidth = 1360, HorizontalAlignment = HorizontalAlignment.Stretch };
-
-        // Tiêu đề + ô tìm kiếm nhanh
-        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-        var searchBox = BuildSearchBox();
-        DockPanel.SetDock(searchBox, Dock.Right);
-        headerRow.Children.Add(searchBox);
-
-        var titles = new StackPanel();
-        titles.Children.Add(new TextBlock
-        {
-            Text = Loc.T("ToolsHomeTitle"),
-            FontSize = (double)Application.Current.FindResource("AppFontSizeTitle"),
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Application.Current.FindResource("TextPrimary")
-        });
-        titles.Children.Add(new TextBlock
-        {
-            Text = Loc.T("ToolsHomeSubtitle"),
-            Style = (Style)Application.Current.FindResource("CaptionTextStyle"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 16, 0)
-        });
-        headerRow.Children.Add(titles);
-        root.Children.Add(headerRow);
-
-        // Thanh tab phân loại kiểu iLovePDF
-        BuildCategoryPills();
-        root.Children.Add(_categoryTabs);
-
-        _pending.TextWrapping = TextWrapping.Wrap;
-        _pending.Foreground = (Brush)Application.Current.FindResource("TextPrimary");
-        _banner.Child = _pending;
-        _banner.Style = (Style)Application.Current.FindResource("CardStyle");
-        _banner.Padding = new Thickness(12);
-        _banner.Margin = new Thickness(0, 0, 0, 14);
-        _banner.Visibility = Visibility.Collapsed;
-        root.Children.Add(_banner);
-
-        _emptyFavorites.Text = TryLoc("ToolsEmptyFavorites", "No favorite tools yet. Click ★ on any tool to pin it here.");
-        _emptyFavorites.Style = (Style)Application.Current.FindResource("CaptionTextStyle");
-        _emptyFavorites.Margin = new Thickness(4, 12, 4, 12);
-        _emptyFavorites.Visibility = Visibility.Collapsed;
-        root.Children.Add(_emptyFavorites);
-
-        root.Children.Add(_grid);
-        RenderTiles();
-
-        Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        SetPending(0);
+        Add("quarantine", Loc.T("ToolQuarantineTitle"), Loc.F("ToolQuarantineDesc", QuarantineStore.DefaultRetentionDays), ToolCategory.Security);
     }
 
-    private void BuildCategoryPills()
+    private void Add(string key, string title, string description, ToolCategory category, bool isPro = false)
     {
-        _categoryTabs.Children.Clear();
-        var tabs = new (string Id, string Label)[]
-        {
-            (TabAll, TryLoc("ToolsCatAll", "All")),
-            (TabFavorites, TryLoc("ToolsCatFavorites", "★ Favorites")),
-            (ToolCategory.Pdf.ToString(), TryLoc("ToolsCatPdf", "PDF")),
-            (ToolCategory.Docs.ToString(), TryLoc("ToolsCatDocs", "Docs & Data")),
-            (ToolCategory.Images.ToString(), TryLoc("ToolsCatImages", "Images")),
-            (ToolCategory.Organize.ToString(), TryLoc("ToolsCatOrganize", "Organize & Rename")),
-            (ToolCategory.Security.ToString(), TryLoc("ToolsCatSecurity", "Security"))
-        };
+        var tile = new MacToolTile(key, title, description, _favorites.Contains(key), isPro);
+        tile.SetFavoriteTips(TryLoc("ToolsFavoriteAddTip", "Pin to Favorites"), TryLoc("ToolsFavoriteRemoveTip", "Remove from Favorites"));
+        tile.Opened += OnOpened;
+        tile.FavoriteToggled += (sender, pinned) => SetFavorite(sender.Key, pinned);
 
-        var seg = new MacSegmentedControl(tabs, _activeCategory);
-        seg.SelectionChanged += id =>
-        {
-            _activeCategory = id;
-            RenderTiles();
-        };
-        _categoryTabs.Children.Add(seg);
+        var group = MacToolGroups.Of(key, category);
+        _entries.Add(new Entry(tile, description, group));
+        _groups.First(g => g.Group == group).Panel.Children.Add(tile);
     }
 
-    private void ToggleFavorite(string toolKey)
+    private void OnOpened(MacToolTile tile) => MacZoom.Open(tile.Icon, () =>
     {
-        if (!_favorites.Add(toolKey))
-            _favorites.Remove(toolKey);
+        if (tile.Key.StartsWith("page:", StringComparison.Ordinal) && _navigatePage is not null)
+            _navigatePage(tile.Key["page:".Length..]);
+        else
+            _open(tile.Key);
+    });
+
+    private void SetFavorite(string key, bool pinned)
+    {
+        if (pinned) _favorites.Add(key);
+        else _favorites.Remove(key);
 
         var settings = SettingsStore.Load();
         settings.FavoriteTools = _favorites.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         SettingsStore.Save(settings);
-        RenderTiles();
         (Window.GetWindow(this) as MainWindow)?.RefreshSidebarFavorites();
     }
 
-    private UIElement BuildSearchBox()
+    /// <summary>Lọc theo tên, mô tả hoặc khoá (không phân biệt dấu); ô còn lại trượt từ chỗ cũ về chỗ mới.</summary>
+    private void ApplyFilter()
     {
-        var border = new Border
+        var before = Positions();
+        var query = _search.Text;
+
+        foreach (var entry in _entries)
         {
-            Width = 240,
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = (Brush)Application.Current.FindResource("BfrGlassFillStrong"),
-            BorderBrush = (Brush)Application.Current.FindResource("BfrLine"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(10, 4, 10, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var match = MacNavigation.Matches(query, entry.Tile.Title, entry.Description, entry.Tile.Key);
+            entry.Tile.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+        }
 
-        var icon = new TextBlock
+        var any = false;
+        foreach (var group in _groups)
         {
-            Text = "\uE721",
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-            FontSize = 13,
-            Foreground = (Brush)Application.Current.FindResource("TextSecondary"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        Grid.SetColumn(icon, 0);
+            var visible = _entries.Any(e => e.Group == group.Group && e.Tile.Visibility == Visibility.Visible);
+            group.Header.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            group.Panel.Visibility = group.Header.Visibility;
+            any |= visible;
+        }
 
-        _search.BorderThickness = new Thickness(0);
-        _search.Background = Brushes.Transparent;
-        _search.Foreground = (Brush)Application.Current.FindResource("TextPrimary");
-        _search.CaretBrush = (Brush)Application.Current.FindResource("TextPrimary");
-        _search.VerticalContentAlignment = VerticalAlignment.Center;
-        _search.ToolTip = TryLoc("ToolsSearchPlaceholder", "Filter tools…");
-        _search.TextChanged += (_, _) => RenderTiles();
-        System.Windows.Automation.AutomationProperties.SetName(_search, "Filter tools");
-        Grid.SetColumn(_search, 1);
+        _noMatch.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+        SlideFrom(before);
+    }
 
-        grid.Children.Add(icon);
-        grid.Children.Add(_search);
-        border.Child = grid;
-        return border;
+    private Dictionary<MacToolTile, Point> Positions()
+    {
+        var positions = new Dictionary<MacToolTile, Point>();
+        if (Motion.Reduced || !IsVisible) return positions;
+        foreach (var entry in _entries)
+        {
+            if (entry.Tile.IsVisible) positions[entry.Tile] = entry.Tile.TranslatePoint(new Point(0, 0), this);
+        }
+
+        return positions;
+    }
+
+    private void SlideFrom(Dictionary<MacToolTile, Point> before)
+    {
+        if (Motion.Reduced || !IsVisible) return;
+        UpdateLayout();
+        foreach (var entry in _entries)
+        {
+            var tile = entry.Tile;
+            if (tile.Visibility != Visibility.Visible) continue;
+
+            if (!before.TryGetValue(tile, out var old))
+            {
+                Motion.FadeIn(tile, MotionKind.Standard);
+                continue;
+            }
+
+            var now = tile.TranslatePoint(new Point(0, 0), this);
+            if ((now - old).Length <= 0.5) continue;
+
+            // Chỉ trượt, không mờ: ô vẫn là ô đó, chỉ đổi chỗ.
+            var move = Motion.RigOf(tile).Move;
+            Slide(move, TranslateTransform.XProperty, old.X - now.X);
+            Slide(move, TranslateTransform.YProperty, old.Y - now.Y);
+        }
+    }
+
+    private static void Slide(TranslateTransform move, DependencyProperty axis, double from)
+    {
+        move.BeginAnimation(axis, null);
+        move.SetValue(axis, from);
+        Motion.To(move, axis, 0, MotionKind.Standard);
     }
 
     private static string TryLoc(string key, string fallback)
     {
         var value = Application.Current?.TryFindResource(key) as string;
         return string.IsNullOrEmpty(value) ? fallback : value;
-    }
-
-    private void RenderTiles()
-    {
-        _grid.Children.Clear();
-        var query = _search.Text.Trim();
-
-        IEnumerable<ToolCardEntry> filtered = _entries;
-        if (string.Equals(_activeCategory, TabFavorites, StringComparison.OrdinalIgnoreCase))
-        {
-            filtered = filtered.Where(e => _favorites.Contains(e.Key));
-        }
-        else if (!string.Equals(_activeCategory, TabAll, StringComparison.OrdinalIgnoreCase)
-            && Enum.TryParse<ToolCategory>(_activeCategory, ignoreCase: true, out var cat))
-        {
-            filtered = filtered.Where(e => e.Category == cat);
-        }
-
-        if (query.Length > 0)
-        {
-            filtered = filtered.Where(e =>
-                e.Title.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-                || e.Description.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-                || e.Key.Contains(query, StringComparison.OrdinalIgnoreCase));
-        }
-
-        var items = filtered.ToList();
-        _emptyFavorites.Visibility = items.Count == 0 && string.Equals(_activeCategory, TabFavorites, StringComparison.OrdinalIgnoreCase)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        foreach (var entry in items)
-        {
-            var tile = new BentoCard
-            {
-                IsInteractive = true,
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(14, 12, 14, 12),
-                Margin = new Thickness(6),
-                MinHeight = 96
-            };
-
-            var panel = new StackPanel();
-            var head = new DockPanel { LastChildFill = true };
-
-            // Nút gắn sao yêu thích ★
-            var isFav = _favorites.Contains(entry.Key);
-            var key = entry.Key;
-            var starBtn = new Button
-            {
-                Content = new TextBlock
-                {
-                    Text = isFav ? "\uE735" : "\uE734",
-                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                    FontSize = 13.5,
-                    Foreground = isFav
-                        ? (Brush)Application.Current.FindResource("BfrWarn")
-                        : (Brush)Application.Current.FindResource("BfrFg3")
-                },
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Padding = new Thickness(4, 2, 4, 2),
-                Margin = new Thickness(6, 0, 0, 0),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = isFav
-                    ? TryLoc("ToolsFavoriteRemoveTip", "Remove from Favorites")
-                    : TryLoc("ToolsFavoriteAddTip", "Pin to Favorites")
-            };
-            starBtn.Click += (_, e) =>
-            {
-                e.Handled = true;
-                ToggleFavorite(key);
-            };
-            DockPanel.SetDock(starBtn, Dock.Right);
-            head.Children.Add(starBtn);
-
-            if (entry.IsPro)
-            {
-                var badge = new Border
-                {
-                    Background = (Brush)Application.Current.FindResource("ChipSelectedBackground"),
-                    BorderBrush = (Brush)Application.Current.FindResource("ChipSelectedBorder"),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(6, 1, 6, 1),
-                    Margin = new Thickness(6, 0, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Child = new TextBlock
-                    {
-                        Text = "PRO",
-                        FontSize = 10,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = (Brush)Application.Current.FindResource("BfrAccFg")
-                    }
-                };
-                DockPanel.SetDock(badge, Dock.Right);
-                head.Children.Add(badge);
-            }
-
-            var tone = entry.Category switch
-            {
-                ToolCategory.Pdf => SquircleTone.PdfCoral,
-                ToolCategory.Docs => SquircleTone.DocsBlue,
-                ToolCategory.Security => SquircleTone.WarningAmber,
-                _ => SquircleTone.FilesPurple
-            };
-            var left = new StackPanel { Orientation = Orientation.Horizontal };
-            left.Children.Add(new SquircleIcon
-            {
-                Glyph = entry.Icon,
-                Tone = tone,
-                Width = 24,
-                Height = 24,
-                IconSize = 13,
-                CornerRadius = new CornerRadius(6),
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            left.Children.Add(new TextBlock
-            {
-                Text = entry.Title,
-                FontFamily = (FontFamily)Application.Current.FindResource("BfrFontHeading"),
-                FontSize = 15,
-                Foreground = (Brush)Application.Current.FindResource("BfrFg"),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            head.Children.Add(left);
-
-            panel.Children.Add(head);
-            panel.Children.Add(new TextBlock
-            {
-                Text = entry.Description,
-                Style = (Style)Application.Current.FindResource("CaptionTextStyle"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 8, 0, 0),
-                MaxHeight = 72,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            tile.Content = panel;
-
-            tile.Invoked += (_, _) =>
-            {
-                if (key.StartsWith("page:", StringComparison.Ordinal) && _navigatePage is not null)
-                    _navigatePage(key["page:".Length..]);
-                else
-                    _open(key);
-            };
-            System.Windows.Automation.AutomationProperties.SetName(tile, "Open " + entry.Title);
-            _grid.Children.Add(tile);
-        }
     }
 
     public void SetPending(int count)

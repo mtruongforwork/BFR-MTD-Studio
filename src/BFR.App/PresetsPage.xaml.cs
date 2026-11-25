@@ -1,32 +1,36 @@
 namespace BFR.App;
 
+using BFR.App.Controls.Mac;
 using BFR.Core;
 using BFR.Core.Licensing;
+using BFR.Presentation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using BFR.App.Infrastructure;
-using Ui = Wpf.Ui.Controls;
-using System.Windows.Controls;
 using System.Windows.Automation;
+using System.Windows.Controls;
 
 /// <summary>
-/// Cửa sổ Thư viện preset: lưu preset hiện tại vào thư viện cục bộ, áp dụng hoặc xoá.
+/// Thư viện preset (master–detail): danh sách có ô tìm ở vùng nội dung; mô tả, chuỗi quy tắc và các nút
+/// Áp dụng / Chia sẻ / Xoá ở inspector; Lưu preset hiện tại và Nhập từ clipboard trên toolbar.
 /// Bản Free lưu tối đa 3 preset; Pro lưu không giới hạn (PHẦN 3.6).
 /// </summary>
-public class PresetsPage : PageBase
+public class PresetsPage : PageBase, IMacShellContent
 {
     private readonly PresetStore _store;
     private readonly LicenseService _license;
-    private readonly ListBox _list;
-    private readonly TextBlock _status;
-    private readonly TextBox _search;
-    private readonly TextBlock _empty;
-    private readonly Ui.Button _applyButton;
-    private readonly Ui.Button _shareButton;
-    private readonly Ui.Button _deleteButton;
+    private readonly ListBox _list = new();
+    private readonly TextBox _search = new();
+    private readonly StackPanel _empty;
+    private readonly MacDetailPane _detail = new();
+    private readonly Button _applyButton;
+    private readonly Button _shareButton;
+    private readonly Button _deleteButton;
+    private readonly StackPanel _toolbar = new() { Orientation = Orientation.Horizontal };
+    private readonly IStringProvider _strings = new LocStringProvider();
     private List<Preset> _all = new();
+    private string _status = string.Empty;
 
     private readonly Func<Preset> _currentProvider;
 
@@ -36,11 +40,17 @@ public class PresetsPage : PageBase
     /// <summary>Danh sách preset có thể đã đổi (lưu/xoá): cửa sổ chính nạp lại danh sách ở combobox.</summary>
     public event EventHandler? Left;
 
-    public override void OnShown()
-    {
-        Refresh();
-        UpdateStatus();
-    }
+    public event EventHandler? ShellContentChanged;
+
+    FrameworkElement? IMacShellContent.ToolbarCenter => null;
+
+    FrameworkElement? IMacShellContent.ToolbarTrailing => _toolbar;
+
+    FrameworkElement? IMacShellContent.Inspector => _detail;
+
+    string? IMacShellContent.StatusText => _status;
+
+    public override void OnShown() => Refresh();
 
     public override void OnHidden() => Left?.Invoke(this, EventArgs.Empty);
 
@@ -52,177 +62,128 @@ public class PresetsPage : PageBase
 
         AutomationProperties.SetName(this, "Preset library window");
 
-        FontFamily = (System.Windows.Media.FontFamily)Application.Current.FindResource("AppFont");
-        FontSize = (double)Application.Current.FindResource("AppFontSizeBody");
+        var save = MacDetailPane.CreateButton(Loc.T("LibrarySave"));
+        save.Click += (_, _) => SaveCurrent(_currentProvider());
+        var import = MacDetailPane.CreateButton(Loc.T("ImportFromClipboard"));
+        import.Margin = new Thickness(6, 0, 0, 0);
+        import.Click += (_, _) => ImportFromClipboard();
+        _toolbar.Children.Add(save);
+        _toolbar.Children.Add(import);
 
-        var root = new DockPanel { Margin = new Thickness(28, 20, 28, 16) };
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 12, 0, 0)
-        };
-        DockPanel.SetDock(buttons, Dock.Bottom);
-
-        var saveButton = MakeButton(Loc.T("LibrarySave"), "SecondaryButtonStyle");
-        saveButton.Click += (_, _) => SaveCurrent(_currentProvider());
-        _applyButton = MakeButton(Loc.T("LibraryApply"), "PrimaryButtonStyle");
+        _applyButton = MacDetailPane.CreateButton(Loc.T("LibraryApply"), "Mac.Button.Primary");
         _applyButton.Click += (_, _) => ApplySelected();
-        _shareButton = MakeButton(Loc.T("SharePreset"), "SecondaryButtonStyle");
+        _shareButton = MacDetailPane.CreateButton(Loc.T("SharePreset"));
+        _shareButton.Margin = new Thickness(0, 6, 0, 0);
         _shareButton.Click += (_, _) => ShareSelected();
-        var importButton = MakeButton(Loc.T("ImportFromClipboard"), "SecondaryButtonStyle");
-        importButton.Click += (_, _) => ImportFromClipboard();
-        _deleteButton = MakeButton(Loc.T("LibraryDelete"), "SecondaryButtonStyle");
+        _deleteButton = MacDetailPane.CreateButton(Loc.T("LibraryDelete"), "Mac.Button.Destructive");
+        _deleteButton.Margin = new Thickness(0, 6, 0, 0);
         _deleteButton.Click += (_, _) => DeleteSelected();
+        _detail.Footer.Children.Add(_applyButton);
+        _detail.Footer.Children.Add(_shareButton);
+        _detail.Footer.Children.Add(_deleteButton);
 
-        buttons.Children.Add(saveButton);
-        buttons.Children.Add(_applyButton);
-        buttons.Children.Add(_shareButton);
-        buttons.Children.Add(importButton);
-        buttons.Children.Add(_deleteButton);
-
-        // Ô tìm kiếm preset
-        _search = new TextBox
-        {
-            Margin = new Thickness(0, 0, 0, 10),
-            Style = (Style)Application.Current.FindResource("AppTextBoxStyle"),
-            ToolTip = Loc.T("PresetLibrarySearch")
-        };
+        _search.SetResourceReference(StyleProperty, "Mac.SearchBox");
+        _search.Tag = Loc.T("PresetLibrarySearch");
+        _search.Margin = new Thickness(14, 10, 14, 6);
         _search.TextChanged += (_, _) => ApplyFilter();
         AutomationProperties.SetName(_search, "Search presets");
 
-        _list = new ListBox
-        {
-            Style = (Style)Application.Current.FindResource("AppListBoxStyle"),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
-                <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-                  <Grid Margin="6,5">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                      <TextBlock Text="{Binding DisplayName}" FontFamily="{DynamicResource BfrFontBodySemi}" FontSize="13"
-                                 Foreground="{DynamicResource BfrFg}" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding DisplayDescription}" FontSize="11.5"
-                                 Foreground="{DynamicResource BfrFg2}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
-                    </StackPanel>
-                    <Border Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Padding="8,2" CornerRadius="999"
-                            Background="{DynamicResource BfrGlass}" BorderBrush="{DynamicResource BfrLine}" BorderThickness="1">
-                      <TextBlock Text="{Binding Rules.Count, StringFormat={}{0} rules}" FontSize="11"
-                                 Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrFg2}" />
-                    </Border>
-                  </Grid>
-                </DataTemplate>
-                """)
-        };
-        _list.SelectionChanged += (_, _) => UpdateStatus();
+        _list.SetResourceReference(StyleProperty, "Mac.ListBox");
+        _list.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        ScrollViewer.SetHorizontalScrollBarVisibility(_list, ScrollBarVisibility.Disabled);
+        _list.ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
+            <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+              <StackPanel Margin="0,3">
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                <TextBlock Text="{Binding DisplayDescription}" FontSize="11.5" Opacity="0.75" TextTrimming="CharacterEllipsis"
+                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+              </StackPanel>
+            </DataTemplate>
+            """);
+        _list.SelectionChanged += (_, _) => ShowSelection();
         _list.MouseDoubleClick += (_, _) => ApplySelected();
         AutomationProperties.SetName(_list, "Saved presets");
 
-        _empty = new TextBlock
-        {
-            Text = Loc.T("PresetLibraryEmpty"),
-            TextWrapping = TextWrapping.Wrap,
-            TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(24),
-            Visibility = Visibility.Collapsed
-        };
+        _empty = MacDetailPane.CreateEmptyState("Library", Loc.T("PresetLibraryEmpty"));
+        _empty.Visibility = Visibility.Collapsed;
         AutomationProperties.SetName(_empty, "Preset library empty");
-
-        _status = new TextBlock
-        {
-            Margin = new Thickness(0, 8, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondary")
-        };
 
         var listGrid = new Grid();
         listGrid.Children.Add(_list);
         listGrid.Children.Add(_empty);
 
-        var content = new DockPanel();
-        DockPanel.SetDock(_status, Dock.Bottom);
-        content.Children.Add(_status);
-
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-        header.Children.Add(new TextBlock
-        {
-            Text = Loc.T("LibraryTitle"),
-            FontSize = (double)Application.Current.FindResource("AppFontSizeTitle"),
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextPrimary")
-        });
-        header.Children.Add(_search);
-        DockPanel.SetDock(header, Dock.Top);
-        content.Children.Add(header);
-
-        // DockPanel: phần tử con đầu được đặt sát mép, phần tử cuối chiếm phần còn lại.
-        content.Children.Add(listGrid);   // phần tử cuối: chiếm phần còn lại của DockPanel
-        root.Children.Add(buttons);
-        root.Children.Add(content);
-
+        var root = new DockPanel();
+        DockPanel.SetDock(_search, Dock.Top);
+        root.Children.Add(_search);
+        root.Children.Add(listGrid);
         Content = root;
 
         Refresh();
-        UpdateStatus();
     }
 
-    /// <summary>Tạo nút theo style của theme hiện tại.</summary>
-    private static Ui.Button MakeButton(string content, string styleKey)
-    {
-        var button = new Ui.Button
-        {
-            Content = content,
-            Appearance = DialogChrome.AppearanceFor(styleKey),
-            Margin = new Thickness(0, 0, 6, 0),
-            Padding = new Thickness(12, 6, 12, 6)
-        };
-
-        return button;
-    }
-
-    /// <summary>Lọc danh sách preset theo từ khoá.</summary>
+    /// <summary>Lọc danh sách preset theo từ khoá (không phân biệt dấu).</summary>
     private void ApplyFilter()
     {
-        var query = _search.Text.Trim();
-        _list.ItemsSource = query.Length == 0
-            ? _all
-            : _all.Where(p => p.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        var selected = (_list.SelectedItem as Preset)?.Name;
+        var query = _search.Text;
+        var shown = _all.Where(p => BFR.Presentation.Design.MacNavigation.Matches(query, p.DisplayName)).ToList();
+        _list.ItemsSource = shown;
+        _list.SelectedItem = shown.FirstOrDefault(p => p.Name == selected);
 
-        _empty.Visibility = _list.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _empty.Visibility = shown.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowSelection();
     }
 
     private void Refresh()
     {
         _all = _store.LoadAll().ToList();
         ApplyFilter();
-        UpdateStatus();
+        SetStatus(CountText());
     }
 
-    private void UpdateStatus()
+    private string CountText()
     {
-        var hasSelection = _list.SelectedItem is Preset;
-        _applyButton.IsEnabled = hasSelection;
-        _shareButton.IsEnabled = hasSelection;
-        _deleteButton.IsEnabled = hasSelection;
-
-        // Dùng _all.Count đã cache trong bộ nhớ, không đọc đĩa lại mỗi lần đổi lựa chọn.
+        // Dùng _all.Count đã cache trong bộ nhớ, không đọc đĩa lại mỗi lần.
         var count = _all.Count;
-        if (count == 0)
+        if (count == 0) return Loc.T("LibraryEmpty");
+
+        var max = _license.MaxSavedPresets;
+        return max == int.MaxValue
+            ? $"{count} preset"
+            : $"{count}/{max} preset — " + Loc.T("LibraryLimitHint");
+    }
+
+    private void SetStatus(string text)
+    {
+        _status = text;
+        ShellContentChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ShowSelection()
+    {
+        var preset = _list.SelectedItem as Preset;
+        _applyButton.IsEnabled = preset is not null;
+        _shareButton.IsEnabled = preset is not null;
+        _deleteButton.IsEnabled = preset is not null;
+
+        if (preset is null)
         {
-            _status.Text = Loc.T("LibraryEmpty");
+            _detail.ShowEmpty(Loc.T("MacPresetSelectHint"), keepFooter: true);
             return;
         }
 
-        var max = _license.MaxSavedPresets;
-        _status.Text = max == int.MaxValue
-            ? $"{count} preset"
-            : $"{count}/{max} preset — " + Loc.T("LibraryLimitHint");
+        _detail.Show(preset.DisplayName, preset.DisplayDescription);
+        _detail.AddSection(Loc.T("MacTabRules"));
+        if (preset.Rules.Count == 0) _detail.AddRow(string.Empty, "—");
+
+        var number = 0;
+        foreach (var rule in preset.Rules)
+        {
+            var summary = RuleSummaries.Build(rule, _strings);
+            if (!rule.Enabled) summary = $"{summary} ({Loc.T("ValueOff")})".Trim();
+            _detail.AddRow($"{++number}. {RuleTitles.Get(rule.Type, rule.Name, _strings)}", summary);
+        }
     }
 
     private void SaveCurrent(Preset current)
@@ -242,7 +203,7 @@ public class PresetsPage : PageBase
 
         _store.Save(current);
         Refresh();
-        _status.Text = Loc.F("LibrarySaved", current.Name);
+        SetStatus(Loc.F("LibrarySaved", current.Name));
     }
 
     private void ApplySelected()
@@ -277,7 +238,7 @@ public class PresetsPage : PageBase
         try
         {
             Clipboard.SetText(_store.ToJson(preset));
-            _status.Text = Loc.T("PresetCopied");
+            SetStatus(Loc.T("PresetCopied"));
         }
         catch (Exception ex)
         {
@@ -305,7 +266,7 @@ public class PresetsPage : PageBase
 
             _store.Save(preset);
             Refresh();
-            _status.Text = Loc.F("PresetImported", preset.DisplayName);
+            SetStatus(Loc.F("PresetImported", preset.DisplayName));
         }
         catch (Exception ex)
         {

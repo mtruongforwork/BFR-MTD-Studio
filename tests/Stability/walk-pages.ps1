@@ -194,8 +194,8 @@ function Run-Walk([string]$run) {
         if (-not $ok) { throw "Không thấy cửa sổ chính trong 40 giây" }
         Start-Sleep -Seconds 2   # để Loaded/NavigateTo("Home") kịp chạy
 
-        [void](Step 'home' { Select-Nav 'home' } { $null -ne (Find-Visible $script:win 'Batch Rename') })
-        [void](Step 'rename' { Select-Nav 'home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
+        [void](Step 'home' { Select-Nav 'home' } { $null -ne (Find-Visible $script:win 'Home page') -and (Test-Selected 'home') })
+        [void](Step 'rename' { Select-Nav 'rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Tools: trang chủ rồi từng công cụ (ô "Open ..." có InvokePattern), quay lại bằng nút Back.
         [void](Step 'tools-home' { Select-Nav 'tools' } { $null -ne (Find-Visible $script:win 'Tools page') -and @(Find-NamePrefix $script:win 'Open ').Count -ge 5 })
@@ -231,7 +231,7 @@ function Run-Walk([string]$run) {
         [void](Step 'presets'  { Select-Nav 'presets' }      { $null -ne (Find-Visible $script:win 'Preset library window') })
         [void](Step 'watch'    { Select-Nav 'watch' } { $null -ne (Find-Visible $script:win 'Watch folder window') })
         [void](Step 'settings' { (Find-Id 'Nav.settings').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() } { $null -ne (Find-Visible $script:win 'Settings window') })
-        [void](Step 'back-to-rename' { Select-Nav 'home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
+        [void](Step 'back-to-rename' { Select-Nav 'rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Dọn dẹp cuối lượt: để watchdog có thời gian ghi nếu có treo ngầm.
         Start-Sleep -Seconds 7

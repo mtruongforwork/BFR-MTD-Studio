@@ -1336,4 +1336,34 @@
     <sys:String x:Key="MacRenameAdd">Add files or folders</sys:String>
     <sys:String x:Key="MacDismiss">Dismiss</sys:String>
     <sys:String x:Key="MacUndo">Undo</sys:String>
+    <!-- v3.2 P6: Start, All tools, library pages -->
+    <sys:String x:Key="MacToolsNoMatch">No tools match.</sys:String>
+    <sys:String x:Key="MacGreetingMorning">Good morning</sys:String>
+    <sys:String x:Key="MacGreetingAfternoon">Good afternoon</sys:String>
+    <sys:String x:Key="MacGreetingEvening">Good evening</sys:String>
+    <sys:String x:Key="MacHomeDropHint">Choose or drop files, then pick what to do with them. Everything runs on your PC.</sys:String>
+    <sys:String x:Key="MacHomeRecent">Recent</sys:String>
+    <sys:String x:Key="MacHomeAllHistory">View history</sys:String>
+    <sys:String x:Key="MacHomeRecentEmpty">Nothing yet. Your latest file runs will appear here.</sys:String>
+    <sys:String x:Key="MacHomeFavoritesHint">Click ★ on a tool in All tools to pin it here and in the sidebar.</sys:String>
+    <sys:String x:Key="MacHomeWatching">Watching folders · {0} rule(s)</sys:String>
+    <sys:String x:Key="MacHomeWatchIdle">Folder watching is stopped · {0} rule(s)</sys:String>
+    <sys:String x:Key="MacHistoryRunDefault">File run</sys:String>
+    <sys:String x:Key="MacHistoryCount">{0} run(s)</sys:String>
+    <sys:String x:Key="MacHistorySelectHint">Select a run to preview what Undo will restore.</sys:String>
+    <sys:String x:Key="MacFilesCount">{0} file(s)</sys:String>
+    <sys:String x:Key="MacDayToday">Today</sys:String>
+    <sys:String x:Key="MacDayYesterday">Yesterday</sys:String>
+    <sys:String x:Key="MacDayPreviousWeek">Previous 7 days</sys:String>
+    <sys:String x:Key="MacDayEarlier">Earlier</sys:String>
+    <sys:String x:Key="MacShelfEmptyTitle">The shelf is empty</sys:String>
+    <sys:String x:Key="MacShelfSelectHint">Select an item to see its details.</sys:String>
+    <sys:String x:Key="MacShelfRemove">Remove from shelf</sys:String>
+    <sys:String x:Key="MacShowInExplorer">Show in Explorer</sys:String>
+    <sys:String x:Key="MacSelectedCount">{0} items selected</sys:String>
+    <sys:String x:Key="MacDetailFolder">Folder</sys:String>
+    <sys:String x:Key="MacDetailSize">Size</sys:String>
+    <sys:String x:Key="MacDetailModified">Modified</sys:String>
+    <sys:String x:Key="MacDetailState">Status</sys:String>
+    <sys:String x:Key="MacPresetSelectHint">Select a preset to see its rules.</sys:String>
 </ResourceDictionary>

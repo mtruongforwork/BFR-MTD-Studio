@@ -105,6 +105,9 @@ public sealed class WatchRuleStore
     public void Save(IEnumerable<WatchRule> rules)
     {
         var json = JsonSerializer.Serialize(rules.Take(WatchRule.MaxRules).ToList(), Options);
+        // Máy chưa từng dùng Watch Folder thì thư mục "watch" chưa có.
+        var directory = Path.GetDirectoryName(_path);
+        if (!string.IsNullOrEmpty(directory)) _fs.EnsureDirectory(directory);
         _fs.WriteAllText(_path, json);
     }
 }

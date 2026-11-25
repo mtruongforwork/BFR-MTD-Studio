@@ -1,5 +1,6 @@
 namespace BFR.App;
 
+using BFR.App.Controls.Mac;
 using BFR.Core;
 using BFR.Core.Licensing;
 using BFR.Core.WatchFolder;
@@ -11,7 +12,6 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using BFR.App.Infrastructure;
-using Ui = Wpf.Ui.Controls;
 using System.Windows.Controls;
 using System.Windows.Automation;
 
@@ -19,7 +19,7 @@ using System.Windows.Automation;
 /// Watch Folder nhiều thư mục (B6, Pro): mỗi quy tắc theo dõi một thư mục và chạy một quy trình
 /// (đổi tên theo preset, hoặc cả workflow nhiều bước) cho tệp mới. Các quy tắc được lưu và chạy nền cùng lúc.
 /// </summary>
-public class WatchFolderPage : PageBase
+public class WatchFolderPage : PageBase, IMacShellContent
 {
     private sealed record PresetChoice(Preset Preset)
     {
@@ -39,29 +39,40 @@ public class WatchFolderPage : PageBase
     private readonly WatchRuleStore _store;
     private readonly List<WatchRule> _rules;
 
-    private readonly ListBox _ruleList = new() { MinHeight = 90, MaxHeight = 150 };
-    private readonly TextBox _nameBox = new() { Width = 240 };
-    private readonly TextBox _folderBox = new() { Width = 320 };
-    private readonly ComboBox _kindCombo = new() { Width = 320 };
-    private readonly ComboBox _presetCombo = new() { Width = 320 };
-    private readonly TextBox _workflowFileBox = new() { Width = 320 };
+    private readonly ListBox _ruleList = new();
+    private readonly TextBox _nameBox = new();
+    private readonly TextBox _folderBox = new();
+    private readonly ComboBox _kindCombo = new();
+    private readonly ComboBox _presetCombo = new();
+    private readonly TextBox _workflowFileBox = new();
     private readonly CheckBox _enabled = new() { IsChecked = true };
     private readonly CheckBox _recursive = new() { IsChecked = true };
     private readonly CheckBox _dryRun = new();
-    private readonly TextBox _settleBox = new() { Text = "1500", Width = 80 };
-    private readonly TextBox _includeBox = new() { Width = 140 };
-    private readonly TextBox _excludeBox = new() { Width = 140 };
+    private readonly TextBox _settleBox = new() { Text = "1500", Width = 90, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBox _includeBox = new();
+    private readonly TextBox _excludeBox = new();
     private readonly ListBox _logList = new();
-    private readonly TextBlock _status = new() { Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _status = new() { Margin = new Thickness(14, 0, 14, 8), TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _logEmpty = new();
-    private readonly HeaderedContentControl _ruleEmpty = new();
-    private StackPanel _editorPanel = null!;
-    private readonly Ui.Button _startButton = new();
-    private readonly Ui.Button _stopButton = new();
-    private readonly Ui.Button _addButton = new();
-    private readonly Ui.Button _removeButton = new();
+    private StackPanel _ruleEmpty = null!;
+    private readonly MacDetailPane _detail = new();
+    private readonly StackPanel _toolbar = new() { Orientation = Orientation.Horizontal };
+    private Button _startButton = null!;
+    private Button _stopButton = null!;
+    private Button _addButton = null!;
+    private Button _removeButton = null!;
     private readonly List<FrameworkElement> _presetRows = new();
     private readonly List<FrameworkElement> _fileRows = new();
+
+    public event EventHandler? ShellContentChanged;
+
+    FrameworkElement? IMacShellContent.ToolbarCenter => null;
+
+    FrameworkElement? IMacShellContent.ToolbarTrailing => _toolbar;
+
+    FrameworkElement? IMacShellContent.Inspector => _rules.Count == 0 ? null : _detail;
+
+    string? IMacShellContent.StatusText => null;
 
     private WatchFolderManager? _manager;
     private bool _loading;
@@ -92,69 +103,45 @@ public class WatchFolderPage : PageBase
         _rules = _store.Load();
 
         AutomationProperties.SetName(this, "Watch folder window");
-        FontFamily = (System.Windows.Media.FontFamily)Application.Current.FindResource("AppFont");
-        FontSize = (double)Application.Current.FindResource("AppFontSizeBody");
 
+        BuildToolbar();
         ApplyStyles();
+        BuildEditor();
+        Content = BuildContent();
 
-        var root = new Grid { Margin = new Thickness(28, 20, 28, 16) };
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        FillKinds();
+        RefreshPresets();
+        WireEditorEvents();
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        buttons.Children.Add(_startButton);
-        buttons.Children.Add(_stopButton);
-        Grid.SetRow(buttons, 2);
-        root.Children.Add(buttons);
+        if (_rules.Count > 0) _ruleList.SelectedIndex = 0;
+        UpdateEditorState();
+        _stopButton.IsEnabled = false;
+    }
 
-        // Danh sách quy tắc + nút thêm/xoá
-        var rulesHeader = new DockPanel();
-        rulesHeader.Children.Add(Header(Loc.T("WatchRulesTitle")));
-        var ruleButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        ruleButtons.Children.Add(_addButton);
-        ruleButtons.Children.Add(_removeButton);
-        DockPanel.SetDock(ruleButtons, Dock.Right);
-        rulesHeader.Children.Insert(0, ruleButtons);
+    private void BuildToolbar()
+    {
+        _addButton = MacDetailPane.CreateIconButton("Plus", Loc.T("WatchAddRule"));
+        _removeButton = MacDetailPane.CreateIconButton("Trash2", Loc.T("WatchRemoveRule"));
+        _removeButton.Margin = new Thickness(0, 0, 10, 0);
+        _startButton = MacDetailPane.CreateButton(Loc.T("WatchStart"), "Mac.Button.Primary");
+        _stopButton = MacDetailPane.CreateButton(Loc.T("WatchStop"));
+        _stopButton.Margin = new Thickness(6, 0, 0, 0);
+        _toolbar.Children.Add(_addButton);
+        _toolbar.Children.Add(_removeButton);
+        _toolbar.Children.Add(_startButton);
+        _toolbar.Children.Add(_stopButton);
 
-        _ruleList.ItemsSource = _rules;
-        _ruleList.DisplayMemberPath = null;
-        _ruleList.MaxHeight = 260;
-        _ruleList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        _ruleList.Background = System.Windows.Media.Brushes.Transparent;
-        _ruleList.BorderThickness = new Thickness(0);
-        _ruleList.ItemsPanel = (ItemsPanelTemplate)System.Windows.Markup.XamlReader.Parse("""
-            <ItemsPanelTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-              <UniformGrid Columns="3" VerticalAlignment="Top" />
-            </ItemsPanelTemplate>
-            """);
-        _ruleList.ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
-            <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                          xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
-              <Border Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrLine}"
-                      BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="5">
-                <StackPanel>
-                  <DockPanel Margin="0,0,0,6">
-                    <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Enabled, Mode=TwoWay}"
-                                     VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Name}" FontFamily="{DynamicResource BfrFontHeading}" FontSize="14"
-                               Foreground="{DynamicResource BfrFg}" TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center" Margin="0,0,8,0" />
-                  </DockPanel>
-                  <TextBlock Text="{Binding Folder}" FontSize="11.5" Foreground="{DynamicResource BfrFg2}"
-                             TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-            """);
-        _ruleList.SelectionChanged += (_, _) => LoadSelected();
-        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent, new RoutedEventHandler(CardToggle_Changed));
-        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent, new RoutedEventHandler(CardToggle_Changed));
-        AutomationProperties.SetName(_ruleList, "Watch rules");
+        _addButton.Click += (_, _) => AddRule();
+        _removeButton.Click += (_, _) => RemoveRule();
+        _startButton.Click += (_, _) => Start();
+        _stopButton.Click += (_, _) => Stop();
+    }
 
-        var editor = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-        _editorPanel = editor;
-        editor.Children.Add(Header(Loc.T("WatchOptionsTitle")));
+    /// <summary>Form chỉnh quy tắc trong inspector: nhãn nằm trên ô nhập vì bảng chỉ rộng 300 px.</summary>
+    private void BuildEditor()
+    {
+        _detail.Show(Loc.T("WatchOptionsTitle"));
+        var editor = _detail.Body;
         editor.Children.Add(Row(Loc.T("WatchRuleName"), _nameBox));
         editor.Children.Add(Row(Loc.Plain("WatchFolder"), _folderBox, BrowseButton()));
         editor.Children.Add(Row(Loc.T("WatchKind"), _kindCombo));
@@ -167,16 +154,51 @@ public class WatchFolderPage : PageBase
         editor.Children.Add(Row(Loc.T("WatchSettle"), _settleBox));
         editor.Children.Add(Row(Loc.T("WatchInclude"), _includeBox));
         editor.Children.Add(Row(Loc.T("WatchExclude"), _excludeBox));
-        editor.Children.Add(_enabled);
-        editor.Children.Add(_recursive);
-        editor.Children.Add(_dryRun);
+        foreach (var check in new[] { _enabled, _recursive, _dryRun })
+        {
+            check.Margin = new Thickness(0, 8, 0, 0);
+            editor.Children.Add(check);
+        }
+    }
 
-        _addButton.Click += (_, _) => AddRule();
-        _removeButton.Click += (_, _) => RemoveRule();
-        _startButton.Click += (_, _) => Start();
-        _stopButton.Click += (_, _) => Stop();
+    private UIElement BuildContent()
+    {
+        // Danh sách quy tắc: mỗi hàng có tên, thư mục và công tắc bật/tắt.
+        _ruleList.ItemsSource = _rules;
+        _ruleList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        ScrollViewer.SetHorizontalScrollBarVisibility(_ruleList, ScrollBarVisibility.Disabled);
+        _ruleList.ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
+            <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+              <DockPanel Margin="0,4">
+                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding Enabled, Mode=TwoWay}" Style="{DynamicResource Mac.Switch}"
+                          VerticalAlignment="Center" Margin="12,0,0,0" ToolTip="{Binding Name}" />
+                <StackPanel>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                             Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                  <TextBlock Text="{Binding Folder}" FontSize="11.5" Opacity="0.75" TextTrimming="CharacterEllipsis"
+                             Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                </StackPanel>
+              </DockPanel>
+            </DataTemplate>
+            """);
+        _ruleList.SelectionChanged += (_, _) => LoadSelected();
+        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent, new RoutedEventHandler(CardToggle_Changed));
+        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent, new RoutedEventHandler(CardToggle_Changed));
+        AutomationProperties.SetName(_ruleList, "Watch rules");
 
-        // Nhật ký
+        // Chưa có quy tắc nào: trạng thái rỗng có nút thêm; inspector đóng lại.
+        _ruleEmpty = MacDetailPane.CreateEmptyState("Eye", Loc.T("WatchRulesEmptyTitle"), Loc.T("WatchRulesEmptyHint"));
+        var addFirst = MacDetailPane.CreateButton(Loc.T("WatchAddRule"), "Mac.Button.Primary", "Add first watch rule");
+        addFirst.HorizontalAlignment = HorizontalAlignment.Center;
+        addFirst.Margin = new Thickness(0, 14, 0, 0);
+        addFirst.Click += (_, _) => AddRule();
+        _ruleEmpty.Children.Add(addFirst);
+
+        var rules = new Grid();
+        rules.Children.Add(_ruleList);
+        rules.Children.Add(_ruleEmpty);
+
+        // Nhật ký ở đáy.
         _logList.ItemsSource = new List<string>();
         AutomationProperties.SetName(_logList, "Watch folder log");
         _logEmpty.Text = Loc.T("WatchFolderEmpty");
@@ -185,54 +207,38 @@ public class WatchFolderPage : PageBase
         _logEmpty.HorizontalAlignment = HorizontalAlignment.Center;
         _logEmpty.VerticalAlignment = VerticalAlignment.Center;
         _logEmpty.Margin = new Thickness(24);
-        _logEmpty.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondary");
+        _logEmpty.SetResourceReference(StyleProperty, "Mac.Callout");
 
-        var logGrid = new Grid { MinHeight = 120 };
+        var logTitle = new TextBlock { Text = Loc.T("WatchLogTitle"), Margin = new Thickness(16, 8, 16, 2) };
+        logTitle.SetResourceReference(StyleProperty, "Mac.Section");
+
+        var logGrid = new Grid();
         logGrid.Children.Add(_logList);
         logGrid.Children.Add(_logEmpty);
 
-        var content = new DockPanel { Margin = new Thickness(0, 12, 0, 0), Height = 150 };
+        var log = new DockPanel();
+        DockPanel.SetDock(logTitle, Dock.Top);
+        log.Children.Add(logTitle);
         DockPanel.SetDock(_status, Dock.Bottom);
-        content.Children.Add(_status);
-        content.Children.Add(logGrid);
-        Grid.SetRow(content, 1);
+        log.Children.Add(_status);
+        log.Children.Add(logGrid);
+        var logBorder = new Border { Height = 190, BorderThickness = new Thickness(0, 1, 0, 0), Child = log };
+        logBorder.SetResourceReference(Border.BorderBrushProperty, "Mac.Separator");
 
-        var top = new StackPanel();
-        top.Children.Add(rulesHeader);
-        top.Children.Add(_ruleList);
-        top.Children.Add(editor);
-
-        // Chưa có quy tắc nào: thay vùng chỉnh sửa bằng trạng thái rỗng có nút thêm.
-        var addFirst = new Button { Content = Loc.T("WatchAddRule"), Style = (Style)Application.Current.FindResource("BfrPrimaryButton"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
-        addFirst.Click += (_, _) => AddRule();
-        var emptyBody = new StackPanel();
-        emptyBody.Children.Add(new TextBlock { Text = Loc.T("WatchRulesEmptyHint"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
-        emptyBody.Children.Add(addFirst);
-        _ruleEmpty.Style = (Style)Application.Current.FindResource("BfrEmptyState");
-        _ruleEmpty.Header = Loc.T("WatchRulesEmptyTitle");
-        _ruleEmpty.Content = emptyBody;
-        _ruleEmpty.Margin = new Thickness(0, 24, 0, 24);
-        top.Children.Add(_ruleEmpty);
-        var scroll = new ScrollViewer { Content = top, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Grid.SetRow(scroll, 0);
-        root.Children.Add(scroll);
-        root.Children.Add(content);
-        Content = root;
-
-        FillKinds();
-        RefreshPresets();
-        WireEditorEvents();
-
-        if (_rules.Count > 0) _ruleList.SelectedIndex = 0;
-        else UpdateEditorState();
-        _stopButton.IsEnabled = false;
+        var root = new DockPanel();
+        DockPanel.SetDock(logBorder, Dock.Bottom);
+        root.Children.Add(logBorder);
+        root.Children.Add(rules);
+        return root;
     }
 
     private void CardToggle_Changed(object sender, RoutedEventArgs e)
     {
-        if (_loading) return;
-        _store.Save(_rules);
-        if (sender is FrameworkElement { DataContext: WatchRule rule } && ReferenceEquals(rule, Selected))
+        // Công tắc cũng phát Checked khi đang dựng giao diện (giá trị đến từ binding): không phải người dùng bấm.
+        if (_loading || e.OriginalSource is not FrameworkElement { IsLoaded: true }) return;
+        Save();
+        // Sự kiện nổi lên từ công tắc: sender là cả danh sách, quy tắc nằm ở DataContext của OriginalSource.
+        if (e.OriginalSource is FrameworkElement { DataContext: WatchRule rule } && ReferenceEquals(rule, Selected))
         {
             _loading = true;
             _enabled.IsChecked = rule.Enabled;
@@ -243,58 +249,46 @@ public class WatchFolderPage : PageBase
     private void ApplyStyles()
     {
         foreach (var box in new[] { _nameBox, _folderBox, _workflowFileBox, _settleBox, _includeBox, _excludeBox })
-            box.Style = (Style)Application.Current.FindResource("AppTextBoxStyle");
+            box.SetResourceReference(StyleProperty, "Mac.TextBox");
         foreach (var combo in new[] { _kindCombo, _presetCombo })
-            combo.Style = (Style)Application.Current.FindResource("AppComboBoxStyle");
-        _ruleList.Style = (Style)Application.Current.FindResource("AppListBoxStyle");
-        _logList.Style = (Style)Application.Current.FindResource("AppListBoxStyle");
+            combo.SetResourceReference(StyleProperty, "Mac.ComboBox");
+        _ruleList.SetResourceReference(StyleProperty, "Mac.ListBox");
+        _logList.SetResourceReference(StyleProperty, "Mac.ListBox");
         foreach (var check in new[] { _enabled, _recursive, _dryRun })
-            check.Style = (Style)Application.Current.FindResource("AppCheckBoxStyle");
+            check.SetResourceReference(StyleProperty, "Mac.CheckBox");
         _enabled.Content = Loc.T("WatchRuleEnabled");
         _recursive.Content = Loc.T("WatchRecursive");
         _dryRun.Content = Loc.T("WatchDryRun");
-        _status.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondary");
-
-        Decorate(_startButton, Loc.T("WatchStart"), Ui.ControlAppearance.Primary);
-        Decorate(_stopButton, Loc.T("WatchStop"), Ui.ControlAppearance.Secondary);
-        Decorate(_addButton, Loc.T("WatchAddRule"), Ui.ControlAppearance.Secondary);
-        Decorate(_removeButton, Loc.T("WatchRemoveRule"), Ui.ControlAppearance.Secondary);
+        _status.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label2");
     }
 
-    private static void Decorate(Ui.Button button, string text, Ui.ControlAppearance appearance)
+    private static StackPanel Row(string label, FrameworkElement element, UIElement? extra = null)
     {
-        button.Content = text;
-        button.Appearance = appearance;
-        button.Margin = new Thickness(0, 0, 6, 0);
-        button.Padding = new Thickness(12, 6, 12, 6);
-    }
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+        var text = new TextBlock { Text = label, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 3), TextWrapping = TextWrapping.Wrap };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label2");
+        panel.Children.Add(text);
+        AutomationProperties.SetName(element, label.TrimEnd(':', '：', ' '));
 
-    private static TextBlock Header(string text) => new()
-    {
-        Text = text,
-        FontWeight = FontWeights.SemiBold,
-        Margin = new Thickness(0, 0, 0, 8),
-        Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextPrimary")
-    };
-
-    private static StackPanel Row(string label, UIElement element, UIElement? extra = null)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
-        panel.Children.Add(new TextBlock
+        if (extra is null)
         {
-            Text = label,
-            Width = 150,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondary")
-        });
-        panel.Children.Add(element);
-        if (extra is not null) panel.Children.Add(extra);
+            panel.Children.Add(element);
+            return panel;
+        }
+
+        var line = new DockPanel();
+        DockPanel.SetDock(extra, Dock.Right);
+        line.Children.Add(extra);
+        line.Children.Add(element);
+        panel.Children.Add(line);
         return panel;
     }
 
-    private Ui.Button BrowseButton()
+    private Button BrowseButton()
     {
-        var button = new Ui.Button { Content = "…", Margin = new Thickness(4, 0, 0, 0), Padding = new Thickness(8, 4, 8, 4), Appearance = Ui.ControlAppearance.Secondary, ToolTip = Loc.T("WatchBrowseButton") };
+        var button = MacDetailPane.CreateButton("…", automationName: Loc.T("WatchBrowseButton"));
+        button.Margin = new Thickness(6, 0, 0, 0);
+        button.ToolTip = Loc.T("WatchBrowseButton");
         button.Click += (_, _) =>
         {
             var dialog = new OpenFolderDialog { Title = Loc.Plain("WatchFolder") };
@@ -303,9 +297,10 @@ public class WatchFolderPage : PageBase
         return button;
     }
 
-    private Ui.Button WorkflowBrowseButton()
+    private Button WorkflowBrowseButton()
     {
-        var button = new Ui.Button { Content = "…", Margin = new Thickness(4, 0, 0, 0), Padding = new Thickness(8, 4, 8, 4), Appearance = Ui.ControlAppearance.Secondary };
+        var button = MacDetailPane.CreateButton("…", automationName: Loc.T("WatchWorkflowFile"));
+        button.Margin = new Thickness(6, 0, 0, 0);
         button.Click += (_, _) =>
         {
             var dialog = new OpenFileDialog { Filter = "Workflow|*.json" };
@@ -431,9 +426,10 @@ public class WatchFolderPage : PageBase
     {
         var has = Selected is not null;
         var noRules = _rules.Count == 0;
+        var wasEmpty = _ruleEmpty.Visibility == Visibility.Visible;
         _ruleEmpty.Visibility = noRules ? Visibility.Visible : Visibility.Collapsed;
-        _editorPanel.Visibility = noRules ? Visibility.Collapsed : Visibility.Visible;
         _ruleList.Visibility = noRules ? Visibility.Collapsed : Visibility.Visible;
+        if (wasEmpty != noRules) ShellContentChanged?.Invoke(this, EventArgs.Empty);
         foreach (var c in new UIElement[] { _nameBox, _folderBox, _kindCombo, _presetCombo, _workflowFileBox, _enabled, _recursive, _dryRun, _settleBox, _includeBox, _excludeBox })
             c.IsEnabled = has;
         _removeButton.IsEnabled = has && _manager is null;

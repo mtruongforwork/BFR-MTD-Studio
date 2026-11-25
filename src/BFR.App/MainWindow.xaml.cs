@@ -1546,6 +1546,11 @@ public partial class MainWindow : FluentWindow
                         if (!EnsurePro(ProFeature.UnlimitedRecursion)) return;
                         if (GetPage("Watch") is WatchFolderPage watchPage) watchPage.ToggleRunning();
                     });
+                home.OpenHistoryEntry = id =>
+                {
+                    NavigateTo("History");
+                    if (_currentPage == "History" && GetPage("History") is HistoryPage opened) opened.SelectRun(id);
+                };
                 page = home;
                 break;
             case "PdfStudio":

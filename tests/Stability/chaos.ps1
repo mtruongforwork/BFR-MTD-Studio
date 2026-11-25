@@ -60,7 +60,7 @@ try {
         @{ Name = 'điều hướng'; W = 30; Do = { Select-Nav $win $pages[$rng.Next($pages.Count)] } },
         @{ Name = 'mở công cụ'; W = 10; Do = {
             Select-Nav $win 'Nav tools'; Start-Sleep -Milliseconds 250
-            $tiles = @(Find-ByClass $win 'GlassTile' | Where-Object { $_.Current.ControlType -eq $script:CT::Button })
+            $tiles = @(Get-ToolTiles $win)
             if ($tiles.Count) { $tiles[$rng.Next($tiles.Count)].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 300; Invoke-Named $win 'Back to tools home' } } },
         @{ Name = 'bộ lọc xem trước'; W = 8; Do = {
             Select-Nav $win 'Nav rename'; Start-Sleep -Milliseconds 200
@@ -71,8 +71,8 @@ try {
             switch ($rng.Next(3)) {
                 0 { [void](Select-ComboIndex $win 'Theme selector' $rng.Next(1, 3)) }
                 1 { [void](Select-ComboIndex $win 'Language selector' $rng.Next(0, 4)) }
-                default { Select-Item $win @('Aurora', 'Mint', 'Sunset')[$rng.Next(3)] } } } },
-        @{ Name = 'thu gọn sidebar'; W = 5; Do = { Invoke-Named $win 'Toggle sidebar' } },
+                default { Select-Accent $win @('Blue', 'Purple', 'Green')[$rng.Next(3)] } } } },
+        @{ Name = 'thu gọn sidebar'; W = 5; Do = { Invoke-Id $win 'Shell.ToggleSidebar' } },
         @{ Name = 'đổi cỡ cửa sổ'; W = 10; Do = {
             if ($window.Current.WindowVisualState -ne 'Normal') { $window.SetWindowVisualState('Normal') }
             $w = $rng.Next(1020, [math]::Max(1021, $bounds.Width)); $h = $rng.Next(620, [math]::Max(621, $bounds.Height))

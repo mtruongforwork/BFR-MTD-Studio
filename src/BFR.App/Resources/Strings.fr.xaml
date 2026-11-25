@@ -1336,4 +1336,34 @@
     <sys:String x:Key="MacRenameAdd">Ajouter des fichiers ou des dossiers</sys:String>
     <sys:String x:Key="MacDismiss">Fermer</sys:String>
     <sys:String x:Key="MacUndo">Annuler</sys:String>
+    <!-- v3.2 P6: Start, All tools, library pages -->
+    <sys:String x:Key="MacToolsNoMatch">Aucun outil ne correspond.</sys:String>
+    <sys:String x:Key="MacGreetingMorning">Bonjour</sys:String>
+    <sys:String x:Key="MacGreetingAfternoon">Bon après-midi</sys:String>
+    <sys:String x:Key="MacGreetingEvening">Bonsoir</sys:String>
+    <sys:String x:Key="MacHomeDropHint">Choisissez ou déposez des fichiers, puis l’action voulue. Tout s’exécute sur votre PC.</sys:String>
+    <sys:String x:Key="MacHomeRecent">Récents</sys:String>
+    <sys:String x:Key="MacHomeAllHistory">Voir l’historique</sys:String>
+    <sys:String x:Key="MacHomeRecentEmpty">Rien pour l’instant. Vos dernières opérations apparaîtront ici.</sys:String>
+    <sys:String x:Key="MacHomeFavoritesHint">Cliquez sur ★ d’un outil dans « Tous les outils » pour l’épingler ici et dans la barre latérale.</sys:String>
+    <sys:String x:Key="MacHomeWatching">Surveillance active · {0} règle(s)</sys:String>
+    <sys:String x:Key="MacHomeWatchIdle">Surveillance arrêtée · {0} règle(s)</sys:String>
+    <sys:String x:Key="MacHistoryRunDefault">Traitement de fichiers</sys:String>
+    <sys:String x:Key="MacHistoryCount">{0} opération(s)</sys:String>
+    <sys:String x:Key="MacHistorySelectHint">Sélectionnez une opération pour voir ce que l’annulation rétablira.</sys:String>
+    <sys:String x:Key="MacFilesCount">{0} fichier(s)</sys:String>
+    <sys:String x:Key="MacDayToday">Aujourd’hui</sys:String>
+    <sys:String x:Key="MacDayYesterday">Hier</sys:String>
+    <sys:String x:Key="MacDayPreviousWeek">7 jours précédents</sys:String>
+    <sys:String x:Key="MacDayEarlier">Plus ancien</sys:String>
+    <sys:String x:Key="MacShelfEmptyTitle">L’étagère est vide</sys:String>
+    <sys:String x:Key="MacShelfSelectHint">Sélectionnez un élément pour voir ses détails.</sys:String>
+    <sys:String x:Key="MacShelfRemove">Retirer de l’étagère</sys:String>
+    <sys:String x:Key="MacShowInExplorer">Afficher dans l’Explorateur</sys:String>
+    <sys:String x:Key="MacSelectedCount">{0} éléments sélectionnés</sys:String>
+    <sys:String x:Key="MacDetailFolder">Dossier</sys:String>
+    <sys:String x:Key="MacDetailSize">Taille</sys:String>
+    <sys:String x:Key="MacDetailModified">Modifié</sys:String>
+    <sys:String x:Key="MacDetailState">État</sys:String>
+    <sys:String x:Key="MacPresetSelectHint">Sélectionnez un préréglage pour voir ses règles.</sys:String>
 </ResourceDictionary>
