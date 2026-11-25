@@ -30,7 +30,7 @@ public enum TemState
 
 /// <summary>
 /// Linh vật Tem (vector). Đổi <see cref="State"/> để đổi biểu cảm. Mọi chuyển động tự tắt khi người dùng
-/// bật giảm chuyển động của Windows hoặc dùng tương phản cao; lúc đó chỉ còn các khung hình tĩnh.
+/// bật giảm chuyển động (của app hoặc Windows) hay dùng tương phản cao; lúc đó chỉ còn các khung hình tĩnh.
 /// </summary>
 public partial class TemMascot : UserControl
 {
@@ -88,7 +88,7 @@ public partial class TemMascot : UserControl
 
     private void OnPoke(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (BfrTheme.ReduceMotion) return;
+        if (Motion.Reduced) return;
         var wiggle = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(420) };
         wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(-10, KeyTime.FromPercent(0.2)));
         wiggle.KeyFrames.Add(new EasingDoubleKeyFrame(10, KeyTime.FromPercent(0.45)));
@@ -114,7 +114,7 @@ public partial class TemMascot : UserControl
         Show(Sweat, s == TemState.Oops);
         Show(Zzz, s == TemState.Sleep);
         Show(Progress, s == TemState.Working);
-        Show(Confetti, s == TemState.Happy && !BfrTheme.ReduceMotion);
+        Show(Confetti, s == TemState.Happy && !Motion.Reduced);
 
         Show(MouthSmile, s == TemState.Idle);
         Show(MouthBig, s == TemState.Happy);
@@ -136,7 +136,7 @@ public partial class TemMascot : UserControl
             piece.BeginAnimation(OpacityProperty, null);
         }
 
-        if (BfrTheme.ReduceMotion || !IsLoaded) return;
+        if (Motion.Reduced || !IsLoaded) return;
 
         if (State == TemState.Working)
         {
@@ -164,7 +164,7 @@ public partial class TemMascot : UserControl
     private void StartAmbientMotion()
     {
         StopAmbientMotion();
-        if (BfrTheme.ReduceMotion) return;
+        if (Motion.Reduced) return;
 
         Bob.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, -3, TimeSpan.FromSeconds(1.6))
         {

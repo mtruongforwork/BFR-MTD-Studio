@@ -20,7 +20,8 @@ public static class MacTheme
     };
 
     /// <summary>Tương phản cao của Windows, hoặc BFR_HC=1 để dev xem thử.</summary>
-    public static bool IsHighContrast => SystemParameters.HighContrast || Environment.GetEnvironmentVariable("BFR_HC") == "1";
+    public static bool IsHighContrast =>
+        BfrTheme.HighContrastOverride ?? (SystemParameters.HighContrast || Environment.GetEnvironmentVariable("BFR_HC") == "1");
 
     public static ResourceDictionary LoadPalette(bool dark) =>
         Load($"Palette.{(IsHighContrast ? "HighContrast" : dark ? "Dark" : "Light")}.xaml");

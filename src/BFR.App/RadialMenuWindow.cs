@@ -12,11 +12,13 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using BFR.App.Controls.Mac;
 using BFR.App.Infrastructure;
+using BFR.Presentation.Design;
 using BFR.Presentation.Tools;
 
 /// <summary>
-/// Menu Tròn Ngữ Cảnh 2 vòng kính mờ (v3.0):
+/// Menu Tròn Ngữ Cảnh 2 vòng kiểu macOS (v3.0, vẽ lại ở v3.2: nền gần đặc, ô quạt bo góc, biểu tượng Lucide):
 /// - Tâm 96px hiển thị tệp/nhóm tệp đang chọn (hoặc Quick Pick kéo-thả khi rỗng) và mô tả khi rê chuột.
 /// - Vòng trong 8 ô biến hình theo 7 profile ngữ cảnh (SinglePdf, MultiplePdf, OfficeDoc, Images, TextData, Mixed, Empty).
 /// - Vòng cung phụ (Outer 2-Ring Sub-Arc, r = 104..152px) bung mượt khi chuột phải / bấm Space / giữ rê 350ms.
@@ -59,7 +61,7 @@ public sealed class RadialMenuWindow : Window
 
     private readonly Canvas _canvas = new() { Background = Brushes.Transparent };
     private readonly List<Path> _wedges = new();
-    private readonly List<TextBlock> _icons = new();
+    private readonly List<MacIcon> _icons = new();
     private readonly List<TextBlock?> _subMarkers = new();
     private readonly List<TranslateTransform> _offsets = new();
 
@@ -67,7 +69,7 @@ public sealed class RadialMenuWindow : Window
     private readonly DispatcherTimer _subHoverTimer;
 
     private readonly Ellipse _hubEllipse = new();
-    private readonly TextBlock _hubIcon = new();
+    private readonly MacIcon _hubIcon = new() { Size = 20 };
     private readonly TextBlock _hubTitle = new();
     private readonly TextBlock _hubSub = new();
     private readonly TextBlock _hint = new();
@@ -157,21 +159,29 @@ public sealed class RadialMenuWindow : Window
         return Brushes.Transparent;
     }
 
-    private static Brush GlassFill => Res("BfrGlassFillStrong", "CardBackground");
-    private static Brush GlassRim => Res("BfrGlassRim", "BorderStrong");
-    private static Brush AccentBrush => Res("BfrAccGradient", "Accent");
-    private static Brush AccentFg => Res("BfrAccFg", "Accent");
-    private static Brush OnAccentFg => Res("BfrOnAccent", "TextOnAccent");
-    private static Brush PrimaryFg => Res("BfrFg", "TextPrimary");
-    private static Brush SecondaryFg => Res("BfrFg2", "TextSecondary");
-    private static Brush SubArcFill => Res("BfrSurface2", "PanelBackground");
+    private static Brush GlassFill => Res("Mac.MenuBg", "BfrGlassFillStrong");
+    private static Brush GlassRim => Res("Mac.Separator", "BfrGlassRim");
+    private static Brush AccentBrush => Res("Mac.AccentFill", "BfrAccGradient");
+    private static Brush AccentFg => Res("Mac.Accent", "BfrAccFg");
+    private static Brush OnAccentFg => Res("Mac.OnAccent", "BfrOnAccent");
+    private static Brush PrimaryFg => Res("Mac.Label", "BfrFg");
+    private static Brush SecondaryFg => Res("Mac.Label2", "BfrFg2");
+    private static Brush SubArcFill => Res("Mac.SheetBg", "BfrSurface2");
+
+    private static MacIcon Glyph(string name, double size, Brush brush)
+    {
+        var icon = new MacIcon { Size = size, Foreground = brush };
+        icon.SetResourceReference(MacIcon.DataProperty, "Icon." + name);
+        return icon;
+    }
+
+    private void SetHubIcon(string name) => _hubIcon.SetResourceReference(MacIcon.DataProperty, "Icon." + name);
 
     // ----------------------------------------------------------------- Dựng hình
 
     private void Build()
     {
         var count = _items.Count;
-        var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");
 
         for (var i = 0; i < count; i++)
         {
@@ -190,18 +200,11 @@ public sealed class RadialMenuWindow : Window
 
             var centerAngle = RadialLayout.CenterAngle(i, count);
             var (ix, iy) = RadialLayout.Point(_cx, _cy, (Inner + Outer) / 2 - 2, centerAngle);
-            var icon = new TextBlock
-            {
-                Text = _items[i].Icon,
-                FontFamily = iconFont,
-                FontSize = 17,
-                Foreground = AccentFg,
-                IsHitTestVisible = false,
-                RenderTransform = new TranslateTransform()
-            };
-            icon.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(icon, ix - icon.DesiredSize.Width / 2);
-            Canvas.SetTop(icon, iy - icon.DesiredSize.Height / 2);
+            var icon = Glyph(RadialArt.Icon(_items[i].Key), 20, AccentFg);
+            icon.IsHitTestVisible = false;
+            icon.RenderTransform = new TranslateTransform();
+            Canvas.SetLeft(icon, ix - 10);
+            Canvas.SetTop(icon, iy - 10);
             _icons.Add(icon);
             _canvas.Children.Add(icon);
 
@@ -242,14 +245,10 @@ public sealed class RadialMenuWindow : Window
         Panel.SetZIndex(_hubEllipse, 5);
         _canvas.Children.Add(_hubEllipse);
 
-        _hubIcon.FontFamily = iconFont;
-        _hubIcon.FontSize = 16;
         _hubIcon.Foreground = AccentFg;
-        _hubIcon.TextAlignment = TextAlignment.Center;
-        _hubIcon.Width = HubDiameter - 14;
         _hubIcon.IsHitTestVisible = false;
-        Canvas.SetLeft(_hubIcon, _cx - (HubDiameter - 14) / 2);
-        Canvas.SetTop(_hubIcon, _cy - 34);
+        Canvas.SetLeft(_hubIcon, _cx - 10);
+        Canvas.SetTop(_hubIcon, _cy - 35);
         Panel.SetZIndex(_hubIcon, 6);
         _canvas.Children.Add(_hubIcon);
 
@@ -283,11 +282,21 @@ public sealed class RadialMenuWindow : Window
         _hint.FontSize = 10;
         _hint.Foreground = SecondaryFg;
         _hint.TextAlignment = TextAlignment.Center;
-        _hint.Width = Width - 20;
-        _hint.IsHitTestVisible = false;
-        Canvas.SetLeft(_hint, 10);
-        Canvas.SetTop(_hint, _cy + SubOuter + 6);
-        _canvas.Children.Add(_hint);
+        var hintPill = new Border
+        {
+            Background = GlassFill,
+            BorderBrush = GlassRim,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(10, 2, 10, 3),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = _hint
+        };
+        var hintRow = new Grid { Width = Width - 20, IsHitTestVisible = false };
+        hintRow.Children.Add(hintPill);
+        Canvas.SetLeft(hintRow, 10);
+        Canvas.SetTop(hintRow, _cy + SubOuter + 4);
+        _canvas.Children.Add(hintRow);
 
         // Chế độ Quick Pick khi Empty: hiển thị tối đa 3 tệp mở gần đây dưới vòng tròn.
         if (_context.Kind == RadialContextKind.Empty && _recentFiles.Count > 0)
@@ -298,16 +307,10 @@ public sealed class RadialMenuWindow : Window
                 var pill = new Button
                 {
                     Content = Truncate(System.IO.Path.GetFileName(recent), 18),
-                    FontSize = 10,
-                    Padding = new Thickness(8, 3, 8, 3),
                     Margin = new Thickness(3, 0, 3, 0),
-                    Background = GlassFill,
-                    Foreground = PrimaryFg,
-                    BorderBrush = GlassRim,
-                    BorderThickness = new Thickness(1),
-                    Cursor = Cursors.Hand,
                     ToolTip = recent
                 };
+                pill.SetResourceReference(StyleProperty, "Mac.Button.Small");
                 pill.Click += (_, _) =>
                 {
                     CloseMenu();
@@ -318,7 +321,7 @@ public sealed class RadialMenuWindow : Window
 
             _recentStrip.Measure(new Size(Width, 40));
             Canvas.SetLeft(_recentStrip, (_cx - _recentStrip.DesiredSize.Width / 2));
-            Canvas.SetTop(_recentStrip, _cy + SubOuter + 24);
+            Canvas.SetTop(_recentStrip, _cy + SubOuter + 28);
             Panel.SetZIndex(_recentStrip, 12);
             _canvas.Children.Add(_recentStrip);
         }
@@ -340,16 +343,19 @@ public sealed class RadialMenuWindow : Window
 
     private Geometry ArcSector(double a0, double a1, double innerR, double outerR)
     {
-        var (x0, y0) = RadialLayout.Point(_cx, _cy, outerR, a0);
-        var (x1, y1) = RadialLayout.Point(_cx, _cy, outerR, a1);
-        var (x2, y2) = RadialLayout.Point(_cx, _cy, innerR, a1);
-        var (x3, y3) = RadialLayout.Point(_cx, _cy, innerR, a0);
-
-        var largeArc = Math.Abs(a1 - a0) > 180.0;
-        var figure = new PathFigure { StartPoint = new Point(x0, y0), IsClosed = true };
-        figure.Segments.Add(new ArcSegment(new Point(x1, y1), new Size(outerR, outerR), 0, largeArc, SweepDirection.Clockwise, true));
-        figure.Segments.Add(new LineSegment(new Point(x2, y2), true));
-        figure.Segments.Add(new ArcSegment(new Point(x3, y3), new Size(innerR, innerR), 0, largeArc, SweepDirection.Counterclockwise, true));
+        var outline = RadialShapes.RoundedSector(_cx, _cy, innerR, outerR, a0, a1, corner: 7);
+        var figure = new PathFigure { StartPoint = new Point(outline.StartX, outline.StartY), IsClosed = true };
+        foreach (var s in outline.Segments)
+        {
+            var to = new Point(s.X, s.Y);
+            figure.Segments.Add(s.Kind switch
+            {
+                SectorSegmentKind.Corner => new QuadraticBezierSegment(new Point(s.ControlX, s.ControlY), to, true),
+                SectorSegmentKind.ArcClockwise => new ArcSegment(to, new Size(s.Radius, s.Radius), 0, s.LargeArc, SweepDirection.Clockwise, true),
+                SectorSegmentKind.ArcCounterClockwise => new ArcSegment(to, new Size(s.Radius, s.Radius), 0, s.LargeArc, SweepDirection.Counterclockwise, true),
+                _ => new LineSegment(to, true)
+            });
+        }
 
         var geometry = new PathGeometry();
         geometry.Figures.Add(figure);
@@ -454,7 +460,7 @@ public sealed class RadialMenuWindow : Window
         if (index >= 0 && index < _items.Count)
         {
             var item = _items[index];
-            _hubIcon.Text = item.Icon;
+            SetHubIcon(RadialArt.Icon(item.Key));
             _hubTitle.Text = Loc.T(item.TitleKey);
             var modeTag = item.ExecutionMode == RadialExecutionMode.Instant ? "⚡" : "📑";
             var proTag = item.RequiresPro ? " · Pro" : string.Empty;
@@ -475,20 +481,13 @@ public sealed class RadialMenuWindow : Window
     {
         if (_context.Kind == RadialContextKind.Empty)
         {
-            _hubIcon.Text = "\uE896";
+            SetHubIcon(RadialArt.ContextIcon(_context.Kind));
             _hubTitle.Text = Loc.T("RadialQuickPick");
             _hubSub.Text = Loc.T("RadialDropFilesHint");
             return;
         }
 
-        _hubIcon.Text = _context.Kind switch
-        {
-            RadialContextKind.SinglePdf or RadialContextKind.MultiplePdf => "\uEA90",
-            RadialContextKind.OfficeDoc => "\uE8A5",
-            RadialContextKind.Images => "\uEB9F",
-            RadialContextKind.TextData => "\uE8D2",
-            _ => "\uE8B7"
-        };
+        SetHubIcon(RadialArt.ContextIcon(_context.Kind));
         _hubTitle.Text = Truncate(_context.DisplayTitle, 16);
 
         var badge = _context.IsEncrypted
@@ -501,7 +500,7 @@ public sealed class RadialMenuWindow : Window
 
     private static void Animate(TranslateTransform transform, double x, double y, int ms)
     {
-        if (BfrTheme.ReduceMotion)
+        if (Motion.Reduced)
         {
             transform.BeginAnimation(TranslateTransform.XProperty, null);
             transform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -577,6 +576,9 @@ public sealed class RadialMenuWindow : Window
         var totalSpan = wedgeSpan * count;
         var startBase = parentCenter - totalSpan / 2.0;
 
+        // Nhãn rộng theo cung giữa của ô quạt, để chỉ phải cắt khi thật sự hết chỗ.
+        var labelWidth = Math.Clamp((SubInner + SubOuter) / 2.0 * (wedgeSpan - 2.0) * Math.PI / 180.0 - 10, 52, 68);
+
         for (var i = 0; i < count; i++)
         {
             var a0 = startBase + i * wedgeSpan + 1.0;
@@ -590,13 +592,12 @@ public sealed class RadialMenuWindow : Window
                 Fill = SubArcFill,
                 Stroke = GlassRim,
                 StrokeThickness = 1,
-                RenderTransform = offset,
                 IsHitTestVisible = false
             };
             Panel.SetZIndex(wedge, 8);
             _canvas.Children.Add(wedge);
 
-            var labelText = Truncate(actions[i].RawLabel ?? Loc.T(actions[i].LabelKey ?? string.Empty), 14);
+            var labelText = actions[i].RawLabel ?? Loc.T(actions[i].LabelKey ?? string.Empty);
             var (lx, ly) = RadialLayout.Point(_cx, _cy, (SubInner + SubOuter) / 2.0, mid);
             var label = new TextBlock
             {
@@ -606,32 +607,37 @@ public sealed class RadialMenuWindow : Window
                 Foreground = PrimaryFg,
                 TextAlignment = TextAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 58,
-                IsHitTestVisible = false,
-                RenderTransform = offset
+                MaxWidth = labelWidth,
+                MaxHeight = 39,   // tối đa ba dòng, quá nữa thì "…"
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                IsHitTestVisible = false
             };
-            label.Measure(new Size(58, 40));
+            label.Measure(new Size(labelWidth, 39));
             Canvas.SetLeft(label, lx - label.DesiredSize.Width / 2);
             Canvas.SetTop(label, ly - label.DesiredSize.Height / 2);
             Panel.SetZIndex(label, 9);
             _canvas.Children.Add(label);
 
-            // Hoạt ảnh bung hướng tâm 120ms CubicEase.
-            if (!BfrTheme.ReduceMotion)
+            // Mỗi phần tử có phép quay riêng quanh tâm menu (toạ độ tính theo gốc của chính nó) cộng phép dịch khi rê.
+            var wedgeTurn = new RotateTransform(0, _cx, _cy);
+            var labelTurn = new RotateTransform(0, _cx - Canvas.GetLeft(label), _cy - Canvas.GetTop(label));
+            wedge.RenderTransform = new TransformGroup { Children = { wedgeTurn, offset } };
+            label.RenderTransform = new TransformGroup { Children = { labelTurn, offset } };
+
+            // Vòng phụ trượt ra dọc theo cung từ phía ô cha và mờ vào (giảm chuyển động: chỉ mờ).
+            if (!Motion.Reduced)
             {
-                var (sx, sy) = RadialLayout.Point(0, 0, -14, mid);
-                offset.X = sx;
-                offset.Y = sy;
-                Animate(offset, 0, 0, 120);
-                wedge.Opacity = 0;
-                label.Opacity = 0;
-                var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                };
-                wedge.BeginAnimation(OpacityProperty, fade);
-                label.BeginAnimation(OpacityProperty, fade);
+                var from = mid < parentCenter ? 9.0 : mid > parentCenter ? -9.0 : -6.0;
+                foreach (var turn in new[] { wedgeTurn, labelTurn })
+                    turn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(140))
+                    {
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    });
             }
+
+            var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            wedge.BeginAnimation(OpacityProperty, fade);
+            label.BeginAnimation(OpacityProperty, fade);
 
             _subArcs.Add(new SubArcEntry(actions[i], wedge, label, a0, a1, offset));
         }
@@ -658,7 +664,7 @@ public sealed class RadialMenuWindow : Window
         if (subIndex >= 0 && subIndex < _subArcs.Count && _subParent >= 0)
         {
             var act = _subArcs[subIndex].Action;
-            _hubIcon.Text = _items[_subParent].Icon;
+            SetHubIcon(RadialArt.Icon(_items[_subParent].Key));
             _hubTitle.Text = act.RawLabel ?? Loc.T(act.LabelKey ?? string.Empty);
             var modeTag = act.ExecutionMode == RadialExecutionMode.Instant ? "⚡" : "📑";
             var proTag = act.RequiresPro ? " · Pro" : string.Empty;
@@ -833,18 +839,8 @@ public sealed class RadialMenuWindow : Window
         Left = x;
         Top = y;
 
-        if (!BfrTheme.ReduceMotion)
-        {
-            var scale = new ScaleTransform(0.78, 0.78, _cx, _cy);
-            _canvas.RenderTransform = scale;
-            _canvas.Opacity = 0;
-            var popEase = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 };
-            var fadeEase = new CubicEase { EasingMode = EasingMode.EaseOut };
-            var dur = TimeSpan.FromMilliseconds(150);
-            _canvas.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { EasingFunction = fadeEase });
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.78, 1.0, dur) { EasingFunction = popEase });
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.78, 1.0, dur) { EasingFunction = popEase });
-        }
+        // Phóng và mờ ra từ đúng điểm con trỏ bằng lò xo (Motion tự bỏ phóng khi giảm chuyển động).
+        Motion.ScaleIn(_canvas, new Point(_cx / Width, _cy / Height), 0.82, MotionKind.Standard);
 
         Show();
         Activate();

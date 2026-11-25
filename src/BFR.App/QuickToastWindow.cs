@@ -7,43 +7,60 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using BFR.App.Controls;
+using BFR.App.Controls.Mac;
 using BFR.App.Infrastructure;
+using BFR.Presentation.Design;
 using BFR.Presentation.Tools;
-using Ui = Wpf.Ui.Controls;
 
 /// <summary>
-/// Actionable Progress &amp; Result Glass Toast (v3.0):
-/// - Tương thích 100% constructor v2.x cho Quick Rename.
-/// - Hỗ trợ chế độ tiến trình trực tiếp (spinner + % + [Hủy]) rồi morph mượt sang chế độ Kết quả
-///   (✅, huy hiệu giảm dung lượng kiểu Squoosh như ↓64%, [Mở file], [Thư mục], [Hoàn tác], [Làm tiếp ▸]).
+/// Banner thông báo kiểu Notification Center (v3.2): góc trên phải, rộng 360 px, biểu tượng ứng dụng, tiêu đề và mô tả.
+/// Nhiều banner xếp chồng; vuốt sang phải để đóng. Chạy tiến trình thì có thanh mảnh ở đáy và nút Huỷ, xong thì
+/// đổi tại chỗ sang kết quả. Các nút hành động (Mở tệp · Thư mục · Hoàn tác · Làm tiếp ▸) hiện khi rê chuột hoặc
+/// khi bàn phím đi vào; lỗi cần người dùng chọn thì nút luôn hiện.
 /// </summary>
 public sealed class QuickToastWindow : Window
 {
+    private const double CardWidth = 360;
+
+    /// <summary>Số tệp đầu ra từ mức này trở lên thì là "thành công lớn": linh vật Tem ra mừng.</summary>
+    private const int BigSuccessOutputs = 10;
+
+    private static readonly List<QuickToastWindow> Open = new();
+
     private readonly DispatcherTimer _timer;
-    private readonly TextBlock _glyph;
-    private readonly TextBlock _message;
-    private readonly Border _deltaBadge;
-    private readonly TextBlock _deltaText;
-    private readonly ProgressBar _liveProgress;
-    private readonly WrapPanel _actionsPanel;
+    private readonly TextBlock _title = new() { FontSize = 12.5, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _message = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12.5, MaxHeight = 120, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly ContentControl _iconHost = new() { Width = 36, Height = 36, Focusable = false, VerticalAlignment = VerticalAlignment.Top };
+    private readonly Border _badge = new() { Width = 17, Height = 17, CornerRadius = new CornerRadius(8.5), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Collapsed };
+    private readonly MacIcon _badgeGlyph = new() { Size = 11, StrokeThickness = 3 };
+    private readonly Border _deltaBadge = new() { CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 2, 7, 2), Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
+    private readonly TextBlock _deltaText = new() { FontSize = 11 };
+    private readonly ProgressBar _liveProgress = new() { Height = 3, Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed };
+    private readonly WrapPanel _actionsPanel = new() { Margin = new Thickness(48, 8, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly Button _close;
     private readonly Border _card;
-    private readonly Rectangle _countdownBar;
-    private readonly TranslateTransform _slide = new(0, 0);
+    private readonly Rectangle _countdownBar = new() { Height = 2, RenderTransformOrigin = new Point(0, 0.5), Opacity = 0.7 };
     private readonly ScaleTransform _progressScale = new(1, 1);
-    private readonly int _index;
     private bool _inProgressMode;
+    private bool _alwaysShowActions;
     private bool _popupOpen;
     private bool _closingAnimated;
+    private Point? _dragStart;
 
-    /// <summary>Constructor v2.x cho kết quả tức thì kèm nút Hoàn tác.</summary>
+    /// <summary>Constructor v2.x cho kết quả tức thì kèm nút Hoàn tác. <paramref name="index"/> không còn dùng: banner tự xếp chồng.</summary>
     public QuickToastWindow(string message, Func<string>? undo, bool isProblem, int index)
-        : this(index)
+        : this()
     {
+        _ = index;
         ApplyResultVisuals(
             message,
             isProblem: isProblem,
@@ -57,16 +74,12 @@ public sealed class QuickToastWindow : Window
             onSecondaryAction: null);
     }
 
-    /// <summary>Tạo Toast ở chế độ đang xử lý trực tiếp (Progress + [Hủy]), chờ morph sang kết quả.</summary>
+    /// <summary>Tạo banner ở chế độ đang xử lý trực tiếp (tiến trình + Huỷ), chờ đổi sang kết quả.</summary>
     public static QuickToastWindow CreateProgress(string title, Action? onCancel, int index = 0)
     {
-        var toast = new QuickToastWindow(index)
-        {
-            _inProgressMode = true
-        };
+        _ = index;
+        var toast = new QuickToastWindow { _inProgressMode = true };
 
-        toast._glyph.Text = "\uE895";
-        toast._glyph.Foreground = Res("BfrAccFg", "Accent");
         toast._message.Text = title;
         toast._liveProgress.Visibility = Visibility.Visible;
         toast._liveProgress.IsIndeterminate = true;
@@ -81,16 +94,15 @@ public sealed class QuickToastWindow : Window
                 onCancel();
             };
             toast._actionsPanel.Children.Add(cancelBtn);
-            toast._actionsPanel.Visibility = Visibility.Visible;
+            toast._alwaysShowActions = true;   // đang chạy: Huỷ phải bấm được ngay
         }
 
+        toast.SyncActionVisibility();
         return toast;
     }
 
-    private QuickToastWindow(int index)
+    private QuickToastWindow()
     {
-        _index = index;
-
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -100,116 +112,78 @@ public sealed class QuickToastWindow : Window
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
+        SetResourceReference(FontFamilyProperty, "Mac.Font");
         System.Windows.Automation.AutomationProperties.SetName(this, "BFR action toast");
 
-        _glyph = new TextBlock
-        {
-            Text = "\uE73E",
-            FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
-            FontSize = 18,
-            Foreground = Res("BfrOk", "Success"),
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 2, 12, 0)
-        };
+        _title.Text = Loc.T("WindowTitle");
+        _title.SetResourceReference(TextBlock.FontFamilyProperty, "Mac.FontSemi");
+        _title.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        _message.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label2");
+        _deltaText.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Ok");
+        _deltaBadge.SetResourceReference(Border.BackgroundProperty, "Mac.OkSoft");
+        _deltaBadge.Child = _deltaText;
+        _liveProgress.SetResourceReference(StyleProperty, "Mac.ProgressBar");
+        _liveProgress.Height = 3;
+        _badge.SetResourceReference(Border.BackgroundProperty, "Mac.SheetBg");
+        _badge.Child = _badgeGlyph;
 
-        _message = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 340,
-            Foreground = Res("BfrFg", "TextPrimary"),
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var iconStack = new Grid { Width = 36, Height = 36, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 12, 0) };
+        _iconHost.Content = AppIcon();
+        iconStack.Children.Add(_iconHost);
+        iconStack.Children.Add(_badge);
 
-        _deltaText = new TextBlock
-        {
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Res("BfrOk", "Success")
-        };
-        _deltaBadge = new Border
-        {
-            Background = Res("BfrOkSoft", "CardBackground"),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(7, 2, 7, 2),
-            Margin = new Thickness(0, 6, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Visibility = Visibility.Collapsed,
-            Child = _deltaText
-        };
-
-        _liveProgress = new ProgressBar
-        {
-            Height = 4,
-            Margin = new Thickness(0, 8, 0, 0),
-            Minimum = 0,
-            Maximum = 100,
-            Visibility = Visibility.Collapsed
-        };
-
-        _actionsPanel = new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 0),
-            Visibility = Visibility.Collapsed
-        };
+        var closeGlyph = new MacIcon { Size = 12, StrokeThickness = 2.2 };
+        closeGlyph.SetResourceReference(MacIcon.DataProperty, "Icon.X");
+        _close = new Button { Content = closeGlyph, Margin = new Thickness(6, -3, -4, 0), VerticalAlignment = VerticalAlignment.Top, Opacity = 0 };
+        _close.SetResourceReference(StyleProperty, "Mac.ToolbarButton");
+        _close.Height = 22;
+        _close.MinWidth = 22;
+        _close.Padding = new Thickness(4, 0, 4, 0);
+        System.Windows.Automation.AutomationProperties.SetName(_close, Loc.T("TitleClose"));
+        _close.Click += (_, _) => CloseWithAnimation();
 
         var body = new StackPanel();
+        body.Children.Add(_title);
         body.Children.Add(_message);
         body.Children.Add(_deltaBadge);
-        body.Children.Add(_liveProgress);
-        body.Children.Add(_actionsPanel);
 
-        var close = new Ui.Button
-        {
-            Content = "\uE711",
-            FontFamily = (FontFamily)Application.Current.FindResource("IconFont"),
-            Appearance = Ui.ControlAppearance.Transparent,
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(6),
-            VerticalAlignment = VerticalAlignment.Top
-        };
-        close.Click += (_, _) => CloseWithAnimation();
+        var top = new DockPanel();
+        DockPanel.SetDock(iconStack, Dock.Left);
+        top.Children.Add(iconStack);
+        DockPanel.SetDock(_close, Dock.Right);
+        top.Children.Add(_close);
+        top.Children.Add(body);
 
-        var topGrid = new Grid { Margin = new Thickness(16, 12, 10, 12) };
-        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(_glyph, 0);
-        Grid.SetColumn(body, 1);
-        Grid.SetColumn(close, 2);
-        topGrid.Children.Add(_glyph);
-        topGrid.Children.Add(body);
-        topGrid.Children.Add(close);
+        var content = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
+        content.Children.Add(top);
+        content.Children.Add(_actionsPanel);
 
-        _countdownBar = new Rectangle
-        {
-            Height = 2,
-            Fill = Res("BfrOk", "Success"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            RenderTransformOrigin = new Point(0, 0.5),
-            RenderTransform = _progressScale,
-            Opacity = 0.85
-        };
+        _countdownBar.RenderTransform = _progressScale;
+        _countdownBar.SetResourceReference(Shape.FillProperty, "Mac.Accent");
+
+        var bottom = new Grid { Margin = new Thickness(12, 0, 12, 0) };   // nằm trong phần thẳng của mép dưới, không thò ra góc bo
+        bottom.Children.Add(_countdownBar);
+        bottom.Children.Add(_liveProgress);
 
         var layout = new DockPanel();
-        DockPanel.SetDock(_countdownBar, Dock.Bottom);
-        layout.Children.Add(_countdownBar);
-        layout.Children.Add(topGrid);
+        DockPanel.SetDock(bottom, Dock.Bottom);
+        layout.Children.Add(bottom);
+        layout.Children.Add(content);
 
         _card = new Border
         {
-            Margin = new Thickness(12),
+            Width = CardWidth,
+            Margin = new Thickness(10, 4, 10, 8),
             CornerRadius = new CornerRadius(12),
-            Background = Res("BfrGlassFillStrong", "SurfaceBackground"),
-            BorderBrush = Res("BfrGlassRim", "Divider"),
             BorderThickness = new Thickness(1),
             ClipToBounds = true,
-            RenderTransform = _slide,
             Child = layout
         };
+        _card.SetResourceReference(Border.BackgroundProperty, "Mac.SheetBg");
+        _card.SetResourceReference(Border.BorderBrushProperty, "Mac.Separator");
         if (BfrTheme.GlassEffectsEnabled)
         {
-            _card.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.32, Color = Colors.Black };
+            _card.Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Direction = 270, Opacity = 0.3, Color = Colors.Black };
         }
 
         Content = _card;
@@ -219,29 +193,112 @@ public sealed class QuickToastWindow : Window
 
         MouseEnter += (_, _) =>
         {
+            SyncActionVisibility();
             if (_inProgressMode) return;
             _timer.Stop();
             StopCountdownBar(resetFull: false);
         };
         MouseLeave += (_, _) =>
         {
-            if (_inProgressMode || _popupOpen) return;
+            SyncActionVisibility();
+            if (_inProgressMode || _popupOpen || IsKeyboardFocusWithin) return;
             _timer.Stop();
             _timer.Start();
             StartCountdownBar(_timer.Interval);
         };
-        Closed += (_, _) => _timer.Stop();
+        IsKeyboardFocusWithinChanged += (_, _) => SyncActionVisibility();
+
+        _card.MouseLeftButtonDown += OnSwipeStart;
+        _card.MouseMove += OnSwipeMove;
+        _card.MouseLeftButtonUp += OnSwipeEnd;
+
+        SizeChanged += (_, _) => Restack();
+        Closed += (_, _) =>
+        {
+            _timer.Stop();
+            if (Open.Remove(this)) Restack();
+        };
 
         Loaded += (_, _) =>
         {
-            Reposition();
-            PlayEntrance();
+            if (!Open.Contains(this)) Open.Add(this);
+            Restack();
+            Motion.Enter(_card, 40, 0, MotionKind.Standard);
             if (!_inProgressMode)
             {
                 _timer.Start();
                 StartCountdownBar(_timer.Interval);
             }
         };
+    }
+
+    private static FrameworkElement AppIcon()
+    {
+        var picture = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(8) };
+        try
+        {
+            var decoder = BitmapDecoder.Create(new Uri("pack://application:,,,/BatchFileRenamer;component/Resources/app.ico"),
+                BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            picture.Background = new ImageBrush(decoder.Frames.OrderByDescending(f => f.PixelWidth).First()) { Stretch = Stretch.UniformToFill };
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or UriFormatException)
+        {
+            // Thiếu biểu tượng thì để trống ô.
+        }
+
+        return picture;
+    }
+
+    /// <summary>Nút hành động hiện khi rê chuột, khi bàn phím ở trong banner, khi menu đang mở, hoặc khi bắt buộc.</summary>
+    private void SyncActionVisibility()
+    {
+        var reveal = IsMouseOver || IsKeyboardFocusWithin || _popupOpen;
+        var show = _actionsPanel.Children.Count > 0 && (_alwaysShowActions || reveal);
+        var visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (_actionsPanel.Visibility != visibility)
+        {
+            _actionsPanel.Visibility = visibility;
+            if (show && IsLoaded) Motion.FadeIn(_actionsPanel);
+        }
+
+        // Nút đóng chỉ mờ đi chứ không ẩn: bàn phím và trình đọc màn hình vẫn tới được.
+        _close.Opacity = reveal ? 1 : 0;
+    }
+
+    private void OnSwipeStart(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && IsInsideButton(source)) return;
+        _dragStart = e.GetPosition(this);
+        _card.CaptureMouse();
+    }
+
+    private void OnSwipeMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStart is not { } start || e.LeftButton != MouseButtonState.Pressed) return;
+        var rig = Motion.RigOf(_card);
+        rig.Move.BeginAnimation(TranslateTransform.XProperty, null);
+        rig.Move.X = BannerLayout.DragOffset(e.GetPosition(this).X - start.X);
+    }
+
+    private void OnSwipeEnd(object sender, MouseButtonEventArgs e)
+    {
+        if (_dragStart is null) return;
+        _dragStart = null;
+        _card.ReleaseMouseCapture();
+
+        var move = Motion.RigOf(_card).Move;
+        if (BannerLayout.ShouldDismiss(move.X)) CloseWithAnimation();
+        else Motion.To(move, TranslateTransform.XProperty, 0, MotionKind.Standard);
+    }
+
+    private static bool IsInsideButton(DependencyObject source)
+    {
+        for (var node = source; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is ButtonBase) return true;
+        }
+
+        return false;
     }
 
     /// <summary>Cập nhật tiến trình trực tiếp từ bất kỳ luồng nào.</summary>
@@ -266,7 +323,7 @@ public sealed class QuickToastWindow : Window
         }
     }
 
-    /// <summary>Morph từ chế độ Tiến trình sang chế độ Hoàn tất kèm các nút hành động &amp; Làm tiếp ▸.</summary>
+    /// <summary>Đổi từ chế độ tiến trình sang chế độ hoàn tất kèm các nút hành động và Làm tiếp ▸.</summary>
     public void CompleteSuccess(
         string message,
         string? deltaBadge = null,
@@ -284,10 +341,10 @@ public sealed class QuickToastWindow : Window
         _liveProgress.Visibility = Visibility.Collapsed;
         ApplyResultVisuals(message, isProblem: false, deltaBadge, outputPaths, undo, onContinueWith, null, null, null, null);
         RestartCountdown(TimeSpan.FromSeconds(12));
-        Reposition();
+        Restack();
     }
 
-    /// <summary>Morph sang trạng thái cảnh báo/lỗi kèm tối đa 2 nút giải quyết tại chỗ.</summary>
+    /// <summary>Đổi sang trạng thái cảnh báo/lỗi kèm tối đa 2 nút giải quyết tại chỗ.</summary>
     public void CompleteError(
         string message,
         string? primaryActionLabel = null,
@@ -306,7 +363,7 @@ public sealed class QuickToastWindow : Window
         ApplyResultVisuals(message, isProblem: true, null, null, null, null,
             primaryActionLabel, onPrimaryAction, secondaryActionLabel, onSecondaryAction);
         RestartCountdown(TimeSpan.FromSeconds(15));
-        Reposition();
+        Restack();
     }
 
     private void ApplyResultVisuals(
@@ -321,11 +378,11 @@ public sealed class QuickToastWindow : Window
         string? secondaryActionLabel,
         Action? onSecondaryAction)
     {
-        var accent = isProblem ? Res("BfrWarn", "Warning") : Res("BfrOk", "Success");
-        _glyph.Text = isProblem ? "\uE7BA" : "\uE73E";
-        _glyph.Foreground = accent;
+        _badge.Visibility = Visibility.Visible;
+        _badgeGlyph.SetResourceReference(MacIcon.DataProperty, isProblem ? "Icon.TriangleAlert" : "Icon.Check");
+        _badgeGlyph.SetResourceReference(MacIcon.ForegroundProperty, isProblem ? "Mac.Warn" : "Mac.Ok");
         _message.Text = message;
-        _countdownBar.Fill = accent;
+        _countdownBar.SetResourceReference(Shape.FillProperty, isProblem ? "Mac.Warn" : "Mac.Accent");
         _countdownBar.Visibility = Visibility.Visible;
 
         if (!string.IsNullOrWhiteSpace(deltaBadge))
@@ -339,6 +396,8 @@ public sealed class QuickToastWindow : Window
         }
 
         _actionsPanel.Children.Clear();
+        // Lỗi có cách giải quyết thì nút phải thấy ngay, không đợi rê chuột.
+        _alwaysShowActions = isProblem && (onPrimaryAction is not null || onSecondaryAction is not null);
 
         if (!string.IsNullOrWhiteSpace(primaryActionLabel) && onPrimaryAction is not null)
         {
@@ -363,6 +422,11 @@ public sealed class QuickToastWindow : Window
         }
 
         var existingOutputs = outputPaths?.Where(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p)).ToList();
+        if (!isProblem && outputPaths is { Count: >= BigSuccessOutputs } && SettingsStore.Load().ShowMascot)
+        {
+            _iconHost.Content = new TemMascot { Width = 36, Height = 37, State = TemState.Happy };
+        }
+
         if (existingOutputs is { Count: > 0 })
         {
             var first = existingOutputs[0];
@@ -410,13 +474,11 @@ public sealed class QuickToastWindow : Window
                 continueBtn.Click += (_, _) =>
                 {
                     var menu = new ContextMenu();
-                    if (Application.Current?.TryFindResource("AppContextMenuStyle") is Style menuStyle)
-                        menu.Style = menuStyle;
-                    var itemStyle = Application.Current?.TryFindResource("AppMenuItemStyle") as Style;
+                    menu.SetResourceReference(StyleProperty, "Mac.ContextMenu");
                     foreach (var suggestion in suggestions)
                     {
                         var captured = suggestion;
-                        var item = new MenuItem { Header = Loc.T(suggestion.LabelKey), Style = itemStyle };
+                        var item = new MenuItem { Header = Loc.T(suggestion.LabelKey) };
                         item.Click += (_, _) =>
                         {
                             onContinueWith(captured, existingOutputs);
@@ -424,42 +486,46 @@ public sealed class QuickToastWindow : Window
                         };
                         menu.Items.Add(item);
                     }
-                    menu.Opened += (_, _) => { _popupOpen = true; _timer.Stop(); StopCountdownBar(false); };
-                    menu.Closed += (_, _) => { _popupOpen = false; RestartCountdown(TimeSpan.FromSeconds(6)); };
+                    menu.Opened += (_, _) => { _popupOpen = true; _timer.Stop(); StopCountdownBar(false); SyncActionVisibility(); };
+                    menu.Closed += (_, _) => { _popupOpen = false; SyncActionVisibility(); RestartCountdown(TimeSpan.FromSeconds(6)); };
                     menu.PlacementTarget = continueBtn;
-                    menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+                    menu.Placement = PlacementMode.Bottom;
                     menu.IsOpen = true;
                 };
                 _actionsPanel.Children.Add(continueBtn);
             }
         }
 
-        _actionsPanel.Visibility = _actionsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SyncActionVisibility();
         _timer.Interval = TimeSpan.FromSeconds(isProblem ? 14 : 9);
     }
 
-    private static Ui.Button CreateActionButton(string text, bool isPrimary) => new()
+    private static Button CreateActionButton(string text, bool isPrimary)
     {
-        Content = text,
-        Appearance = isPrimary ? Ui.ControlAppearance.Primary : Ui.ControlAppearance.Secondary,
-        Padding = new Thickness(10, 4, 10, 4),
-        Margin = new Thickness(0, 0, 6, 4),
-        FontSize = 11.5
-    };
-
-    private static Brush Res(string primary, string fallback)
-    {
-        if (Application.Current?.TryFindResource(primary) is Brush b) return b;
-        if (Application.Current?.TryFindResource(fallback) is Brush fb) return fb;
-        return Brushes.Transparent;
+        var button = new Button { Content = text, Margin = new Thickness(0, 0, 6, 4) };
+        button.SetResourceReference(StyleProperty, isPrimary ? "Mac.Button.Primary" : "Mac.Button.Small");
+        if (isPrimary)
+        {
+            // Nút chính cùng cỡ với nút phụ bên cạnh.
+            button.Height = 22;
+            button.FontSize = 11;
+            button.Padding = new Thickness(9, 0, 9, 0);
+        }
+        System.Windows.Automation.AutomationProperties.SetName(button, text);
+        return button;
     }
 
-    private void Reposition()
+    /// <summary>Xếp lại mọi banner đang mở từ góc trên phải xuống.</summary>
+    private static void Restack()
     {
-        UpdateLayout();
+        if (Open.Count == 0) return;
         var area = SystemParameters.WorkArea;
-        Left = area.Right - ActualWidth - 8;
-        Top = Math.Max(area.Top + 8, area.Bottom - ActualHeight - 8 - _index * (ActualHeight + 4));
+        var tops = BannerLayout.Tops(area.Top, area.Height, Open.Select(t => t.ActualHeight).ToList());
+        for (var i = 0; i < Open.Count; i++)
+        {
+            Open[i].Left = area.Right - Open[i].ActualWidth - BannerLayout.Margin;
+            Open[i].Top = tops[i];
+        }
     }
 
     private void RestartCountdown(TimeSpan duration)
@@ -470,19 +536,9 @@ public sealed class QuickToastWindow : Window
         StartCountdownBar(duration);
     }
 
-    private void PlayEntrance()
-    {
-        if (BfrTheme.ReduceMotion) return;
-        _card.Opacity = 0;
-        _slide.X = 28;
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        _card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
-        _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(28, 0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
-    }
-
     private void StartCountdownBar(TimeSpan interval)
     {
-        if (BfrTheme.ReduceMotion)
+        if (Motion.Reduced)
         {
             _progressScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             _progressScale.ScaleX = 1;
@@ -504,16 +560,18 @@ public sealed class QuickToastWindow : Window
         _closingAnimated = true;
         _timer.Stop();
 
-        if (BfrTheme.ReduceMotion)
+        void Finish()
         {
-            try { Close(); } catch (InvalidOperationException) { }
-            return;
+            try { Close(); }
+            catch (InvalidOperationException) { }
         }
 
-        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
-        var fade = new DoubleAnimation(_card.Opacity, 0, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease };
-        fade.Completed += (_, _) => { try { Close(); } catch (InvalidOperationException) { } };
-        _card.BeginAnimation(OpacityProperty, fade);
-        _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 20, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+        if (!Motion.Reduced)
+        {
+            var move = Motion.RigOf(_card).Move;
+            Motion.To(move, TranslateTransform.XProperty, move.X + CardWidth * 0.35, MotionKind.Exit);
+        }
+
+        Motion.To(_card, UIElement.OpacityProperty, 0, MotionKind.Exit, Finish);
     }
 }

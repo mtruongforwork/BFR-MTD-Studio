@@ -11,10 +11,13 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
+using BFR.App.Controls.Mac;
 using BFR.App.Infrastructure;
+using BFR.Presentation.Design;
 
 /// <summary>
 /// Nút tròn nổi kiểu AssistiveTouch luôn hiện trên Desktop và mọi ứng dụng (Topmost, không chiếm Alt+Tab).
+/// v3.2: hình tròn 48 px nền gần đặc, biểu tượng đơn sắc, mờ 60% khi rảnh, bám mép bằng lò xo.
 /// - Kéo để di chuyển và tự bám mép màn hình (lưu vị trí vào SettingsStore).
 /// - Bấm chuột trái để bung vòng Menu tròn 8 chức năng ngay tại vị trí nút.
 /// - Kéo-thả tệp trực tiếp vào nút tròn để bung Menu tròn ngữ cảnh cho tệp đó.
@@ -22,7 +25,8 @@ using BFR.App.Infrastructure;
 /// </summary>
 public sealed class FloatingOrbWindow : Window
 {
-    private const double OrbDiameter = 54;
+    private const double OrbDiameter = 48;
+    private const double IdleOpacity = 0.6;
     private const double CanvasSize = 72;
     private const double DragThresholdSq = 36; // 6px
     private const double EdgeMargin = 16;
@@ -91,7 +95,7 @@ public sealed class FloatingOrbWindow : Window
         ResizeMode = ResizeMode.NoResize;
         ShowActivated = false;
         AllowDrop = true;
-        Opacity = 0.84;
+        Opacity = IdleOpacity;
         System.Windows.Automation.AutomationProperties.SetName(this, "FileFlow Floating Orb");
 
         var root = new Grid
@@ -103,15 +107,16 @@ public sealed class FloatingOrbWindow : Window
             RenderTransform = _scale
         };
 
+        // Vòng màu nhấn: chỉ hiện (và "thở") khi đang rê tệp lên nút.
         _outerRing = new Ellipse
         {
-            Width = OrbDiameter + 6,
-            Height = OrbDiameter + 6,
-            Stroke = Res("BfrGlassRim", "BorderStrong"),
-            StrokeThickness = 1.5,
-            Fill = new SolidColorBrush(Color.FromArgb(40, 15, 18, 30)),
+            Width = OrbDiameter + 10,
+            Height = OrbDiameter + 10,
+            StrokeThickness = 2.5,
+            Opacity = 0,
             IsHitTestVisible = false
         };
+        _outerRing.SetResourceReference(Shape.StrokeProperty, "Mac.Accent");
         root.Children.Add(_outerRing);
 
         _orbBody = new Border
@@ -119,12 +124,12 @@ public sealed class FloatingOrbWindow : Window
             Width = OrbDiameter,
             Height = OrbDiameter,
             CornerRadius = new CornerRadius(OrbDiameter / 2),
-            Background = Res("BfrAccGradient", "Accent"),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255)),
-            BorderThickness = new Thickness(1.2),
+            BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
             ToolTip = TryLoc("FloatingOrbTooltip", "FileFlow Studio — Bấm mở Menu tròn · Kéo di chuyển · Thả tệp vào đây")
         };
+        _orbBody.SetResourceReference(Border.BackgroundProperty, "Mac.MenuBg");
+        _orbBody.SetResourceReference(Border.BorderBrushProperty, "Mac.ControlBorder");
 
         if (BfrTheme.GlassEffectsEnabled)
         {
@@ -132,14 +137,12 @@ public sealed class FloatingOrbWindow : Window
             {
                 BlurRadius = 14,
                 ShadowDepth = 2,
-                Opacity = 0.45,
+                Opacity = 0.4,
                 Color = Colors.Black
             };
         }
 
-        // Biểu tượng vòng tròn đồng tâm + 4 điểm (đặc trưng cho Menu tròn)
-        var glyph = BuildOrbGlyph();
-        _orbBody.Child = glyph;
+        _orbBody.Child = BuildOrbGlyph();
         root.Children.Add(_orbBody);
 
         Content = root;
@@ -156,7 +159,7 @@ public sealed class FloatingOrbWindow : Window
         {
             if (!_pointerDown)
             {
-                AnimateOpacity(0.84);
+                AnimateOpacity(IdleOpacity);
                 AnimateScale(1.0);
             }
         };
@@ -171,49 +174,17 @@ public sealed class FloatingOrbWindow : Window
         Drop += OnFileDrop;
     }
 
+    /// <summary>Biểu tượng đơn sắc: vòng tròn có chấm tâm, gợi menu tròn.</summary>
     private static UIElement BuildOrbGlyph()
     {
-        var canvas = new Canvas { Width = 28, Height = 28, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
-
-        var ring = new Ellipse
-        {
-            Width = 22,
-            Height = 22,
-            Stroke = Brushes.White,
-            StrokeThickness = 1.8,
-            Opacity = 0.92
-        };
-        Canvas.SetLeft(ring, 3);
-        Canvas.SetTop(ring, 3);
-        canvas.Children.Add(ring);
-
-        var center = new Ellipse
-        {
-            Width = 7,
-            Height = 7,
-            Fill = Brushes.White
-        };
-        Canvas.SetLeft(center, 10.5);
-        Canvas.SetTop(center, 10.5);
-        canvas.Children.Add(center);
-
-        // 4 chấm nhỏ xung quanh gợi ý radial menu
-        foreach (var (dx, dy) in new[] { (12.0, 0.5), (12.0, 23.5), (0.5, 12.0), (23.5, 12.0) })
-        {
-            var dot = new Ellipse { Width = 4, Height = 4, Fill = Brushes.White, Opacity = 0.9 };
-            Canvas.SetLeft(dot, dx);
-            Canvas.SetTop(dot, dy);
-            canvas.Children.Add(dot);
-        }
-
-        return canvas;
+        var glyph = new MacIcon { Size = 24, StrokeThickness = 2 };
+        glyph.SetResourceReference(MacIcon.DataProperty, "Icon.CircleDot");
+        glyph.SetResourceReference(MacIcon.ForegroundProperty, "Mac.Label");
+        return glyph;
     }
 
-    public void RefreshTheme()
-    {
-        _outerRing.Stroke = Res("BfrGlassRim", "BorderStrong");
-        _orbBody.Background = Res("BfrAccGradient", "Accent");
-    }
+    /// <summary>Màu lấy bằng tham chiếu động nên tự đổi theo giao diện; giữ hàm cho nơi gọi cũ.</summary>
+    public void RefreshTheme() => InvalidateVisual();
 
     private void ApplyToolWindowStyle()
     {
@@ -248,6 +219,7 @@ public sealed class FloatingOrbWindow : Window
     {
         _pointerDown = true;
         _isDragging = false;
+        StopSnapAnimation();   // đang bám mép dở: giữ đúng chỗ đang thấy rồi mới kéo
         GetCursorPos(out _downScreenPt);
         _downWinLeft = Left;
         _downWinTop = Top;
@@ -297,11 +269,9 @@ public sealed class FloatingOrbWindow : Window
     private void OnRightUp(object sender, MouseButtonEventArgs e)
     {
         var menu = new ContextMenu();
-        if (Application.Current?.TryFindResource("AppContextMenuStyle") is Style menuStyle)
-            menu.Style = menuStyle;
-        var itemStyle = Application.Current?.TryFindResource("AppMenuItemStyle") as Style;
+        menu.SetResourceReference(StyleProperty, "Mac.ContextMenu");
 
-        var openRadialItem = new MenuItem { Header = TryLoc("OrbMenuOpenRadial", "Mở Menu tròn"), Style = itemStyle };
+        var openRadialItem = new MenuItem { Header = TryLoc("OrbMenuOpenRadial", "Mở Menu tròn") };
         openRadialItem.Click += (_, _) =>
         {
             var (cx, cy) = GetCenterScreenPixels();
@@ -309,13 +279,13 @@ public sealed class FloatingOrbWindow : Window
         };
         menu.Items.Add(openRadialItem);
 
-        var openAppItem = new MenuItem { Header = TryLoc("TrayOpen", "Mở FileFlow Studio"), Style = itemStyle };
+        var openAppItem = new MenuItem { Header = TryLoc("TrayOpen", "Mở FileFlow Studio") };
         openAppItem.Click += (_, _) => _openMainWindow();
         menu.Items.Add(openAppItem);
 
         menu.Items.Add(new Separator());
 
-        var hideItem = new MenuItem { Header = TryLoc("OrbMenuHide", "Ẩn nút tròn nổi"), Style = itemStyle };
+        var hideItem = new MenuItem { Header = TryLoc("OrbMenuHide", "Ẩn nút tròn nổi") };
         hideItem.Click += (_, _) => _hideOrb();
         menu.Items.Add(hideItem);
 
@@ -330,8 +300,8 @@ public sealed class FloatingOrbWindow : Window
         {
             AnimateOpacity(1.0);
             AnimateScale(1.14);
-            _outerRing.Stroke = Brushes.White;
-            _outerRing.StrokeThickness = 2.5;
+            Motion.To(_outerRing, UIElement.OpacityProperty, 1, MotionKind.Micro);
+            Motion.Breathe(_outerRing, true);
         }
     }
 
@@ -343,10 +313,10 @@ public sealed class FloatingOrbWindow : Window
 
     private void OnFileDragLeave(object sender, DragEventArgs e)
     {
-        AnimateOpacity(0.84);
+        AnimateOpacity(IdleOpacity);
         AnimateScale(1.0);
-        _outerRing.Stroke = Res("BfrGlassRim", "BorderStrong");
-        _outerRing.StrokeThickness = 1.5;
+        Motion.Breathe(_outerRing, false);
+        Motion.To(_outerRing, UIElement.OpacityProperty, 0, MotionKind.Micro);
     }
 
     private void OnFileDrop(object sender, DragEventArgs e)
@@ -395,24 +365,34 @@ public sealed class FloatingOrbWindow : Window
             : workRight - Width - EdgeMargin;
         var targetTop = Math.Clamp(Top, workTop + EdgeMargin, Math.Max(workTop + EdgeMargin, workBottom - Height - EdgeMargin));
 
-        Left = targetLeft;
-        Top = targetTop;
-
+        // Lưu đích ngay; hoạt ảnh chỉ để mắt theo kịp.
         var settings = SettingsStore.Load();
-        settings.FloatingOrbX = Left;
-        settings.FloatingOrbY = Top;
+        settings.FloatingOrbX = targetLeft;
+        settings.FloatingOrbY = targetTop;
         SettingsStore.Save(settings);
+
+        Motion.To(this, LeftProperty, targetLeft, MotionKind.Standard);
+        Motion.To(this, TopProperty, targetTop, MotionKind.Standard);
+    }
+
+    private void StopSnapAnimation()
+    {
+        var (left, top) = (Left, Top);
+        BeginAnimation(LeftProperty, null);
+        BeginAnimation(TopProperty, null);
+        Left = left;
+        Top = top;
     }
 
     private void AnimateOpacity(double to)
     {
-        if (BfrTheme.ReduceMotion) { Opacity = to; return; }
+        if (Motion.Reduced) { BeginAnimation(OpacityProperty, null); Opacity = to; return; }
         BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)));
     }
 
     private void AnimateScale(double to)
     {
-        if (BfrTheme.ReduceMotion)
+        if (Motion.Reduced)
         {
             _scale.ScaleX = to;
             _scale.ScaleY = to;
@@ -421,13 +401,6 @@ public sealed class FloatingOrbWindow : Window
         var anim = new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
         _scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
         _scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
-    }
-
-    private static Brush Res(string primary, string fallback)
-    {
-        if (Application.Current?.TryFindResource(primary) is Brush b) return b;
-        if (Application.Current?.TryFindResource(fallback) is Brush fb) return fb;
-        return new SolidColorBrush(Color.FromRgb(124, 58, 237));
     }
 
     private static string TryLoc(string key, string fallback) =>
