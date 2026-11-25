@@ -2,6 +2,7 @@ namespace BFR.App.UiTests;
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using BFR.App.Infrastructure;
@@ -16,6 +17,11 @@ internal static class StaHost
 
     static StaHost()
     {
+        // Khi bản BFR thật đang chạy (cơ chế một-phiên-bản), Application của test host bị tắt giữa chừng và hàng chục test sau đó
+        // chết với "The Application object is being shut down" — rất khó đoán nguyên nhân. Báo thẳng ra.
+        if (System.Diagnostics.Process.GetProcessesByName("BatchFileRenamer").Length > 0)
+            throw new InvalidOperationException("Hãy đóng BatchFileRenamer.exe trước khi chạy test giao diện: một phiên bản BFR đang mở làm Application của test host tự tắt.");
+
         using var ready = new ManualResetEventSlim();
         Dispatcher? dispatcher = null;
         Exception? failure = null;
@@ -57,6 +63,9 @@ internal static class StaHost
     public static T Run<T>(Func<T> work) => UiDispatcher.Invoke(work);
 
     public static void Run(Action work) => UiDispatcher.Invoke(work);
+
+    /// <summary>Chạy một thao tác async trên thread giao diện và chờ xong (các await bên trong tiếp tục trên chính thread đó, không deadlock).</summary>
+    public static Task<T> RunAsync<T>(Func<Task<T>> work) => UiDispatcher.InvokeAsync(work).Task.Unwrap();
 
     /// <summary>Mọi tổ hợp giao diện: sáng/tối × 3 bảng màu × (bình thường | tương phản cao).</summary>
     public static IEnumerable<object[]> AllThemes()

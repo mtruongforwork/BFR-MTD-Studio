@@ -317,7 +317,9 @@ public sealed class PdfStudioViewModel : ObservableObject
                 if (LoadedFiles.Any(f => string.Equals(f.FilePath, path, StringComparison.OrdinalIgnoreCase)))
                     continue;
 
-                var desc = await _inspector.InspectAsync(path, null, ct).ConfigureAwait(false);
+                // KHÔNG ConfigureAwait(false): ngay sau đây ta sửa LoadedFiles/Pages (ObservableCollection gắn với giao diện), nên phải
+                // quay lại luồng giao diện. Nếu không WPF ném NotSupportedException và PDF Studio sập khi mở bất kỳ tệp PDF nào.
+                var desc = await _inspector.InspectAsync(path, null, ct);
                 var fileVm = new PdfSourceFileViewModel(path, desc);
                 LoadedFiles.Add(fileVm);
 
@@ -443,7 +445,8 @@ public sealed class PdfStudioViewModel : ObservableObject
         var fileVm = LoadedFiles.FirstOrDefault(f => string.Equals(f.FilePath, path, StringComparison.OrdinalIgnoreCase));
         if (fileVm is null) return false;
 
-        var desc = await _inspector.InspectAsync(path, password, ct).ConfigureAwait(false);
+        // Như AddFilesAsync: bên dưới có Pages.Add nên phải tiếp tục trên luồng giao diện.
+        var desc = await _inspector.InspectAsync(path, password, ct);
         if (desc.RequiresUserPassword || desc.ErrorCode == DocumentErrorCode.PasswordRequired)
         {
             fileVm.ErrorCode = DocumentErrorCode.PasswordRequired;

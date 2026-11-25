@@ -135,7 +135,12 @@ public sealed class VirtualizedPdfPageGrid : UserControl
     {
         var template = new DataTemplate();
         var factory = new FrameworkElementFactory(typeof(PdfPageRowPresenter));
-        factory.SetValue(PdfPageRowPresenter.OwnerGridProperty, this);
+        // KHÔNG dùng factory.SetValue(OwnerGridProperty, this): FrameworkElementFactory từ chối giá trị là Visual
+        // (NotSupportedException khi mở PDF Studio). Để presenter tự tìm lưới cha trong cây hiển thị.
+        factory.SetBinding(PdfPageRowPresenter.OwnerGridProperty, new System.Windows.Data.Binding
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(VirtualizedPdfPageGrid), 1)
+        });
         factory.SetBinding(PdfPageRowPresenter.RowItemsProperty, new System.Windows.Data.Binding());
         template.VisualTree = factory;
         return template;
