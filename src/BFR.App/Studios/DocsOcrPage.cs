@@ -1,5 +1,7 @@
 namespace BFR.App.Studios;
 
+using BFR.App.Controls.Mac;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -33,8 +35,25 @@ using Microsoft.Win32;
 /// - Tab 4 (Bàn soi OCR): Split View ảnh/PDF gốc ↔ văn bản có đếm từ/ký tự + phản hồi "✓ Đã sao chép!" + nút xuất tiếng Việt.
 /// - Processing Card (% thực + Huỷ) · Alert Banner 3 cấp độ · Result Summary Card viền xanh ở đáy.
 /// </summary>
-public sealed class DocsOcrPage : PageBase
+public sealed class DocsOcrPage : PageBase, IMacShellContent
 {
+    // ---- Phần của khung cửa sổ (v3.2). Các phần tử này KHÔNG nằm trong cây của trang nên phải giữ nguyên suốt đời trang. ----
+    private FrameworkElement? _toolbarActions;
+
+    FrameworkElement? IMacShellContent.ToolbarCenter => null;
+
+    FrameworkElement? IMacShellContent.ToolbarTrailing => _toolbarActions;
+
+    FrameworkElement? IMacShellContent.Inspector => null;
+
+    string? IMacShellContent.StatusText => null;
+
+    event EventHandler? IMacShellContent.ShellContentChanged
+    {
+        add { }
+        remove { }
+    }
+
     private enum AlertSeverity { Error, Warning, Info }
 
     private readonly DocsOcrStudioViewModel _vm;
@@ -203,14 +222,14 @@ public sealed class DocsOcrPage : PageBase
 
     private UIElement BuildLayout()
     {
-        var root = new Grid { Margin = new Thickness(20, 14, 20, 16) };
+        var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Mode bar + File buttons
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Alerts + Document Strip
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Mode workspace
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Processing Card + Result Card
 
         // Row 0: Mode tabs + File buttons
-        var topDock = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = false };
+        var topDock = new DockPanel { Margin = new Thickness(12, 8, 12, 8) };
         var fileButtons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var addBtn = new Button { Content = TryLoc("AddFilesButton", "Thêm tệp"), Style = S("BfrPrimaryButton"), Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 0) };
         addBtn.Click += async (_, _) => await BrowseFilesAsync();
@@ -225,11 +244,10 @@ public sealed class DocsOcrPage : PageBase
         };
         fileButtons.Children.Add(addBtn);
         fileButtons.Children.Add(clearBtn);
-        DockPanel.SetDock(fileButtons, Dock.Right);
-        topDock.Children.Add(fileButtons);
+        _toolbarActions = fileButtons;
 
         var modeTrack = new Border { Style = S("BfrSegmentedTrack"), VerticalAlignment = VerticalAlignment.Center };
-        var modeStack = new StackPanel { Orientation = Orientation.Horizontal };
+        var modeStack = new WrapPanel();
         foreach (var (mode, label) in new[]
         {
             (DocsOcrMode.ConvertToPdf, TryLoc("DocsModeConvertPdf", "Chuyển sang PDF")),
@@ -261,7 +279,7 @@ public sealed class DocsOcrPage : PageBase
         root.Children.Add(topDock);
 
         // Row 1: Alerts + Document Context Strip
-        var topInfo = new StackPanel();
+        var topInfo = new StackPanel { Margin = new Thickness(12, 0, 12, 0) };
         topInfo.Children.Add(_alertHost);
         _docStripHost.Background = Res<Brush>("BfrGlassFillStrong");
         _docStripHost.BorderBrush = Res<Brush>("BfrGlassRim");
@@ -276,11 +294,12 @@ public sealed class DocsOcrPage : PageBase
         root.Children.Add(topInfo);
 
         // Row 2: Workspace
+        _workspaceHost.Margin = new Thickness(12, 0, 12, 12);
         Grid.SetRow(_workspaceHost, 2);
         root.Children.Add(_workspaceHost);
 
         // Row 3: Processing Card + Result Summary Card
-        var bottom = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var bottom = new StackPanel { Margin = new Thickness(12, 0, 12, 0) };
         BuildProcessingCard();
         bottom.Children.Add(_processingCard);
         bottom.Children.Add(_continueBar);

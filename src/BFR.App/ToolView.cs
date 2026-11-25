@@ -129,9 +129,13 @@ internal sealed class ToolView : UserControl
 
     // ----------------------------------------------------------------- Dựng giao diện
 
+    /// <summary>Bảng tuỳ chọn và nút chạy của công cụ, do khung cửa sổ đặt vào inspector.</summary>
+    public FrameworkElement? ShellInspector { get; private set; }
+
     private UIElement BuildLayout()
     {
         var workspace = new BFR.App.Controls.ToolWorkspaceLayout();
+        ShellInspector = workspace.DetachInspector();
 
         // Stage Header (Left Top): Title + Stepper
         var stageHeader = new StackPanel();
@@ -316,8 +320,8 @@ internal sealed class ToolView : UserControl
 
     private FrameworkElement BuildOption(ToolOption option)
     {
-        var row = new StackPanel { Margin = new Thickness(0, 3, 0, 3) };
-        var line = new StackPanel { Orientation = Orientation.Horizontal };
+        // Nhãn nằm trên ô nhập: bảng tuỳ chọn rộng 300 px, đặt cạnh nhau thì ô nhập bị cắt.
+        var row = new StackPanel { Margin = new Thickness(0, 4, 0, 6) };
 
         if (option.Kind == OptionKind.Toggle)
         {
@@ -329,24 +333,21 @@ internal sealed class ToolView : UserControl
             };
             check.Click += (_, _) => SetValue(option.Key, check.IsChecked == true ? "true" : "false");
             _setters[option.Key] = v => { check.IsChecked = string.Equals(v, "true", StringComparison.OrdinalIgnoreCase); SetValue(option.Key, check.IsChecked == true ? "true" : "false"); };
-            line.Children.Add(check);
+            row.Children.Add(check);
         }
         else
         {
-            line.Children.Add(new TextBlock
+            row.Children.Add(new TextBlock
             {
                 Text = Loc.T(option.LabelKey),
-                Width = 190,
-                VerticalAlignment = VerticalAlignment.Center,
                 Foreground = Res("TextSecondary"),
-                TextWrapping = TextWrapping.Wrap
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 4)
             });
             var editor = BuildEditor(option);
             NameForNarrator(editor, Loc.T(option.LabelKey));
-            line.Children.Add(editor);
+            row.Children.Add(editor);
         }
-
-        row.Children.Add(line);
 
         if (option.HintKey is not null)
         {
@@ -354,7 +355,7 @@ internal sealed class ToolView : UserControl
             {
                 Text = Loc.T(option.HintKey),
                 Style = AppStyle("CaptionTextStyle"),
-                Margin = new Thickness(option.Kind == OptionKind.Toggle ? 24 : 190, 2, 0, 2),
+                Margin = new Thickness(option.Kind == OptionKind.Toggle ? 20 : 0, 3, 0, 0),
                 TextWrapping = TextWrapping.Wrap
             });
         }
@@ -382,7 +383,7 @@ internal sealed class ToolView : UserControl
         {
             case OptionKind.Choice:
             {
-                var combo = new ComboBox { Style = AppStyle("AppComboBoxStyle"), MinWidth = 280, DisplayMemberPath = nameof(Choice.Label) };
+                var combo = new ComboBox { Style = AppStyle("AppComboBoxStyle"), DisplayMemberPath = nameof(Choice.Label) };
                 var items = option.Choices!.Select(c => new Choice(c.Value, Loc.T(c.LabelKey))).ToList();
                 combo.ItemsSource = items;
                 combo.SelectedItem = items.FirstOrDefault(i => i.Value == option.Default) ?? items.FirstOrDefault();
@@ -403,7 +404,6 @@ internal sealed class ToolView : UserControl
                     Style = AppStyle("AppTextBoxStyle"),
                     Text = option.Default,
                     AcceptsReturn = true,
-                    Width = 320,
                     Height = 110,
                     VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                     TextWrapping = TextWrapping.NoWrap
@@ -415,7 +415,7 @@ internal sealed class ToolView : UserControl
             case OptionKind.Folder:
             case OptionKind.File:
             {
-                var box = new TextBox { Style = AppStyle("AppTextBoxStyle"), Text = option.Default, Width = 300 };
+                var box = new TextBox { Style = AppStyle("AppTextBoxStyle"), Text = option.Default };
                 box.TextChanged += (_, _) => SetValue(option.Key, box.Text);
                 _setters[option.Key] = v => box.Text = v;
                 var browse = MakeButton("…");
@@ -433,9 +433,11 @@ internal sealed class ToolView : UserControl
                         if (dialog.ShowDialog() == true) box.Text = dialog.FileName;
                     }
                 };
-                var panel = new StackPanel { Orientation = Orientation.Horizontal };
-                panel.Children.Add(box);
+                // Nút chọn ghim bên phải, ô đường dẫn lấp phần còn lại.
+                var panel = new DockPanel();
+                DockPanel.SetDock(browse, Dock.Right);
                 panel.Children.Add(browse);
+                panel.Children.Add(box);
                 return panel;
             }
             default:
@@ -444,15 +446,15 @@ internal sealed class ToolView : UserControl
                 {
                     Style = AppStyle("AppTextBoxStyle"),
                     Text = option.Default,
-                    Width = option.Kind == OptionKind.Number ? 100 : 320
+                    Width = option.Kind == OptionKind.Number ? 100 : double.NaN,
+                    HorizontalAlignment = option.Kind == OptionKind.Number ? HorizontalAlignment.Left : HorizontalAlignment.Stretch
                 };
                 box.TextChanged += (_, _) => SetValue(option.Key, box.Text);
                 _setters[option.Key] = v => box.Text = v;
 
                 if (_tool.Key == "organize" && option.Key == "customTemplate")
                 {
-                    var stack = new StackPanel { MaxWidth = 420 };
-                    box.HorizontalAlignment = HorizontalAlignment.Left;
+                    var stack = new StackPanel();
                     stack.Children.Add(box);
                     stack.Children.Add(new BFR.App.Controls.TokenPickerBar(box));
                     return stack;

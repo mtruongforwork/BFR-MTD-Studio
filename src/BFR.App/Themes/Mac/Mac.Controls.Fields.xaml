@@ -57,7 +57,8 @@
                             </ToggleButton.Template>
                         </ToggleButton>
                         <ContentPresenter Margin="9,0,26,0" VerticalAlignment="Center" IsHitTestVisible="False"
-                                          Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                                          Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" />
                         <Popup x:Name="PART_Popup" m:MacPopup.AlignSelection="True" AllowsTransparency="True" PopupAnimation="Fade"
                                IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False">
                             <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" Margin="12,12,12,16" Padding="5"
@@ -87,6 +88,7 @@
         <Setter Property="CaretBrush" Value="{DynamicResource Mac.Label}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource Mac.Accent}" />
         <Setter Property="Height" Value="26" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
@@ -95,9 +97,15 @@
                         <Border x:Name="Ring" Margin="-3" CornerRadius="9" BorderThickness="3.5" BorderBrush="{DynamicResource Mac.FocusRing}" Opacity="0" IsHitTestVisible="False" />
                         <Border CornerRadius="6" Background="{DynamicResource Mac.FieldBg}" BorderBrush="{DynamicResource Mac.ControlBorder}" BorderThickness="1" />
                         <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Mac.Label3}" Margin="9,0" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False" />
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="7,0" VerticalAlignment="Center" />
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="7,0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="AcceptsReturn" Value="True">
+                            <Setter TargetName="PART_ContentHost" Property="VerticalAlignment" Value="Stretch" />
+                            <Setter TargetName="PART_ContentHost" Property="Margin" Value="7,6" />
+                            <Setter TargetName="Hint" Property="VerticalAlignment" Value="Top" />
+                            <Setter TargetName="Hint" Property="Margin" Value="9,6" />
+                        </Trigger>
                         <Trigger Property="Text" Value="">
                             <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
                         </Trigger>

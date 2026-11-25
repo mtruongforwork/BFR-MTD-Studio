@@ -1,5 +1,7 @@
 namespace BFR.App.Studios;
 
+using BFR.App.Controls.Mac;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -31,8 +33,26 @@ using Microsoft.Win32;
 /// - Result Summary Card viền xanh (so sánh Trước → Sau, Mở tệp/Thư mục/Nạp lên bàn, Làm tiếp lọc trùng).
 /// - Hệ thống Alert Banner 3 cấp độ (Error Đỏ / Warning Vàng / Info Xanh) + Zoom Lightbox có toolbar.
 /// </summary>
-public sealed class PdfStudioPage : PageBase
+public sealed class PdfStudioPage : PageBase, IMacShellContent
 {
+    // ---- Phần của khung cửa sổ (v3.2). Các phần tử này KHÔNG nằm trong cây của trang nên phải giữ nguyên suốt đời trang. ----
+    private FrameworkElement? _toolbarActions;
+    private FrameworkElement? _shellInspector;
+
+    FrameworkElement? IMacShellContent.ToolbarCenter => null;
+
+    FrameworkElement? IMacShellContent.ToolbarTrailing => _toolbarActions;
+
+    FrameworkElement? IMacShellContent.Inspector => _shellInspector;
+
+    string? IMacShellContent.StatusText => null;
+
+    event EventHandler? IMacShellContent.ShellContentChanged
+    {
+        add { }
+        remove { }
+    }
+
     private enum OrganizeSubMode { Organize, Extract, Split }
     private enum AlertSeverity { Error, Warning, Info }
 
@@ -454,14 +474,14 @@ public sealed class PdfStudioPage : PageBase
 
     private UIElement BuildLayout()
     {
-        var root = new Grid { Margin = new Thickness(20, 14, 20, 16) };
+        var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Mode bar + top actions
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Alerts + Edge banners + Locked
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Canvas + Inspector
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Processing Card + Result Card
 
         // Row 0: Mode tabs + File buttons
-        var topDock = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = false };
+        var topDock = new DockPanel { Margin = new Thickness(12, 8, 12, 8) };
 
         var fileButtons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var addPdfBtn = new Button { Content = TryLoc("PdfAddFiles", "Thêm PDF / Tệp"), Style = S("BfrSecondaryButton"), Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 0) };
@@ -470,11 +490,10 @@ public sealed class PdfStudioPage : PageBase
         clearBtn.Click += (_, _) => ResetWorkspace();
         fileButtons.Children.Add(addPdfBtn);
         fileButtons.Children.Add(clearBtn);
-        DockPanel.SetDock(fileButtons, Dock.Right);
-        topDock.Children.Add(fileButtons);
+        _toolbarActions = fileButtons;
 
         var modeTrack = new Border { Style = S("BfrSegmentedTrack"), VerticalAlignment = VerticalAlignment.Center };
-        var modeStack = new StackPanel { Orientation = Orientation.Horizontal };
+        var modeStack = new WrapPanel();
         var modes = new (PdfStudioMode Mode, string Label)[]
         {
             (PdfStudioMode.Organize, TryLoc("PdfModeOrganize", "Tổ chức & Cắt ghép")),
@@ -516,7 +535,7 @@ public sealed class PdfStudioPage : PageBase
         root.Children.Add(topDock);
 
         // Row 1: 3-severity Alerts + Edge Banners + Locked File Unlock
-        var banners = new StackPanel();
+        var banners = new StackPanel { Margin = new Thickness(12, 0, 12, 0) };
         banners.Children.Add(_alertHost);
         banners.Children.Add(_edgeBannerHost);
         banners.Children.Add(_lockedFilesHost);
@@ -525,18 +544,15 @@ public sealed class PdfStudioPage : PageBase
 
         // Row 2: Left Stage/Canvas + 300px Right Inspector (with Sticky Footer CTA)
         var main = new Grid();
-        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 400 });
-        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300), MinWidth = 280 });
 
+        // Vùng làm việc chạy hết khung trên nền canvas, như Preview.app.
         _canvasBorder = new Border
         {
-            Background = Res<Brush>("BfrGlassFill"),
             BorderBrush = Res<Brush>("BfrLine"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 14, 0)
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(14)
         };
+        _canvasBorder.SetResourceReference(Border.BackgroundProperty, "Mac.CanvasBg");
 
         var canvasGrid = new Grid();
         canvasGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Document Context Strip + Zoom Slider
@@ -627,36 +643,28 @@ public sealed class PdfStudioPage : PageBase
         Grid.SetColumn(_canvasBorder, 0);
         main.Children.Add(_canvasBorder);
 
-        // Right Inspector with Sticky Footer
-        var inspectorBorder = new Border
-        {
-            Background = Res<Brush>("BfrGlassFillStrong"),
-            BorderBrush = Res<Brush>("BfrGlassRim"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18)
-        };
+        // Inspector nằm ở khung cửa sổ: phần cuộn ở trên, nút hành động chính ghim đáy.
         var inspectorDock = new DockPanel { LastChildFill = true };
 
         BuildStickyFooter();
         DockPanel.SetDock(_inspectorFooter, Dock.Bottom);
         inspectorDock.Children.Add(_inspectorFooter);
 
-        inspectorDock.Children.Add(new ScrollViewer
+        var inspectorScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(16, 16, 16, 12),
+            Padding = new Thickness(14, 14, 14, 12),
             Content = _inspectorBody
-        });
-
-        inspectorBorder.Child = inspectorDock;
-        Grid.SetColumn(inspectorBorder, 1);
-        main.Children.Add(inspectorBorder);
+        };
+        inspectorScroll.SetResourceReference(StyleProperty, "Mac.ScrollViewer");
+        inspectorDock.Children.Add(inspectorScroll);
+        _shellInspector = inspectorDock;
 
         Grid.SetRow(main, 2);
         root.Children.Add(main);
 
         // Row 3: Processing Card + Result Summary Card
-        var bottom = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var bottom = new StackPanel { Margin = new Thickness(12, 0, 12, 0) };
         BuildProcessingCard();
         bottom.Children.Add(_processingCard);
         bottom.Children.Add(_continueBar);
@@ -670,8 +678,6 @@ public sealed class PdfStudioPage : PageBase
     {
         _inspectorFooter.BorderBrush = Res<Brush>("BfrGlassRim");
         _inspectorFooter.BorderThickness = new Thickness(0, 1, 0, 0);
-        _inspectorFooter.Background = Res<Brush>("BfrGlassFill");
-        _inspectorFooter.CornerRadius = new CornerRadius(0, 0, 18, 18);
         _inspectorFooter.Padding = new Thickness(16, 12, 16, 14);
 
         var footerStack = new StackPanel();

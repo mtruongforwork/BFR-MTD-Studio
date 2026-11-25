@@ -27,6 +27,29 @@ public static class MacTheme
 
     public static ResourceDictionary Load(string file) => new() { Source = new Uri(Root + file, UriKind.Relative) };
 
+    private static ResourceDictionary? _applicationRoot;
+
+    /// <summary>
+    /// Gộp bộ từ điển Mac vào Application để các khoá style cũ (Mac.LegacyStyles) và token "Mac.*" dùng được ở mọi cửa sổ,
+    /// kể cả trang dựng bằng code. Luôn chuyển xuống cuối để thắng bộ Bfr được nạp lại sau đó. Gọi lại được nhiều lần.
+    /// </summary>
+    public static void InstallInApplication(Application app, bool dark, MacAccent accent)
+    {
+        var merged = app.Resources.MergedDictionaries;
+        if (_applicationRoot is not null) merged.Remove(_applicationRoot);
+
+        _applicationRoot = new ResourceDictionary();
+        var inner = _applicationRoot.MergedDictionaries;
+        inner.Add(LoadPalette(dark));
+        foreach (var file in new[] { "Tokens.xaml", "Icons.xaml", "Controls.xaml", "Mac.LegacyStyles.xaml" }) inner.Add(Load(file));
+        if (!IsHighContrast)
+        {
+            foreach (var (key, brush) in AccentBrushes(accent, dark)) _applicationRoot[key] = brush;
+        }
+
+        merged.Add(_applicationRoot);
+    }
+
     /// <summary>Thay bảng màu (từ điển Palette.* đã gộp, hoặc chèn vào đầu) rồi ghi đè các khoá theo màu nhấn.</summary>
     public static void Apply(FrameworkElement scope, bool dark, MacAccent accent)
     {

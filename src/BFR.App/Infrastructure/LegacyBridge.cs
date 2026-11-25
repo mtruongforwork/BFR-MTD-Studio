@@ -30,6 +30,8 @@ public static class LegacyBridge
         if (app is null) return;
 
         MacLegacyAliases.Remove(app);
+        MacTheme.InstallInApplication(app, BfrTheme.IsDark,
+            BFR.Presentation.Design.MacAccents.Parse(SettingsStore.Load().AccentPalette));
 
         if (BfrTheme.IsHighContrast)
         {

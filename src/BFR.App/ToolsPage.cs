@@ -1,3 +1,4 @@
+using BFR.App.Controls.Mac;
 namespace BFR.App;
 
 using System;
@@ -16,7 +17,7 @@ using Ui = Wpf.Ui.Controls;
 /// Trang "Công cụ": danh sách các công cụ tệp bên trái, khung công cụ dùng chung bên phải, cộng thêm màn quản lý khu cách ly.
 /// Mỗi công cụ là một <see cref="ITool"/> khai báo tuỳ chọn; trang chỉ dựng giao diện từ khai báo đó.
 /// </summary>
-public sealed class ToolsPage : PageBase
+public sealed class ToolsPage : PageBase, IMacShellContent
 {
     private sealed record Entry(string Key, string Title, string Icon, ITool? Tool);
 
@@ -71,6 +72,7 @@ public sealed class ToolsPage : PageBase
             if (_list.SelectedItem is not Entry entry) return;
             Show(entry);
             RaiseNavSubKeyChanged();
+            ShellContentChanged?.Invoke(this, EventArgs.Empty);
         };
         System.Windows.Automation.AutomationProperties.SetName(_list, "Tool list");
 
@@ -207,6 +209,19 @@ public sealed class ToolsPage : PageBase
         AddPending(paths);
         _list.SelectedIndex = 0;
     }
+
+    FrameworkElement? IMacShellContent.ToolbarCenter => null;
+
+    FrameworkElement? IMacShellContent.ToolbarTrailing => null;
+
+    FrameworkElement? IMacShellContent.Inspector =>
+        _list.SelectedItem is Entry { Tool: not null } open && _views.TryGetValue(open.Key, out var shown) && shown is ToolView tool
+            ? tool.ShellInspector
+            : null;
+
+    string? IMacShellContent.StatusText => null;
+
+    public event EventHandler? ShellContentChanged;
 
     public override string? NavSubKey => _list.SelectedItem is Entry { Tool: not null } entry ? entry.Key : null;
 

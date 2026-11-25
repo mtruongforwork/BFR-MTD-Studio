@@ -209,8 +209,11 @@ public partial class MainWindow : FluentWindow
                 var rebuilt = GetPage("Settings");
                 rebuilt.Visibility = Visibility.Visible;
                 rebuilt.OnShown();
+                SyncShell();
             }, DispatcherPriority.Background);
         }
+
+        SyncShell();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

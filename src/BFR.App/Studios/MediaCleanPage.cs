@@ -1,5 +1,6 @@
 namespace BFR.App.Studios;
 
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -179,15 +180,15 @@ public sealed class MediaCleanPage : PageBase
 
     private UIElement BuildLayout()
     {
-        var root = new Grid { Margin = new Thickness(20, 14, 20, 16) };
+        var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Mode tabs
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Alerts
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Body
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Processing card
 
-        var topDock = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = false };
+        var topDock = new DockPanel { Margin = new Thickness(12, 8, 12, 8) };
         var modeTrack = new Border { Style = S("BfrSegmentedTrack"), VerticalAlignment = VerticalAlignment.Center };
-        var modeStack = new StackPanel { Orientation = Orientation.Horizontal };
+        var modeStack = new WrapPanel();
 
         var tabs = new (MediaCleanMode Mode, string Label)[]
         {
@@ -220,9 +221,11 @@ public sealed class MediaCleanPage : PageBase
         Grid.SetRow(topDock, 0);
         root.Children.Add(topDock);
 
+        _alertHost.Margin = new Thickness(12, 0, 12, 0);
         Grid.SetRow(_alertHost, 1);
         root.Children.Add(_alertHost);
 
+        _modeHost.Margin = new Thickness(12, 0, 12, 12);
         Grid.SetRow(_modeHost, 2);
         root.Children.Add(_modeHost);
 

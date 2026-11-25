@@ -214,6 +214,7 @@ public partial class MainWindow
     {
         if (!ReferenceEquals(_shellContent, content))
         {
+            _inspectorWanted = true;
             if (_shellContent is not null) _shellContent.ShellContentChanged -= OnShellContentChanged;
             _shellContent = content;
             if (_shellContent is not null) _shellContent.ShellContentChanged += OnShellContentChanged;

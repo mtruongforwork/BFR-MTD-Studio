@@ -72,7 +72,8 @@ public class MacDesignTests
             .Concat(Directory.GetFiles(Path.Combine(App, "Infrastructure", "Mac"), "*.cs"))
             .Append(Path.Combine(App, "MacGalleryWindow.xaml.cs"));
         var code = sources.SelectMany(f => Regex.Matches(File.ReadAllText(f), "\"((?:Mac|Icon)\\.[\\w.]*\\w)\"")
-            .Select(m => (File: Path.GetFileName(f), Key: m.Groups[1].Value)));
+            .Select(m => (File: Path.GetFileName(f), Key: m.Groups[1].Value)))
+            .Where(r => !r.Key.EndsWith(".xaml", StringComparison.Ordinal)); // tên tệp từ điển, không phải khoá
 
         var missing = xaml.Concat(code).Where(r => !defined.Contains(r.Key)).Distinct().ToList();
         Assert.True(missing.Count == 0, "Khoá không tồn tại: " + string.Join(", ", missing.Select(m => $"{m.Key} ({m.File})")));

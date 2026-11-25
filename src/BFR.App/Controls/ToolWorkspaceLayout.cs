@@ -50,6 +50,24 @@ public sealed class ToolWorkspaceLayout : Grid
         }
     }
 
+    /// <summary>
+    /// Tách bảng tuỳ chọn khỏi bố cục để khung cửa sổ đặt vào inspector; phần xem trước được dùng hết bề rộng.
+    /// </summary>
+    public FrameworkElement DetachInspector()
+    {
+        Children.Remove(InspectorCard);
+        foreach (var column in new[] { ColumnDefinitions[1], ColumnDefinitions[2] })
+        {
+            column.MinWidth = 0;
+            column.Width = new GridLength(0);
+        }
+
+        Margin = new Thickness(18, 14, 18, 0);
+        InspectorCard.BorderThickness = new Thickness(0);
+        InspectorCard.Background = System.Windows.Media.Brushes.Transparent;
+        return InspectorCard;
+    }
+
     public ToolWorkspaceLayout()
     {
         Margin = new Thickness(18, 14, 0, 0);

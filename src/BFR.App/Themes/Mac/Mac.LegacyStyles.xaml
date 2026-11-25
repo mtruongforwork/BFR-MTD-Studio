@@ -1,0 +1,122 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Định nghĩa lại các khoá style CŨ theo kiểu macOS. Các trang dựng bằng code (Studio, Công cụ, Cài đặt…)
+        lấy style theo những khoá này ở mức Application, nên đổi ở đây là đổi diện mạo mà không đụng mã xử lý.
+        MacTheme.InstallInApplication gộp tệp này SAU bộ Bfr để ghi đè. Gỡ khi không còn trang nào dùng khoá cũ.
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Mac.Controls.Buttons.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Fields.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Selection.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- ===== Nút: chiều cao tự giãn để nội dung nhiều dòng hoặc đệm lớn của trang cũ không bị cắt ===== -->
+    <Style x:Key="BfrSecondaryButton" TargetType="Button" BasedOn="{StaticResource Mac.Button}">
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="12,4" />
+    </Style>
+    <Style x:Key="BfrPrimaryButton" TargetType="Button" BasedOn="{StaticResource Mac.Button.Primary}">
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="14,4" />
+    </Style>
+    <Style x:Key="BfrGhostButton" TargetType="Button" BasedOn="{StaticResource Mac.ToolbarButton}">
+        <Setter Property="Foreground" Value="{DynamicResource Mac.AccentText}" />
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+
+    <!-- ===== Chữ ===== -->
+    <Style x:Key="BfrCaptionText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+    </Style>
+    <Style x:Key="BfrBodyText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="BfrHeadingText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.FontSemi}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- ===== Ô nhập, danh sách chọn, ô đánh dấu ===== -->
+    <Style x:Key="BfrTextField" TargetType="TextBox" BasedOn="{StaticResource Mac.TextBox}">
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style x:Key="AppTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource Mac.TextBox}">
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style x:Key="AppComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource Mac.ComboBox}">
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style x:Key="AppCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource Mac.CheckBox}" />
+
+    <!-- ===== Nhóm và thanh chọn chế độ ===== -->
+    <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Mac.GroupBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Mac.GroupBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style x:Key="BfrSegmentedTrack" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Mac.Track}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style x:Key="BfrSegmentedItem" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.FontMedium}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+        <Setter Property="Padding" Value="11,4" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Wash" CornerRadius="6" Background="{DynamicResource Mac.Hover}" Opacity="0" />
+                        <Border x:Name="Thumb" CornerRadius="6" Background="{DynamicResource Mac.Thumb}" BorderBrush="{DynamicResource Mac.ControlBorder}" BorderThickness="0.5" Visibility="Collapsed" />
+                        <Border x:Name="Ring" CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Thumb" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
