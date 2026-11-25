@@ -38,7 +38,9 @@ public sealed class UndoService
         if (!all.Any(e => e.Type == "footer") && all.Any(e => e.Type == "step"))
         {
             var rollback = new RecoveryService(_fs).Rollback(journalPath);
-            result.Total = all.Where(e => e.Type == "step").Select(e => e.Seq).Distinct().Count();
+            // Không tính bước đã thất bại (không có gì để hoàn tác).
+            result.Total = all.Where(e => e.Type == "step").GroupBy(e => e.Seq)
+                .Count(g => g.Any(e => e.Status == "done") || g.All(e => e.Status != "failed"));
             result.Undone = rollback.Processed;
             result.Failed = rollback.Failed;
             foreach (var error in rollback.Errors) result.Errors.Add((journalPath, error));

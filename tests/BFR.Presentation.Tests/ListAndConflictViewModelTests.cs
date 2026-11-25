@@ -279,6 +279,25 @@ public class ListAndConflictViewModelTests : IDisposable
             $"Trên đĩa: [{string.Join(", ", onDisk)}]. Trước khi áp dụng: {before}. Kết quả: {vm.SuccessMessage}");
     }
 
+    [Fact]
+    public async Task Apply_WhenHistoryCannotBeWritten_LeavesTheJournalRecoverable()
+    {
+        Touch("a.txt");
+        var vm = CreateViewModel();
+        vm.AddPaths(new[] { Path.Combine(_files, "a.txt") });
+        vm.AddRule("ReplaceDict");
+        SetParam(vm, "pairs", "a\tz");
+        await vm.RebuildAsync();
+        // Một thư mục trùng tên history.json làm việc ghi Lịch sử thất bại, giống như app bị tắt ngay trước bước đó.
+        Directory.CreateDirectory(Path.Combine(_temp, "history.json"));
+
+        await Record.ExceptionAsync(() => vm.ApplyAsync());
+
+        Assert.True(File.Exists(Path.Combine(_files, "z.txt")), "tệp đã được đổi tên");
+        var journal = Assert.Single(Directory.GetFiles(Path.Combine(_temp, "journal"), "*.jsonl"));
+        Assert.DoesNotContain("\"footer\"", File.ReadAllText(journal));   // lần mở sau sẽ đưa nó vào Lịch sử
+    }
+
     // ------------------------------------------------------------------ va chạm với tệp NGOÀI lô (lỗi có sẵn đã sửa)
 
     private async Task<MainViewModel> OutsideCollisionSetup()

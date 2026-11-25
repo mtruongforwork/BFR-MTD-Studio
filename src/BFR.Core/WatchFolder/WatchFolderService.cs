@@ -122,7 +122,7 @@ public sealed class WatchFolderService : IDisposable
             InternalBufferSize = 64 * 1024
         };
 
-        _watcher.Created += OnFileEvent;
+        _watcher.Created += OnCreated;
         _watcher.Changed += OnFileEvent;
         _watcher.Renamed += OnRenamed;
         _watcher.Deleted += OnDeleted;
@@ -159,8 +159,11 @@ public sealed class WatchFolderService : IDisposable
             foreach (var file in Directory.EnumerateFiles(_options.Folder, "*", enumOptions))
             {
                 if (ct.IsCancellationRequested || !_isRunning) break;
-                if (_planner.Contains(file)) continue;
-                lock (_gate) { _seen.Add(file); }
+                // Kiểm và thêm trong cùng một khoá với OnCreated: tệp mới tới đúng lúc đang đánh dấu không bị coi là cũ.
+                lock (_gate)
+                {
+                    if (!_planner.Contains(file)) _seen.Add(file);
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
@@ -205,6 +208,17 @@ public sealed class WatchFolderService : IDisposable
     {
         if (string.IsNullOrWhiteSpace(e.FullPath)) return;
         _planner.Notify(e.FullPath, DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Tệp vừa được tạo (hoặc chuyển vào) là tệp mới, kể cả khi lượt đánh dấu "tệp có sẵn" chạy trễ đã kịp liệt kê nó:
+    /// máy đang bận thì lượt đó có thể chạy sau khi tệp tới, và trước đây tệp bị bỏ qua mà không báo gì.
+    /// </summary>
+    private void OnCreated(object sender, FileSystemEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.FullPath)) return;
+        _planner.Notify(e.FullPath, DateTime.UtcNow);
+        lock (_gate) { _seen.Remove(e.FullPath); }
     }
 
     private void OnRenamed(object sender, RenamedEventArgs e)

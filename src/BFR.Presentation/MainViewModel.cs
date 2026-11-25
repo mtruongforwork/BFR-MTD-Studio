@@ -1267,20 +1267,21 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var steps = new RenamePlanner().Plan(pairs);
-            var result = await Task.Run(() => new RenameExecutor(_fs, _journalDir).Execute(steps, AppVersion.Current))
+            var presetName = _preset.Name;
+            // Lịch sử được ghi ngay trên luồng thực thi, trước dòng kết thúc của journal: tắt app lúc nào cũng còn đường Hoàn tác.
+            var result = await Task.Run(() => new RenameExecutor(_fs, _journalDir).Execute(steps, AppVersion.Current,
+                    record: run => _history.Add(new HistoryEntry
+                    {
+                        Id = run.JournalId,
+                        StartedUtc = DateTime.UtcNow,
+                        Preset = presetName,
+                        Total = run.TotalSteps,
+                        Succeeded = run.Succeeded,
+                        Failed = run.Failed,
+                        Status = run.Failed > 0 ? "partial" : "completed",
+                        JournalPath = run.JournalPath
+                    })))
                 .ConfigureAwait(true);
-
-            _history.Add(new HistoryEntry
-            {
-                Id = result.JournalId,
-                StartedUtc = DateTime.UtcNow,
-                Preset = _preset.Name,
-                Total = result.TotalSteps,
-                Succeeded = result.Succeeded,
-                Failed = result.Failed,
-                Status = result.Failed > 0 ? "partial" : "completed",
-                JournalPath = result.JournalPath
-            });
 
             _history.PruneAndLimit(_license.License.MaxUndoEntries);
             _hasUndoHistory = true;

@@ -102,6 +102,8 @@ public sealed class RenameExecutor
         _executor = new OperationExecutor(fs, journalDir);
     }
 
-    public RenameExecutorResult Execute(IReadOnlyList<Step> steps, string appVersion = "1.0.0", System.Threading.CancellationToken ct = default) =>
-        _executor.Execute(steps.Select(Operation.FromStep).ToList(), appVersion, ct);
+    /// <param name="record">Ghi Lịch sử; xem <see cref="OperationExecutor.Execute"/>.</param>
+    public RenameExecutorResult Execute(IReadOnlyList<Step> steps, string appVersion = "1.0.0", System.Threading.CancellationToken ct = default,
+        System.Action<RenameExecutorResult>? record = null) =>
+        _executor.Execute(steps.Select(Operation.FromStep).ToList(), appVersion, ct, record: record);
 }

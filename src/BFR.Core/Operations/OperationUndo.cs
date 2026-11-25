@@ -2,6 +2,7 @@ namespace BFR.Core;
 
 using System;
 using System.IO;
+using System.Threading;
 
 /// <summary>
 /// Đảo ngược và kiểm tra trạng thái của từng bước journal. Dùng chung cho Hoàn tác (<see cref="UndoService"/>)
@@ -14,7 +15,15 @@ internal static class OperationUndo
     /// </summary>
     public static string? Undo(IFileSystem fs, JournalEntry e, QuarantineStore? quarantine = null)
     {
-        var error = UndoCore(fs, e, quarantine);
+        var error = UndoCore(fs, e, quarantine, out var locked);
+        // Tiến trình khác (diệt virus, chỉ mục tìm kiếm...) hay giữ tệp vừa đổi tên trong chốc lát: thử lại vài nhịp
+        // trước khi bỏ cuộc, nếu không một lô lớn Hoàn tác xong vẫn sót vài tệp mang tên mới.
+        foreach (var delay in LockRetryDelaysMs)
+        {
+            if (!locked) break;
+            Thread.Sleep(delay);
+            error = UndoCore(fs, e, quarantine, out locked);
+        }
         if (error is null && OperationExecutor.ParseKind(e) != OperationKind.CreateDir) RemoveCreatedParents(fs, e.Aux);
         return error;
     }
@@ -38,8 +47,14 @@ internal static class OperationUndo
         }
     }
 
-    private static string? UndoCore(IFileSystem fs, JournalEntry e, QuarantineStore? quarantine)
+    private static readonly int[] LockRetryDelaysMs = { 25, 75, 200, 500 };
+
+    /// <summary>ERROR_SHARING_VIOLATION (32) hoặc ERROR_LOCK_VIOLATION (33): tệp đang bị tiến trình khác giữ.</summary>
+    private static bool IsSharingViolation(Exception ex) => ex is IOException && (ex.HResult & 0xFFFF) is 32 or 33;
+
+    private static string? UndoCore(IFileSystem fs, JournalEntry e, QuarantineStore? quarantine, out bool locked)
     {
+        locked = false;
         var from = e.From ?? string.Empty;
         var to = e.To ?? string.Empty;
 
@@ -123,6 +138,7 @@ internal static class OperationUndo
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException)
         {
+            locked = IsSharingViolation(ex);
             return ex.Message;
         }
     }

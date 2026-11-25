@@ -1,5 +1,6 @@
 namespace BFR.Core;
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -129,11 +130,13 @@ public sealed class RecoveryService
         var result = new RecoveryResult();
         var entries = UndoService.ReadSteps(journalPath, _fs);
 
-        // Mỗi seq có thể có dòng pending và done; ưu tiên dòng done.
+        // Mỗi seq có thể có dòng pending, done hoặc failed; ưu tiên done. Bước đã ghi "failed" chưa hề có hiệu lực:
+        // tuyệt đối không đảo (đích của nó có thể đang là một tệp không liên quan).
         var steps = entries
             .Where(e => e.Type == "step" && e.From is not null && (e.To is not null || !e.IsMoveLike))
             .GroupBy(e => e.Seq)
-            .Select(g => g.OrderByDescending(e => e.Status == "done" ? 1 : 0).First())
+            .Select(g => g.FirstOrDefault(e => e.Status == "done") ?? (g.Any(e => e.Status == "failed") ? null : g.First()))
+            .OfType<JournalEntry>()
             .OrderByDescending(e => e.Seq)
             .ToList();
 
@@ -147,18 +150,26 @@ public sealed class RecoveryService
 
             var from = step.From!;
             var to = step.To!;
+            // Đổi chữ hoa/thường: hai tên là cùng một tệp nên "đích tồn tại, nguồn không" không bao giờ đúng. Đặt lại
+            // cách viết cũ an toàn dù bước đã xảy ra hay chưa.
+            var caseOnly = !string.Equals(from, to, StringComparison.Ordinal)
+                && string.Equals(from.Replace('\\', '/'), to.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
-            if (_fs.FileExists(to) && !_fs.FileExists(from))
+            if (caseOnly && HasExactName(from))
             {
-                try
+                // Tên trên đĩa vẫn đúng cách viết cũ (bước chưa xảy ra, hoặc đã được đảo): không đụng vào.
+            }
+            else if (_fs.FileExists(to) && (caseOnly || !_fs.FileExists(from)))
+            {
+                var error = OperationUndo.Undo(_fs, step);   // cùng cách đảo với Hoàn tác thường (kể cả dọn thư mục đã tạo)
+                if (error is null)
                 {
-                    _fs.Move(to, from, overwrite: false);
                     result.Processed++;
                 }
-                catch (Exception ex)
+                else
                 {
                     result.Failed++;
-                    result.Errors.Add($"{to}: {ex.Message}");
+                    result.Errors.Add($"{to}: {error}");
                 }
             }
             else if (_fs.FileExists(from) && !_fs.FileExists(to))
@@ -179,6 +190,22 @@ public sealed class RecoveryService
 
         result.Success = result.Failed == 0;
         return result;
+    }
+
+    /// <summary>Trên đĩa có tệp mang đúng tên này, phân biệt cả hoa/thường.</summary>
+    private bool HasExactName(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        var name = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(name)) return false;
+        try
+        {
+            return _fs.GetFiles(directory, name, false).Any(f => string.Equals(Path.GetFileName(f), name, StringComparison.Ordinal));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static readonly JsonSerializerOptions WriteOptions = new() { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };

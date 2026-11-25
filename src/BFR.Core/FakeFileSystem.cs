@@ -15,6 +15,9 @@ public sealed class FakeFileSystem : IFileSystem
     /// <summary>Giả lập tệp bị khóa/chỉ đọc: các đường dẫn này sẽ ném lỗi khi Move.</summary>
     public HashSet<string> FailOnMovePaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Giả lập tệp bị tiến trình khác giữ trong chốc lát: số lần Move từ đường dẫn này còn ném "sharing violation".</summary>
+    public Dictionary<string, int> BrieflyLockedPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public bool FileExists(string path) => _files.ContainsKey(Normalize(path));
     public bool DirectoryExists(string path) => _dirs.Contains(Normalize(path)) || _files.Keys.Any(k => k.StartsWith(Normalize(path) + "/"));
 
@@ -33,6 +36,11 @@ public sealed class FakeFileSystem : IFileSystem
         var f = Normalize(from);
         if (ThrowOnMove || FailOnMovePaths.Contains(f))
             throw new IOException(MoveExceptionMessage ?? "Lỗi giả lập");
+        if (BrieflyLockedPaths.TryGetValue(f, out var remaining) && remaining > 0)
+        {
+            BrieflyLockedPaths[f] = remaining - 1;
+            throw new IOException("Tệp đang được tiến trình khác dùng", unchecked((int)0x80070020));
+        }
         var t = Normalize(to);
         // Kiểm tra trước khi gỡ nguồn: một lần Move thất bại không được làm mất tệp (giống hệ thống tệp thật).
         if (!_files.ContainsKey(f)) throw new FileNotFoundException("Tệp không tồn tại", from);

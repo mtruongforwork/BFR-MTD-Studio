@@ -267,19 +267,18 @@ int Rename(string[] rest)
     }
 
     var steps = new RenamePlanner().Plan(pairs);
-    var result = new RenameExecutor(fs, journalDir).Execute(steps, appVersion);
-
-    historyStore.Add(new HistoryEntry
-    {
-        Id = result.JournalId,
-        StartedUtc = DateTime.UtcNow,
-        Preset = presetName,
-        Total = result.TotalSteps,
-        Succeeded = result.Succeeded,
-        Failed = result.Failed,
-        Status = result.Cancelled ? "cancelled" : result.Failed > 0 ? "partial" : "completed",
-        JournalPath = result.JournalPath
-    });
+    var result = new RenameExecutor(fs, journalDir).Execute(steps, appVersion,
+        record: run => historyStore.Add(new HistoryEntry
+        {
+            Id = run.JournalId,
+            StartedUtc = DateTime.UtcNow,
+            Preset = presetName,
+            Total = run.TotalSteps,
+            Succeeded = run.Succeeded,
+            Failed = run.Failed,
+            Status = run.Cancelled ? "cancelled" : run.Failed > 0 ? "partial" : "completed",
+            JournalPath = run.JournalPath
+        }));
 
     if (structured)
     {

@@ -187,19 +187,18 @@ internal sealed class ToolCommands
             }
         }
 
-        var result = new OperationExecutor(_fs, _journalDir, new QuarantineStore(_fs, _quarantineRoot)).Execute(ops, _version);
-
-        _history?.Add(new HistoryEntry
-        {
-            Id = result.JournalId,
-            StartedUtc = DateTime.UtcNow,
-            Preset = label,
-            Total = result.TotalSteps,
-            Succeeded = result.Succeeded,
-            Failed = result.Failed,
-            Status = result.Cancelled ? "cancelled" : result.Failed > 0 ? "partial" : "completed",
-            JournalPath = result.JournalPath
-        });
+        var result = new OperationExecutor(_fs, _journalDir, new QuarantineStore(_fs, _quarantineRoot)).Execute(ops, _version,
+            record: run => _history?.Add(new HistoryEntry
+            {
+                Id = run.JournalId,
+                StartedUtc = DateTime.UtcNow,
+                Preset = label,
+                Total = run.TotalSteps,
+                Succeeded = run.Succeeded,
+                Failed = run.Failed,
+                Status = run.Cancelled ? "cancelled" : run.Failed > 0 ? "partial" : "completed",
+                JournalPath = run.JournalPath
+            }));
 
         if (Structured(a))
         {

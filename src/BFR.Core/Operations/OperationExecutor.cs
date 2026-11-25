@@ -33,11 +33,17 @@ public sealed class OperationExecutor
     public QuarantineStore Quarantine => _quarantine;
 
     /// <param name="progress">Báo số thao tác đã xử lý (thành công hoặc thất bại) sau mỗi thao tác.</param>
+    /// <param name="record">
+    /// Nơi gọi ghi lần chạy vào Lịch sử. Được gọi TRƯỚC khi ghi dòng kết thúc của journal, nên journal chỉ có dòng
+    /// kết thúc khi mục Lịch sử đã nằm trên đĩa. Tiến trình chết (hoặc <paramref name="record"/> ném lỗi) trước đó thì
+    /// journal còn dang dở: lần mở sau <see cref="HistoryStore.RegisterInterrupted"/> đưa nó vào Lịch sử nếu chưa có.
+    /// </param>
     public RenameExecutorResult Execute(
         IReadOnlyList<Operation> operations,
         string appVersion = "1.0.0",
         CancellationToken ct = default,
-        IProgress<int>? progress = null)
+        IProgress<int>? progress = null,
+        Action<RenameExecutorResult>? record = null)
     {
         var journalId = Guid.NewGuid().ToString("N")[..8];
         _fs.EnsureDirectory(_journalDir);
@@ -60,8 +66,9 @@ public sealed class OperationExecutor
         {
             if (ct.IsCancellationRequested)
             {
-                Append(journalPath, new JournalEntry { Type = "footer", FooterStatus = "cancelled", DoneUtc = DateTime.UtcNow.ToString("O") });
                 result.Cancelled = true;
+                record?.Invoke(result);
+                Append(journalPath, new JournalEntry { Type = "footer", FooterStatus = "cancelled", DoneUtc = DateTime.UtcNow.ToString("O") });
                 return result;
             }
 
@@ -110,6 +117,7 @@ public sealed class OperationExecutor
                     result.JournalWriteFailed = true;
                     result.Errors.Add((op.From, CoreText.Get("CoreJournalWriteFailed", "Không ghi được nhật ký (journal)")));
                     progress?.Report(i + 1);
+                    record?.Invoke(result);
                     return result;
                 }
             }
@@ -117,6 +125,7 @@ public sealed class OperationExecutor
             progress?.Report(i + 1);
         }
 
+        record?.Invoke(result);
         Append(journalPath, new JournalEntry
         {
             Type = "footer", FooterStatus = result.Failed > 0 ? "failed" : "completed", DoneUtc = DateTime.UtcNow.ToString("O")

@@ -116,19 +116,18 @@ public sealed class QuickRenamer
             return new QuickRenameResult(QuickRenameStatus.NothingToChange, 0, files.Count, null, null, engine.AutoResolvedCount);
 
         var steps = new RenamePlanner().Plan(pairs);
-        var result = new RenameExecutor(_fs, _journalDir).Execute(steps, string.IsNullOrEmpty(appVersion) ? AppVersion.Current : appVersion);
-
-        _history?.Add(new HistoryEntry
-        {
-            Id = result.JournalId,
-            StartedUtc = DateTime.UtcNow,
-            Preset = preset.Name,
-            Total = result.TotalSteps,
-            Succeeded = result.Succeeded,
-            Failed = result.Failed,
-            Status = result.Failed > 0 ? "partial" : "completed",
-            JournalPath = result.JournalPath
-        });
+        var result = new RenameExecutor(_fs, _journalDir).Execute(steps, string.IsNullOrEmpty(appVersion) ? AppVersion.Current : appVersion,
+            record: run => _history?.Add(new HistoryEntry
+            {
+                Id = run.JournalId,
+                StartedUtc = DateTime.UtcNow,
+                Preset = preset.Name,
+                Total = run.TotalSteps,
+                Succeeded = run.Succeeded,
+                Failed = run.Failed,
+                Status = run.Failed > 0 ? "partial" : "completed",
+                JournalPath = run.JournalPath
+            }));
         _history?.PruneAndLimit(maxUndoEntries);
 
         return new QuickRenameResult(
