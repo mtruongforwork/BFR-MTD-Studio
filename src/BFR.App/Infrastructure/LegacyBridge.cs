@@ -29,6 +29,8 @@ public static class LegacyBridge
         var app = Application.Current;
         if (app is null) return;
 
+        MacLegacyAliases.Remove(app);
+
         if (BfrTheme.IsHighContrast)
         {
             ApplyHighContrast(app);
@@ -90,6 +92,8 @@ public static class LegacyBridge
         Set("AccentFillColorTertiaryBrush", Mix(fill, Colors.Black, 0.12));
         Set("TextOnAccentFillColorPrimaryBrush", Colors.White);
         Set("TextOnAccentFillColorSecondaryBrush", Mix(Colors.White, fill, 0.15));
+
+        MacLegacyAliases.Apply(app, dark);
     }
 
     /// <summary>

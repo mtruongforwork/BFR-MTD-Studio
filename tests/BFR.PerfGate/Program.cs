@@ -20,11 +20,20 @@ public static class Program
     public static int Main(string[] args)
     {
         var pdfOnly = args.Contains("--pdf-only", StringComparer.Ordinal);
+        var motionOnly = args.Contains("--motion", StringComparer.Ordinal);
+        var appPath = args.FirstOrDefault(a => a.StartsWith("--app=", StringComparison.Ordinal))?["--app=".Length..];
         var reportPath = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
         var measurements = new List<Measurement>();
 
-        if (!pdfOnly) AddRenameGates(measurements);
-        measurements.AddRange(PdfGates.Run());
+        if (motionOnly)
+        {
+            measurements.AddRange(MotionGates.Run(appPath));
+        }
+        else
+        {
+            if (!pdfOnly) AddRenameGates(measurements);
+            measurements.AddRange(PdfGates.Run());
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine("# Báo cáo hiệu năng — Batch File Renamer");

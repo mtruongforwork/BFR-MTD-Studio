@@ -1,0 +1,277 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ctl="clr-namespace:BFR.App.Controls.Mac"
+                    xmlns:m="clr-namespace:BFR.App.Infrastructure">
+    <!-- ===== 3. Phần tử của segmented control (núm trượt nằm trong MacSegmentedControl) ===== -->
+    <Style x:Key="Mac.Segment" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.FontMedium}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="5" BorderThickness="2" BorderBrush="Transparent">
+                        <ContentPresenter Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Mac.FocusRing}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== 5. Switch ===== -->
+    <Style x:Key="Mac.Switch" TargetType="ToggleButton">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Ring" Margin="-3" CornerRadius="12" BorderThickness="3" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <Border CornerRadius="9" Background="{DynamicResource Mac.TrackOff}" />
+                        <Border x:Name="On" CornerRadius="9" Background="{DynamicResource Mac.AccentFill}" Opacity="0" />
+                        <Ellipse x:Name="Knob" Width="14" Height="14" Margin="2,0,0,0" HorizontalAlignment="Left" Fill="White" Stroke="#26000000" StrokeThickness="0.5" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Knob" Property="m:Motion.SlideX" Value="14" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== 6. Checkbox ===== -->
+    <Style x:Key="Mac.CheckBox" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="14" Height="14" VerticalAlignment="Center">
+                            <Border x:Name="Ring" Margin="-3" CornerRadius="6" BorderThickness="3" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                            <Border CornerRadius="3.5" Background="{DynamicResource Mac.ControlBg}" BorderBrush="{DynamicResource Mac.ControlEdge}" BorderThickness="1" />
+                            <Grid x:Name="Mark" Opacity="0" m:Motion.Zoom="0.6">
+                                <Border CornerRadius="3.5" Background="{DynamicResource Mac.AccentFill}" />
+                                <ctl:MacIcon Data="{DynamicResource Icon.Check}" Size="11" StrokeThickness="3.5" Foreground="{DynamicResource Mac.OnAccent}" />
+                            </Grid>
+                            <Grid x:Name="Mixed" Visibility="Collapsed">
+                                <Border CornerRadius="3.5" Background="{DynamicResource Mac.AccentFill}" />
+                                <Rectangle Width="8" Height="2" RadiusX="1" RadiusY="1" Fill="{DynamicResource Mac.OnAccent}" />
+                            </Grid>
+                        </Grid>
+                        <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="{x:Null}">
+                            <Setter TargetName="Mixed" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Mark" Property="m:Motion.Zoom" Value="1" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Mark" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.1" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Mark" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== Radio ===== -->
+    <Style x:Key="Mac.RadioButton" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="14" Height="14" VerticalAlignment="Center">
+                            <Ellipse x:Name="Ring" Margin="-3" StrokeThickness="3" Stroke="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                            <Ellipse Fill="{DynamicResource Mac.ControlBg}" Stroke="{DynamicResource Mac.ControlEdge}" StrokeThickness="1" />
+                            <Grid x:Name="Mark" Opacity="0">
+                                <Ellipse Fill="{DynamicResource Mac.AccentFill}" />
+                                <Ellipse Width="5" Height="5" Fill="{DynamicResource Mac.OnAccent}" />
+                            </Grid>
+                        </Grid>
+                        <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Mark" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.1" /></Storyboard></BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Mark" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1" /></Storyboard></BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== Slider ngang ===== -->
+    <Style x:Key="Mac.SliderFill" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent">
+                        <Border Height="4" CornerRadius="2" Background="{TemplateBinding Background}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="Mac.SliderThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Ellipse Width="18" Height="18" Fill="White" Stroke="#40000000" StrokeThickness="0.75" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="Mac.Slider" TargetType="Slider">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Ring" Margin="-3,0" CornerRadius="11" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <Border Height="4" CornerRadius="2" Background="{DynamicResource Mac.TrackOff}" VerticalAlignment="Center" />
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource Mac.SliderFill}" Background="{DynamicResource Mac.Accent}" Command="Slider.DecreaseLarge" /></Track.DecreaseRepeatButton>
+                            <Track.Thumb><Thumb Style="{StaticResource Mac.SliderThumb}" /></Track.Thumb>
+                            <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource Mac.SliderFill}" Command="Slider.IncreaseLarge" /></Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== Stepper (hai nút tăng/giảm xếp dọc) ===== -->
+    <Style x:Key="Mac.StepButton" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Mac.Track}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="Mac.Stepper" TargetType="ctl:MacStepper">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ctl:MacStepper">
+                    <Grid>
+                        <Border x:Name="Ring" Margin="-3" CornerRadius="8" BorderThickness="3" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <Border CornerRadius="5" Background="{DynamicResource Mac.ControlBg}" BorderBrush="{DynamicResource Mac.ControlBorder}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                                <RepeatButton Style="{StaticResource Mac.StepButton}" Command="ctl:MacStepper.IncreaseCommand" AutomationProperties.Name="Tăng">
+                                    <ctl:MacIcon Data="{DynamicResource Icon.ChevronUp}" Size="9" StrokeThickness="3" Foreground="{DynamicResource Mac.Label}" />
+                                </RepeatButton>
+                                <RepeatButton Grid.Row="1" Style="{StaticResource Mac.StepButton}" Command="ctl:MacStepper.DecreaseCommand" AutomationProperties.Name="Giảm">
+                                    <ctl:MacIcon Data="{DynamicResource Icon.ChevronDown}" Size="9" StrokeThickness="3" Foreground="{DynamicResource Mac.Label}" />
+                                </RepeatButton>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Control kiểu macOS (plan v3.2, mục 6), tách theo nhóm. Mọi style có khoá "Mac.*" để không đụng style đang dùng
+        của app; màu luôn lấy bằng DynamicResource. StaticResource chỉ tham chiếu được trong cùng một tệp nhóm.
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Mac.Controls.Text.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Buttons.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Selection.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Fields.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Lists.xaml" />
+        <ResourceDictionary Source="Mac.Controls.Overlays.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

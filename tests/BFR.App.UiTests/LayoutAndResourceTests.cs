@@ -89,14 +89,43 @@ public class LayoutAndResourceTests
 
         StaHost.WithTheme(dark, accent, highContrast, () =>
         {
+            var mac = MacScope(dark, highContrast);
             foreach (var (file, key) in xamlRefs.Concat(codeRefs).DistinctBy(r => r.Key + "|" + r.File))
             {
-                if (Application.Current.TryFindResource(key) is null) missing.Add($"{key}   ← {file}");
+                if (Application.Current.TryFindResource(key) is not null) continue;
+                if (IsMacFile(file) && mac.Contains(key)) continue;
+                missing.Add($"{key}   ← {file}");
             }
         });
 
         Assert.True(missing.Count == 0,
             $"Thiếu {missing.Count} khoá tài nguyên ở tổ hợp dark={dark} accent={accent} highContrast={highContrast}:{Environment.NewLine}{string.Join(Environment.NewLine, missing)}");
+    }
+
+    /// <summary>
+    /// Giao diện kiểu macOS (v3.2) nạp từ điển ở phạm vi riêng, chưa gộp vào Application:
+    /// các tệp thuộc phạm vi này được kiểm theo đúng bộ từ điển đó, nên khoá thiếu vẫn bị bắt.
+    /// </summary>
+    private static bool IsMacFile(string relativePath)
+    {
+        var p = relativePath.Replace('\\', '/');
+        return p.Contains("/Themes/Mac/") || p.Contains("/Controls/Mac/") || p.Contains("/Infrastructure/Mac/")
+            || p.Contains("/MacGalleryWindow.");
+    }
+
+    private static ResourceDictionary MacScope(bool dark, bool highContrast)
+    {
+        var scope = new ResourceDictionary();
+        var palette = highContrast ? "HighContrast" : dark ? "Dark" : "Light";
+        foreach (var file in new[] { $"Palette.{palette}", "Tokens", "Icons", "Controls" })
+        {
+            scope.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri($"/BatchFileRenamer;component/Themes/Mac/{file}.xaml", UriKind.Relative)
+            });
+        }
+
+        return scope;
     }
 
     // ======================= A3: bố cục =======================

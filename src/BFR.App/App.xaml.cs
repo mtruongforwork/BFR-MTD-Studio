@@ -89,6 +89,29 @@ public partial class App : Application
         _watchdog = UiWatchdog.StartIfEnabled(Dispatcher);
         FaultInjection.StartIfRequested(Dispatcher);
 
+        // Prototype giao diện v3.2 (dev): mở riêng trước mọi bước đọc/ghi dữ liệu người dùng, không cần phiên chính.
+        if (e.Args.Contains("--mac-gallery", StringComparer.OrdinalIgnoreCase))
+        {
+            var gallery = new MacGalleryWindow();
+            MainWindow = gallery;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+            // --motion-perf <tệp.json>: chạy các kịch bản đo khung hình rồi thoát (bfr-perf --motion).
+            var perfIndex = Array.FindIndex(e.Args, a => a.Equals("--motion-perf", StringComparison.OrdinalIgnoreCase));
+            if (perfIndex >= 0 && perfIndex + 1 < e.Args.Length)
+            {
+                var output = e.Args[perfIndex + 1];
+                gallery.ContentRendered += async (_, _) =>
+                {
+                    await gallery.RunMotionPerfAsync(output);
+                    Shutdown(0);
+                };
+            }
+
+            gallery.Show();
+            return;
+        }
+
         SessionEnding += (_, _) => IsExiting = true;   // không chặn đăng xuất/tắt máy khi đang ẩn trong khay
         var parsed = StartupArgs.Parse(e.Args);
         var payload = parsed.Payload;

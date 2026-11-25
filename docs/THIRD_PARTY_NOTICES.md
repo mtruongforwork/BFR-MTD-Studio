@@ -9,6 +9,18 @@
 
 Phông được nhúng nguyên vẹn (không sửa đổi) và đóng gói cùng ứng dụng; tệp giấy phép nằm cạnh tệp phông và được chép vào thư mục đầu ra.
 
+## Biểu tượng (giao diện v3.2)
+
+| Bộ | Phiên bản | Giấy phép | Dùng ở |
+|---|---|---|---|
+| Lucide (`lucide-static`) | 0.460.0 | ISC (phần kế thừa từ Feather: MIT) | `src/BFR.App/Themes/Mac/Icons.xaml` (chỉ đường nét của các biểu tượng được dùng) |
+
+ISC License — Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies. THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Phần Feather: The MIT License (MIT), Copyright (c) 2013-2022 Cole Bemis.
+
 ## Thư viện .NET cho PDF và tài liệu (v3.0, `BFR.Documents`)
 
 Tất cả dùng giấy phép cho phép phân phối thương mại (MIT / BSD-2-Clause / Apache-2.0). Không dùng thư viện AGPL hoặc giấy phép thương mại.

@@ -1,0 +1,421 @@
+<ui:FluentWindow x:Class="BFR.App.MacGalleryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:BFR.App.Controls.Mac"
+        xmlns:m="clr-namespace:BFR.App.Infrastructure"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="FileFlow Studio – Mac UI prototype" Width="1280" Height="780" MinWidth="1020" MinHeight="620"
+        WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True" WindowBackdropType="Tabbed"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal">
+    <!-- PROTOTYPE P0: chỉ để duyệt hướng nhìn. Dữ liệu giả, chuỗi viết cứng, không đụng tệp hay cài đặt của người dùng. -->
+    <ui:FluentWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Vị trí 0 là bảng màu: đổi sáng/tối bằng cách thay phần tử này. -->
+                <ResourceDictionary Source="Themes/Mac/Palette.Light.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Tokens.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Icons.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </ui:FluentWindow.Resources>
+
+    <Grid TextElement.FontFamily="{DynamicResource Mac.Font}" TextElement.FontSize="13">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ SIDEBAR ============ -->
+        <Border x:Name="SidebarClip" Width="232" ClipToBounds="True">
+            <Border x:Name="SidebarSurface" Width="232" HorizontalAlignment="Right" Background="{DynamicResource Mac.SidebarTint}"
+                    BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Height="52" Background="Transparent" MouseLeftButtonDown="Drag_MouseDown" />
+                    <StackPanel DockPanel.Dock="Bottom" Margin="14,8,14,12">
+                        <Border Style="{StaticResource Mac.RowLine}" Margin="-4,0,-4,10" />
+                        <DockPanel>
+                            <ToggleButton x:Name="ReduceMotionSwitch" DockPanel.Dock="Right" Style="{StaticResource Mac.Switch}" Checked="ReduceMotion_Changed" Unchecked="ReduceMotion_Changed" AutomationProperties.Name="Giảm chuyển động" />
+                            <TextBlock Style="{StaticResource Mac.Callout}" Text="Giảm chuyển động" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ctl:MacSegmentedControl x:Name="ThemeSegment" Items="Sáng|Tối" Margin="0,10,0,0" />
+                    </StackPanel>
+                    <ScrollViewer Style="{StaticResource Mac.ScrollViewer}">
+                        <StackPanel x:Name="SidebarItems">
+                            <TextBox Style="{StaticResource Mac.SearchBox}" Tag="Tìm kiếm" Margin="12,0,12,10" AutomationProperties.Name="Tìm trong thanh bên" />
+                            <RadioButton Style="{StaticResource Mac.SidebarItem}" x:Name="NavHome" Tag="{DynamicResource Icon.House}" Content="Bắt đầu" Checked="Nav_Checked" />
+                            <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.Wrench}" Content="Tất cả công cụ" Checked="Nav_Checked" />
+                            <ToggleButton x:Name="Section1" Style="{StaticResource Mac.SidebarSection}" Content="PDF" IsChecked="True" />
+                            <StackPanel m:Motion.IsExpanded="{Binding IsChecked, ElementName=Section1}">
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.Layers}" Content="Sắp xếp &amp; tách" Checked="Nav_Checked" />
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.Minimize2}" Content="Nén" Checked="Nav_Checked" />
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.Lock}" Content="Bảo mật" Checked="Nav_Checked" />
+                            </StackPanel>
+                            <ToggleButton x:Name="Section2" Style="{StaticResource Mac.SidebarSection}" Content="Tài liệu" IsChecked="True" />
+                            <StackPanel m:Motion.IsExpanded="{Binding IsChecked, ElementName=Section2}">
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.ScanText}" Content="OCR ngoại tuyến" Checked="Nav_Checked" />
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.ShieldCheck}" Content="Dọn dữ liệu ẩn" Checked="Nav_Checked" />
+                            </StackPanel>
+                            <ToggleButton x:Name="Section3" Style="{StaticResource Mac.SidebarSection}" Content="Tệp" IsChecked="True" />
+                            <StackPanel m:Motion.IsExpanded="{Binding IsChecked, ElementName=Section3}">
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" x:Name="NavRename" Tag="{DynamicResource Icon.Type}" Content="Đổi tên hàng loạt" Checked="Nav_Checked" />
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.FolderTree}" Content="Xếp vào thư mục" Checked="Nav_Checked" />
+                            </StackPanel>
+                            <ToggleButton x:Name="Section4" Style="{StaticResource Mac.SidebarSection}" Content="Thư viện" IsChecked="True" />
+                            <StackPanel m:Motion.IsExpanded="{Binding IsChecked, ElementName=Section4}">
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" Tag="{DynamicResource Icon.History}" Content="Lịch sử" Checked="Nav_Checked" />
+                                <RadioButton Style="{StaticResource Mac.SidebarItem}" x:Name="NavControls" Tag="{DynamicResource Icon.Settings}" Content="Mẫu control" Checked="Nav_Checked" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Border>
+
+        <!-- ============ VÙNG CHÍNH ============ -->
+        <Grid Grid.Column="1" Background="{DynamicResource Mac.ContentBg}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="26" />
+            </Grid.RowDefinitions>
+
+            <!-- Unified toolbar -->
+            <Border Background="{DynamicResource Mac.ToolbarBg}" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,0,0,1" MouseLeftButtonDown="Drag_MouseDown">
+                <DockPanel Margin="10,0,12,0" LastChildFill="True">
+                    <Border x:Name="LightsSpacer" DockPanel.Dock="Left" Width="0" />
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Mac.ToolbarButton}" Click="ToggleSidebar_Click" ToolTip="Ẩn / hiện thanh bên (Ctrl+Alt+S)" AutomationProperties.Name="Ẩn hiện thanh bên">
+                        <ctl:MacIcon Data="{StaticResource Icon.PanelLeft}" Size="17" />
+                    </Button>
+                    <TextBlock x:Name="TitleText" DockPanel.Dock="Left" Style="{StaticResource Mac.Title2}" Margin="8,0,16,0" VerticalAlignment="Center" MaxWidth="200" />
+
+                    <Button x:Name="InspectorButton" DockPanel.Dock="Right" Style="{StaticResource Mac.ToolbarButton}" Click="ToggleInspector_Click" ToolTip="Ẩn / hiện bảng tuỳ chọn (Ctrl+Alt+I)" AutomationProperties.Name="Ẩn hiện inspector">
+                        <ctl:MacIcon Data="{StaticResource Icon.PanelRight}" Size="17" />
+                    </Button>
+                    <StackPanel x:Name="RenameToolbar" DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,6,0" VerticalAlignment="Center">
+                        <TextBox x:Name="PreviewSearch" Style="{StaticResource Mac.SearchBox}" Width="150" Tag="Tìm" TextChanged="Search_Changed" Margin="0,0,10,0" AutomationProperties.Name="Tìm trong bản xem trước" />
+                        <Button Style="{StaticResource Mac.Button.Primary}" Content="Áp dụng 6 tệp" Click="ShowSheet_Click" AutomationProperties.Name="Áp dụng" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="CenterToolbar" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource Mac.ToolbarButton}" Click="PullDown_Click" ToolTip="Thêm" AutomationProperties.Name="Thêm tệp">
+                            <StackPanel Orientation="Horizontal">
+                                <ctl:MacIcon Data="{StaticResource Icon.Plus}" Size="17" />
+                                <ctl:MacIcon Data="{StaticResource Icon.ChevronDown}" Size="11" Margin="2,0,0,0" />
+                            </StackPanel>
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource Mac.ContextMenu}">
+                                    <MenuItem Header="Thêm tệp…" InputGestureText="Ctrl+O" />
+                                    <MenuItem Header="Thêm thư mục…" InputGestureText="Ctrl+Shift+O" />
+                                    <MenuItem Header="Lấy từ Shelf" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                        <ctl:MacSegmentedControl x:Name="FilterSegment" Items="Tất cả|Sẽ đổi|Không đổi" Margin="10,0,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Thân: content + inspector -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid x:Name="PageHost" ClipToBounds="True">
+                    <!-- Trang Đổi tên -->
+                    <DataGrid x:Name="RenamePage" Style="{StaticResource Mac.DataGrid}" Padding="0,4,0,0" AutomationProperties.Name="Bảng xem trước">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu Style="{StaticResource Mac.ContextMenu}">
+                                <MenuItem Header="Mở tệp" InputGestureText="Enter" />
+                                <MenuItem Header="Hiện trong thư mục" />
+                                <MenuItem Header="Đổi tên thủ công" InputGestureText="F2" />
+                                <MenuItem Header="Bỏ khỏi danh sách" InputGestureText="Delete" />
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Tên cũ" Width="*" SortMemberPath="OldName">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Head}" />
+                                            <Border Background="{DynamicResource Mac.DiffDelBg}" CornerRadius="3">
+                                                <TextBlock Text="{Binding Removed}" TextDecorations="Strikethrough" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Tail}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Tên mới" Width="*" SortMemberPath="NewName">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Head}" />
+                                            <Border Background="{DynamicResource Mac.DiffAddBg}" CornerRadius="3">
+                                                <TextBlock Text="{Binding Added}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Tail}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Trạng thái" Width="110" Binding="{Binding Status}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Trang Bắt đầu -->
+                    <ScrollViewer x:Name="HomePage" Style="{StaticResource Mac.ScrollViewer}" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                        <StackPanel MaxWidth="760" Margin="32,28">
+                            <TextBlock Style="{StaticResource Mac.LargeTitle}" Text="Chào buổi tối" />
+                            <TextBlock Style="{StaticResource Mac.Callout}" Text="Thả tệp vào đây, hoặc chọn một công cụ ở thanh bên. Mọi thứ chạy ngoại tuyến." Margin="0,4,0,20" />
+                            <Grid x:Name="DropZone" Height="190" Background="Transparent" AllowDrop="True" DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave" Drop="DropZone_DragLeave">
+                                <Rectangle RadiusX="14" RadiusY="14" Stroke="{DynamicResource Mac.Label4}" StrokeThickness="1.5" StrokeDashArray="5 4" Fill="{DynamicResource Mac.AltRow}" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ctl:MacIcon Data="{StaticResource Icon.Upload}" Size="34" StrokeThickness="1.5" Foreground="{DynamicResource Mac.Accent}" />
+                                    <TextBlock Style="{StaticResource Mac.Title2}" Text="Thả tệp hoặc thư mục" HorizontalAlignment="Center" Margin="0,10,0,10" />
+                                    <Button Style="{StaticResource Mac.Button}" Content="Chọn tệp…" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Yêu thích" Margin="0,26,0,12" />
+                            <WrapPanel x:Name="Favorites" m:Motion.AppearStagger="True" />
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Gần đây" Margin="0,18,0,8" />
+                            <Border Style="{StaticResource Mac.Group}">
+                                <StackPanel x:Name="Recents" />
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Trang mẫu control -->
+                    <ScrollViewer x:Name="ControlsPage" Style="{StaticResource Mac.ScrollViewer}" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                        <StackPanel MaxWidth="560" Margin="32,24">
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Nút" Margin="4,0,0,6" />
+                            <WrapPanel Margin="4,0,0,18">
+                                <Button Style="{StaticResource Mac.Button.Primary}" Content="Nút mặc định" Margin="0,0,10,0" />
+                                <Button Style="{StaticResource Mac.Button}" Content="Nút thường" Margin="0,0,10,0" />
+                                <Button Style="{StaticResource Mac.Button}" Content="Vô hiệu" IsEnabled="False" Margin="0,0,10,0" />
+                                <Button Style="{StaticResource Mac.ToolbarButton}" ToolTip="Nút toolbar"><ctl:MacIcon Data="{StaticResource Icon.Ellipsis}" Size="17" /></Button>
+                            </WrapPanel>
+
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Form nhóm (inset grouped)" Margin="4,0,0,6" />
+                            <Border Style="{StaticResource Mac.Group}">
+                                <StackPanel>
+                                    <DockPanel Height="40">
+                                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource Mac.Switch}" IsChecked="True" AutomationProperties.Name="Quét thư mục con" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Quét thư mục con" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <ComboBox DockPanel.Dock="Right" Style="{StaticResource Mac.ComboBox}" Width="180" SelectedIndex="0" AutomationProperties.Name="Sắp xếp theo">
+                                            <ComboBoxItem Content="Tên (tự nhiên)" />
+                                            <ComboBoxItem Content="Ngày tạo" />
+                                            <ComboBoxItem Content="Ngày sửa" />
+                                            <ComboBoxItem Content="Kích thước" />
+                                        </ComboBox>
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Sắp xếp theo" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <TextBox DockPanel.Dock="Right" Style="{StaticResource Mac.TextBox}" Width="180" Tag="Tên preset" AutomationProperties.Name="Tên preset" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Ô nhập (bấm để xem focus ring)" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource Mac.CheckBox}" IsChecked="True" VerticalAlignment="Center" Content="Giữ phần mở rộng" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Checkbox" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <ProgressBar DockPanel.Dock="Right" Style="{StaticResource Mac.ProgressBar}" Width="180" Value="64" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Tiến trình" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Lựa chọn và giá trị" Margin="4,18,0,6" />
+                            <Border Style="{StaticResource Mac.Group}">
+                                <StackPanel>
+                                    <DockPanel Height="40">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <RadioButton Style="{StaticResource Mac.RadioButton}" GroupName="Quality" Content="Thấp" Margin="0,0,14,0" />
+                                            <RadioButton Style="{StaticResource Mac.RadioButton}" GroupName="Quality" Content="Vừa" IsChecked="True" Margin="0,0,14,0" />
+                                            <RadioButton Style="{StaticResource Mac.RadioButton}" GroupName="Quality" Content="Cao" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Radio" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource Mac.CheckBox}" IsThreeState="True" IsChecked="{x:Null}" Content="Một phần đã chọn" VerticalAlignment="Center" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Checkbox trạng thái lửng" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <Slider x:Name="DpiSlider" DockPanel.Dock="Right" Style="{StaticResource Mac.Slider}" Width="180" Minimum="72" Maximum="300" Value="150" TickFrequency="1" IsSnapToTickEnabled="True" AutomationProperties.Name="DPI" />
+                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Mac.Callout}" Text="{Binding Value, ElementName=DpiSlider, StringFormat={}{0:0} DPI}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Slider" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <ctl:MacStepper x:Name="StartNumber" DockPanel.Dock="Right" Style="{StaticResource Mac.Stepper}" Minimum="0" Maximum="9999" Value="1" Margin="6,0,0,0" AutomationProperties.Name="Bắt đầu từ" />
+                                        <TextBox DockPanel.Dock="Right" Style="{StaticResource Mac.TextBox}" Width="56" Text="{Binding Value, ElementName=StartNumber, StringFormat=0, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Số bắt đầu" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Stepper" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <PasswordBox x:Name="DemoPassword" DockPanel.Dock="Right" Style="{StaticResource Mac.PasswordBox}" Width="180" KeyDown="Password_KeyDown" AutomationProperties.Name="Mật khẩu" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button.Small}" Content="Thử mở khoá" Click="WrongPassword_Click" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PasswordError" DockPanel.Dock="Right" Style="{StaticResource Mac.Callout}" Foreground="{DynamicResource Mac.Bad}" Text="Sai mật khẩu" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,10,0" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Mật khẩu" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Style="{StaticResource Mac.RowLine}" />
+                                    <DockPanel Height="40">
+                                        <ProgressBar DockPanel.Dock="Right" Style="{StaticResource Mac.ProgressBar}" Width="180" IsIndeterminate="True" />
+                                        <ctl:MacSpinner DockPanel.Dock="Right" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{DynamicResource Mac.Label2}" AutomationProperties.Name="Đang xử lý" />
+                                        <TextBlock Style="{StaticResource Mac.Text}" Text="Chưa biết thời lượng" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Nút khác và menu" Margin="4,18,0,8" />
+                            <WrapPanel Margin="4,0,0,0">
+                                <Button Style="{StaticResource Mac.Button.Small}" Content="Nút nhỏ" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <Button Style="{StaticResource Mac.Button.Destructive}" Content="Xoá lịch sử" Margin="0,0,10,0" />
+                                <Button Style="{StaticResource Mac.Button.Link}" Content="Tìm hiểu thêm" Margin="0,0,14,0" VerticalAlignment="Center" />
+                                <Button Style="{StaticResource Mac.Button}" Content="Mở menu" Click="PullDown_Click">
+                                    <Button.ContextMenu>
+                                        <ContextMenu Style="{StaticResource Mac.ContextMenu}">
+                                            <MenuItem Header="Hiện phần mở rộng" IsCheckable="True" IsChecked="True" />
+                                            <MenuItem Header="Sắp xếp theo">
+                                                <MenuItem Header="Tên" IsCheckable="True" IsChecked="True" />
+                                                <MenuItem Header="Ngày sửa" IsCheckable="True" />
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Header="Xuất báo cáo…" InputGestureText="Ctrl+E" />
+                                            <MenuItem Header="Không dùng được" IsEnabled="False" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                            </WrapPanel>
+                            <ToggleButton x:Name="AdvancedDisclosure" Style="{StaticResource Mac.Disclosure}" Content="Tuỳ chọn nâng cao" Margin="2,14,0,0" HorizontalAlignment="Left" />
+                            <StackPanel m:Motion.IsExpanded="{Binding IsChecked, ElementName=AdvancedDisclosure}">
+                                <Border Style="{StaticResource Mac.Group}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <CheckBox Style="{StaticResource Mac.CheckBox}" Content="Giữ nguyên ngày sửa tệp" Margin="0,12" />
+                                        <Border Style="{StaticResource Mac.RowLine}" />
+                                        <CheckBox Style="{StaticResource Mac.CheckBox}" Content="Ghi nhật ký chi tiết" Margin="0,12" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Danh sách và thanh cuộn overlay" Margin="4,18,0,6" />
+                            <Border Style="{StaticResource Mac.Group}" Padding="0">
+                                <ListBox x:Name="LongList" Style="{StaticResource Mac.ListBox}" Height="180" AutomationProperties.Name="Danh sách dài" />
+                            </Border>
+
+                            <TextBlock Style="{StaticResource Mac.Headline}" Text="Màu nhấn" Margin="4,18,0,8" />
+                            <WrapPanel x:Name="AccentSwatches" Margin="4,0,0,0" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Trang giữ chỗ cho các mục còn lại, để xem chuyển trang -->
+                    <Grid x:Name="PlaceholderPage" Background="{DynamicResource Mac.CanvasBg}" Visibility="Collapsed">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ctl:MacIcon x:Name="PlaceholderIcon" Size="48" StrokeThickness="1.25" Foreground="{DynamicResource Mac.Label3}" />
+                            <TextBlock x:Name="PlaceholderTitle" Style="{StaticResource Mac.Title2}" HorizontalAlignment="Center" Margin="0,12,0,4" />
+                            <TextBlock Style="{StaticResource Mac.Callout}" Text="Trang này sẽ được dựng ở các phase sau." HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+
+                <!-- Inspector -->
+                <Border x:Name="InspectorClip" Grid.Column="1" Width="300" ClipToBounds="True">
+                    <Border Width="300" HorizontalAlignment="Left" Background="{DynamicResource Mac.PaneBg}" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="1,0,0,0">
+                        <DockPanel>
+                            <ctl:MacSegmentedControl x:Name="InspectorSegment" DockPanel.Dock="Top" Items="Quy tắc|Chi tiết" Margin="12,10,12,4" />
+                            <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,1,0,0" Padding="12,10">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Mac.Button}" Content="Lưu preset…" />
+                                    <Button HorizontalAlignment="Left" Style="{StaticResource Mac.Button}">
+                                        <StackPanel Orientation="Horizontal"><ctl:MacIcon Data="{StaticResource Icon.Plus}" Size="13" Margin="0,0,5,0" /><TextBlock Text="Quy tắc" /></StackPanel>
+                                    </Button>
+                                </DockPanel>
+                            </Border>
+                            <Grid>
+                                <ScrollViewer x:Name="RulesPanel" Style="{StaticResource Mac.ScrollViewer}" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12,8">
+                                        <ComboBox Style="{StaticResource Mac.ComboBox}" SelectedIndex="0" Margin="0,0,0,12" AutomationProperties.Name="Preset">
+                                            <ComboBoxItem Content="Dọn tên tệp" />
+                                            <ComboBoxItem Content="Đánh số theo thứ tự" />
+                                            <ComboBoxItem Content="Ngày chụp" />
+                                        </ComboBox>
+                                        <TextBlock Style="{StaticResource Mac.Section}" Text="Chuỗi quy tắc" Margin="4,0,0,6" />
+                                        <Border Style="{StaticResource Mac.Group}">
+                                            <StackPanel x:Name="RuleRows" />
+                                        </Border>
+                                        <TextBlock Style="{StaticResource Mac.Section}" Text="Tìm và thay" Margin="4,16,0,6" />
+                                        <Border Style="{StaticResource Mac.Group}" Padding="12,10">
+                                            <StackPanel>
+                                                <TextBox Style="{StaticResource Mac.TextBox}" Text=" (copy)" AutomationProperties.Name="Tìm" />
+                                                <TextBox Style="{StaticResource Mac.TextBox}" Tag="Thay bằng" Margin="0,8,0,0" AutomationProperties.Name="Thay bằng" />
+                                                <CheckBox Style="{StaticResource Mac.CheckBox}" Content="Dùng biểu thức chính quy" Margin="0,10,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+                                <StackPanel x:Name="TracePanel" Margin="12,8" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource Mac.Section}" Text="Dòng đang chọn" Margin="4,0,0,6" />
+                                    <Border Style="{StaticResource Mac.Group}">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TraceOld" Style="{StaticResource Mac.Text}" Margin="0,10" />
+                                            <Border Style="{StaticResource Mac.RowLine}" />
+                                            <TextBlock x:Name="TraceNew" Style="{StaticResource Mac.Text}" Margin="0,10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+                </Border>
+            </Grid>
+
+            <!-- Status bar -->
+            <Border Grid.Row="2" Background="{DynamicResource Mac.ToolbarBg}" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,1,0,0">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel x:Name="CountsPanel" Orientation="Horizontal">
+                        <TextBlock x:Name="CountTotal" Style="{StaticResource Mac.Callout}" FontSize="11" m:Motion.CountFormat="{}{0} tệp" />
+                        <TextBlock x:Name="CountChange" Style="{StaticResource Mac.Callout}" FontSize="11" m:Motion.CountFormat=" · {0} sẽ đổi" />
+                        <TextBlock x:Name="CountSame" Style="{StaticResource Mac.Callout}" FontSize="11" m:Motion.CountFormat=" · {0} không đổi" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatusText" Style="{StaticResource Mac.Callout}" FontSize="11" Text="Ngoại tuyến · Bản mẫu giao diện" />
+                </StackPanel>
+            </Border>
+
+            <!-- Sheet: trượt xuống từ dưới toolbar -->
+            <Grid x:Name="SheetLayer" Grid.Row="1" Grid.RowSpan="2" ClipToBounds="True" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
+                <Rectangle x:Name="SheetDim" Fill="{DynamicResource Mac.Dim}" />
+                <Border x:Name="Sheet" Width="440" VerticalAlignment="Top" Margin="0,-1,0,0" Padding="20" CornerRadius="0,0,12,12"
+                        Background="{DynamicResource Mac.SheetBg}" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="1">
+                    <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.35" /></Border.Effect>
+                    <Border.RenderTransform><TranslateTransform x:Name="SheetY" /></Border.RenderTransform>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Mac.Headline}" Text="Đổi tên 6 tệp?" />
+                        <TextBlock Style="{StaticResource Mac.Callout}" TextWrapping="Wrap" Margin="0,6,0,14" Text="Tệp nằm trong 1 thư mục, không tệp nào đổi phần mở rộng. Bạn có thể hoàn tác sau khi đổi." />
+                        <CheckBox Style="{StaticResource Mac.CheckBox}" Content="Không hỏi lại cho lô dưới 20 tệp" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                            <Button Style="{StaticResource Mac.Button}" Content="Huỷ" MinWidth="80" Margin="0,0,10,0" IsCancel="True" Click="CloseSheet_Click" />
+                            <Button x:Name="SheetOk" Style="{StaticResource Mac.Button.Primary}" Content="Đổi tên" MinWidth="80" IsDefault="True" Click="CloseSheet_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Traffic light nằm đè góc trái trên, không đổi chỗ khi thu sidebar -->
+        <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,20,0,0" Background="Transparent">
+            <Button Style="{StaticResource Mac.TrafficDot}" Background="#FF5F57" Tag="×" Click="Close_Click" ToolTip="Đóng" AutomationProperties.Name="Đóng" />
+            <Button Style="{StaticResource Mac.TrafficDot}" Background="#FEBC2E" Tag="–" Click="Minimize_Click" ToolTip="Thu nhỏ" AutomationProperties.Name="Thu nhỏ" />
+            <Button Style="{StaticResource Mac.TrafficDot}" Background="#28C840" Tag="+" Click="Maximize_Click" ToolTip="Phóng to / khôi phục" AutomationProperties.Name="Phóng to" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

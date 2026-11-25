@@ -61,6 +61,7 @@ public static class ThemeManager
         // Gọi trước để biết có đang ở tương phản cao hay không (khi đó WPF-UI dùng theme HighContrast, không Mica).
         var settings = SettingsStore.Load();
         BfrTheme.UserReduceEffects = settings.ReduceEffects;
+        Motion.UserReduced = settings.ReduceMotion;
         BfrTheme.Apply(IsDark, BfrTheme.ParseAccent(settings.AccentPalette));
 
         Wpf.Ui.Appearance.ApplicationThemeManager.Apply(

@@ -93,6 +93,9 @@ public sealed class AppSettings
     /// <summary>Giảm hiệu ứng: tắt nền mờ, đốm màu, bóng đổ và Mica. Tự áp dụng khi máy không có tăng tốc đồ hoạ. Mặc định tắt.</summary>
     public bool ReduceEffects { get; set; } = false;
 
+    /// <summary>Giảm chuyển động (v3.2): chỉ còn mờ dần ngắn. Cài đặt Windows tắt hiệu ứng hoặc tương phản cao cũng tự bật. Mặc định tắt.</summary>
+    public bool ReduceMotion { get; set; } = false;
+
     /// <summary>Số lần đổi tên thành công (dùng để gợi ý đánh giá Store sau 2 lần).</summary>
     public int SuccessfulRenameCount { get; set; } = 0;
 
