@@ -1305,4 +1305,28 @@
     <sys:String x:Key="MediaWhisperExportTxt">Enregistrer .txt</sys:String>
     <sys:String x:Key="MediaWhisperExportSrt">Enregistrer sous-titres .srt</sys:String>
     <sys:String x:Key="MediaWhisperExportVtt">Enregistrer .vtt</sys:String>
+
+    <!-- Khung cửa sổ kiểu macOS (v3.2) -->
+    <sys:String x:Key="MacSectionPdf">PDF</sys:String>
+    <sys:String x:Key="MacSectionDocs">Documents</sys:String>
+    <sys:String x:Key="MacSectionFiles">Fichiers et images</sys:String>
+    <sys:String x:Key="MacSectionLibrary">Bibliothèque</sys:String>
+    <sys:String x:Key="MacSectionFavorites">Favoris</sys:String>
+    <sys:String x:Key="MacNavDuplicates">Fichiers en double</sys:String>
+    <sys:String x:Key="MacNavRemoveBg">Supprimer l’arrière-plan</sys:String>
+    <sys:String x:Key="MacNavTranscribe">Transcrire l’audio</sys:String>
+    <sys:String x:Key="MacSidebarSearch">Rechercher</sys:String>
+    <sys:String x:Key="MacToolbarSearch">Rechercher un outil</sys:String>
+    <sys:String x:Key="MacToolbarSidebar">Afficher ou masquer la barre latérale</sys:String>
+    <sys:String x:Key="MacToolbarBack">Précédent</sys:String>
+    <sys:String x:Key="MacToolbarForward">Suivant</sys:String>
+    <sys:String x:Key="MacToolbarInspector">Afficher ou masquer l’inspecteur</sys:String>
+    <sys:String x:Key="MacAccentBlue">Bleu</sys:String>
+    <sys:String x:Key="MacAccentPurple">Violet</sys:String>
+    <sys:String x:Key="MacAccentPink">Rose</sys:String>
+    <sys:String x:Key="MacAccentRed">Rouge</sys:String>
+    <sys:String x:Key="MacAccentOrange">Orange</sys:String>
+    <sys:String x:Key="MacAccentYellow">Jaune</sys:String>
+    <sys:String x:Key="MacAccentGreen">Vert</sys:String>
+    <sys:String x:Key="MacAccentGraphite">Graphite</sys:String>
 </ResourceDictionary>

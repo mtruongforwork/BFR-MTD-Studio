@@ -140,9 +140,21 @@ public sealed class MediaCleanPage : PageBase
             e.Handled = true;
         };
 
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(_vm.Mode)) RaiseNavSubKeyChanged();
+        };
+
         Content = BuildLayout();
         BuildModeView();
     }
+
+    public override string? NavSubKey => _vm.Mode switch
+    {
+        MediaCleanMode.RemoveBackground => "remove-bg",
+        MediaCleanMode.Transcribe => "transcribe",
+        _ => "duplicates"
+    };
 
     public void SetMode(string? mode)
     {

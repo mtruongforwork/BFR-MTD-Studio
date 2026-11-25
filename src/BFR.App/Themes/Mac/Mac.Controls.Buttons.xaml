@@ -222,4 +222,57 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ===== Nút kiểu mục thanh bên (nhóm yêu thích) ===== -->
+    <Style x:Key="Mac.SidebarButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label}" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Wash" CornerRadius="6" Background="{DynamicResource Mac.Hover}" Opacity="0" />
+                        <Border x:Name="Ring" CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <ContentPresenter Margin="8,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===== Ô mở tìm lệnh trên toolbar ===== -->
+    <Style x:Key="Mac.SearchTrigger" TargetType="Button">
+        <Setter Property="ToolTipService.InitialShowDelay" Value="600" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border CornerRadius="14" Background="{DynamicResource Mac.Track}" />
+                        <Border x:Name="Wash" CornerRadius="14" Background="{DynamicResource Mac.Hover}" Opacity="0" />
+                        <Border x:Name="Ring" CornerRadius="14" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <ContentPresenter Margin="10,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

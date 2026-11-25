@@ -74,7 +74,7 @@ Viết lại `Tokens.xaml`, `Palette.Light.xaml`, `Palette.Dark.xaml`; giữ tê
 
 **Màu (mỗi palette sáng/tối)** — mô phỏng semantic colors của AppKit:
 `WindowBg`, `ContentBg`, `ControlBg`, `ControlBgPressed`, `SeparatorLine`, `GridLine`, `LabelPrimary/Secondary/Tertiary/Quaternary`, `SelectedContentBg` (accent), `UnemphasizedSelectedBg` (xám khi cửa sổ mất focus), `FocusRing` (accent alpha 0.5), `AlternatingRowBg`, `SidebarSelectedBg`.
-**Accent** mặc định xanh macOS (`#007AFF` / `#0A84FF`), 8 lựa chọn kiểu macOS thay cho Sunset/Mint/Aurora. Migration: `SettingsStore.AccentPalette` cũ → map Sunset→Cam, Mint→Lục, Aurora→Tím, giá trị lạ → Xanh; có unit test.
+**Accent** mặc định xanh macOS (`#007AFF` / `#0A84FF`), 8 lựa chọn kiểu macOS thay cho Sunset/Mint/Aurora. Migration: `SettingsStore.AccentPalette` cũ → map Sunset→Xanh (là mặc định cũ nên không phân biệt được người đã chọn; chốt 26/11/2026), Mint→Lục, Aurora→Tím, giá trị lạ → Xanh; có unit test.
 Thêm trạng thái **cửa sổ không active**: mục chọn sidebar/bảng đổi sang xám, giống macOS (theo `Window.IsActive`).
 
 **Hình khối**: control 6, nút lớn 8, card/group 10, sheet/popover 12, cửa sổ do Windows 11 bo. Viền 1px `SeparatorLine` (alpha thấp), không dùng viền accent.

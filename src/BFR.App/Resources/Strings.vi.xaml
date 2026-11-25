@@ -1305,4 +1305,28 @@
     <sys:String x:Key="MediaWhisperExportTxt">Lưu .txt</sys:String>
     <sys:String x:Key="MediaWhisperExportSrt">Lưu phụ đề .srt</sys:String>
     <sys:String x:Key="MediaWhisperExportVtt">Lưu .vtt</sys:String>
+
+    <!-- Khung cửa sổ kiểu macOS (v3.2) -->
+    <sys:String x:Key="MacSectionPdf">PDF</sys:String>
+    <sys:String x:Key="MacSectionDocs">Tài liệu</sys:String>
+    <sys:String x:Key="MacSectionFiles">Tệp &amp; ảnh</sys:String>
+    <sys:String x:Key="MacSectionLibrary">Thư viện</sys:String>
+    <sys:String x:Key="MacSectionFavorites">Yêu thích</sys:String>
+    <sys:String x:Key="MacNavDuplicates">Tệp trùng lặp</sys:String>
+    <sys:String x:Key="MacNavRemoveBg">Xoá nền ảnh</sys:String>
+    <sys:String x:Key="MacNavTranscribe">Chuyển giọng nói thành chữ</sys:String>
+    <sys:String x:Key="MacSidebarSearch">Tìm kiếm</sys:String>
+    <sys:String x:Key="MacToolbarSearch">Tìm công cụ</sys:String>
+    <sys:String x:Key="MacToolbarSidebar">Ẩn hoặc hiện thanh bên</sys:String>
+    <sys:String x:Key="MacToolbarBack">Quay lại</sys:String>
+    <sys:String x:Key="MacToolbarForward">Tiến tới</sys:String>
+    <sys:String x:Key="MacToolbarInspector">Ẩn hoặc hiện bảng tuỳ chọn</sys:String>
+    <sys:String x:Key="MacAccentBlue">Xanh dương</sys:String>
+    <sys:String x:Key="MacAccentPurple">Tím</sys:String>
+    <sys:String x:Key="MacAccentPink">Hồng</sys:String>
+    <sys:String x:Key="MacAccentRed">Đỏ</sys:String>
+    <sys:String x:Key="MacAccentOrange">Cam</sys:String>
+    <sys:String x:Key="MacAccentYellow">Vàng</sys:String>
+    <sys:String x:Key="MacAccentGreen">Xanh lá</sys:String>
+    <sys:String x:Key="MacAccentGraphite">Than chì</sys:String>
 </ResourceDictionary>

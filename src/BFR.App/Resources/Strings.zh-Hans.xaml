@@ -1305,4 +1305,28 @@
     <sys:String x:Key="MediaWhisperExportTxt">保存 .txt</sys:String>
     <sys:String x:Key="MediaWhisperExportSrt">保存 .srt 字幕</sys:String>
     <sys:String x:Key="MediaWhisperExportVtt">保存 .vtt</sys:String>
+
+    <!-- Khung cửa sổ kiểu macOS (v3.2) -->
+    <sys:String x:Key="MacSectionPdf">PDF</sys:String>
+    <sys:String x:Key="MacSectionDocs">文档</sys:String>
+    <sys:String x:Key="MacSectionFiles">文件与图片</sys:String>
+    <sys:String x:Key="MacSectionLibrary">资料库</sys:String>
+    <sys:String x:Key="MacSectionFavorites">收藏</sys:String>
+    <sys:String x:Key="MacNavDuplicates">重复文件</sys:String>
+    <sys:String x:Key="MacNavRemoveBg">移除背景</sys:String>
+    <sys:String x:Key="MacNavTranscribe">语音转文字</sys:String>
+    <sys:String x:Key="MacSidebarSearch">搜索</sys:String>
+    <sys:String x:Key="MacToolbarSearch">搜索工具</sys:String>
+    <sys:String x:Key="MacToolbarSidebar">显示或隐藏边栏</sys:String>
+    <sys:String x:Key="MacToolbarBack">后退</sys:String>
+    <sys:String x:Key="MacToolbarForward">前进</sys:String>
+    <sys:String x:Key="MacToolbarInspector">显示或隐藏检查器</sys:String>
+    <sys:String x:Key="MacAccentBlue">蓝色</sys:String>
+    <sys:String x:Key="MacAccentPurple">紫色</sys:String>
+    <sys:String x:Key="MacAccentPink">粉色</sys:String>
+    <sys:String x:Key="MacAccentRed">红色</sys:String>
+    <sys:String x:Key="MacAccentOrange">橙色</sys:String>
+    <sys:String x:Key="MacAccentYellow">黄色</sys:String>
+    <sys:String x:Key="MacAccentGreen">绿色</sys:String>
+    <sys:String x:Key="MacAccentGraphite">石墨色</sys:String>
 </ResourceDictionary>

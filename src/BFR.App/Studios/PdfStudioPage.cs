@@ -347,11 +347,26 @@ public sealed class PdfStudioPage : PageBase
             }
         };
 
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(_vm.Mode)) RaiseNavSubKeyChanged();
+        };
+
         Content = BuildLayout();
         SyncGridVisualMode();
         BuildInspector();
         RefreshEmptyState();
     }
+
+    public override string? NavSubKey => _vm.Mode switch
+    {
+        PdfStudioMode.Compress => "compress",
+        PdfStudioMode.Stamp => "stamp",
+        PdfStudioMode.Security => "security",
+        PdfStudioMode.Convert => "convert",
+        PdfStudioMode.Compare => "compare",
+        _ => "organize"
+    };
 
     public void SetMode(string? mode)
     {

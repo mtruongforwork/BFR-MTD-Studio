@@ -68,7 +68,9 @@ public sealed class ToolsPage : PageBase
         _list.ItemContainerStyle = BuildItemStyle();
         _list.SelectionChanged += (_, _) =>
         {
-            if (_list.SelectedItem is Entry entry) Show(entry);
+            if (_list.SelectedItem is not Entry entry) return;
+            Show(entry);
+            RaiseNavSubKeyChanged();
         };
         System.Windows.Automation.AutomationProperties.SetName(_list, "Tool list");
 
@@ -205,6 +207,8 @@ public sealed class ToolsPage : PageBase
         AddPending(paths);
         _list.SelectedIndex = 0;
     }
+
+    public override string? NavSubKey => _list.SelectedItem is Entry { Tool: not null } entry ? entry.Key : null;
 
     /// <summary>Mở công cụ theo khoá và đưa tệp vào đó (khoá lạ: về Trang chủ và giữ tệp lại).</summary>
     public void OpenTool(string key, IEnumerable<string> paths, IReadOnlyDictionary<string, string>? values = null)

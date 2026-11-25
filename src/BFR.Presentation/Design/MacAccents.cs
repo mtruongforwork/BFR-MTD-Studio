@@ -34,13 +34,14 @@ public static class MacAccents
 
     /// <summary>
     /// Đọc giá trị <c>AccentPalette</c> trong cài đặt: nhận tên màu mới, đổi tên bảng màu cũ
-    /// (Sunset → cam, Mint → lục, Aurora → tím); giá trị trống hoặc lạ → xanh.
+    /// (Mint → lục, Aurora → tím). Sunset là mặc định cũ nên mọi người chưa từng chọn màu đều đang mang giá trị này:
+    /// nó về xanh cùng với giá trị trống hoặc lạ.
     /// </summary>
     public static MacAccent Parse(string? saved)
     {
         var id = saved?.Trim().ToUpperInvariant() switch
         {
-            "SUNSET" => "Orange",
+            "SUNSET" => "Blue",
             "MINT" => "Green",
             "AURORA" => "Purple",
             _ => saved?.Trim()

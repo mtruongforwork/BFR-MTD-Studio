@@ -159,9 +159,11 @@ function Run-Walk([string]$run) {
         return ($status -eq 'ok')
     }
 
-    function Select-Nav([string]$name) {
-        $nav = Find-Name $script:win $name
-        if ($null -eq $nav) { throw "Không thấy mục '$name'" }
+    function Find-Id([string]$id) { $script:win.FindFirst($TS::Descendants, (Prop-Cond $AE::AutomationIdProperty $id)) }
+
+    function Select-Nav([string]$id) {
+        $nav = Find-Id "Nav.$id"
+        if ($null -eq $nav) { throw "Không thấy mục thanh bên 'Nav.$id'" }
         $sel = $null
         if ($nav.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern, [ref]$sel)) {
             $sel.Select()
@@ -171,21 +173,32 @@ function Run-Walk([string]$run) {
     }
 
     function Invoke-Named([string]$name) {
-        $el = Find-Name $script:win $name
-        if ($null -eq $el) { throw "Không thấy '$name'" }
-        $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        foreach ($el in $script:win.FindAll($TS::Descendants, (Prop-Cond $AE::NameProperty $name))) {
+            $invoke = $null
+            if ($el.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke(); return }
+        }
+        throw "Không thấy nút '$name'"
     }
+
+    # Đúng một mục thanh bên được chọn và đúng mục mong đợi.
+    function Test-Selected([string]$id) {
+        $selected = @($script:win.FindAll($TS::Descendants, (Prop-Cond $AE::ControlTypeProperty $CT::RadioButton)) |
+            Where-Object { $_.Current.AutomationId -like 'Nav.*' -and $_.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } |
+            ForEach-Object { $_.Current.AutomationId })
+        return $selected.Count -eq 1 -and $selected[0] -eq "Nav.$id"
+    }
+    function Test-Title([string]$title) { $t = Find-Id 'Shell.Title'; $null -ne $t -and $t.Current.Name -eq $title }
 
     try {
         $ok = Wait-For { $script:win = $AE::RootElement.FindFirst($TS::Children, (Prop-Cond $AE::NameProperty 'FileFlow Studio Main Window')); $null -ne $script:win -and $script:win.Current.ProcessId -eq $proc.Id } 40000
         if (-not $ok) { throw "Không thấy cửa sổ chính trong 40 giây" }
         Start-Sleep -Seconds 2   # để Loaded/NavigateTo("Home") kịp chạy
 
-        [void](Step 'home' { Select-Nav 'Nav home' } { $null -ne (Find-Visible $script:win 'Batch Rename') })
-        [void](Step 'rename' { Select-Nav 'Nav home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
+        [void](Step 'home' { Select-Nav 'home' } { $null -ne (Find-Visible $script:win 'Batch Rename') })
+        [void](Step 'rename' { Select-Nav 'home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Tools: trang chủ rồi từng công cụ (ô "Open ..." có InvokePattern), quay lại bằng nút Back.
-        [void](Step 'tools-home' { Select-Nav 'Nav tools' } { $null -ne (Find-Visible $script:win 'Tools page') -and @(Find-NamePrefix $script:win 'Open ').Count -ge 5 })
+        [void](Step 'tools-home' { Select-Nav 'tools' } { $null -ne (Find-Visible $script:win 'Tools page') -and @(Find-NamePrefix $script:win 'Open ').Count -ge 5 })
         $tiles = @(Find-NamePrefix $script:win 'Open ' | ForEach-Object { $_.Current.Name } | Where-Object { $_ -notmatch '^Open (PDF Studio|Docs|Rename|Batch Rename|Media)' } | Sort-Object -Unique)
         if ($tiles.Count -lt 5) { $failures.Add("[$run/tools] chỉ thấy $($tiles.Count) ô công cụ") }
         foreach ($tile in $tiles) {
@@ -196,12 +209,29 @@ function Run-Walk([string]$run) {
             [void](Wait-For { $null -ne (Find-Name $script:win $tileName) } 3000)
         }
 
-        [void](Step 'shelf'    { Select-Nav 'Nav shelf' }        { $null -ne (Find-Visible $script:win 'Shelf page') })
-        [void](Step 'history'  { Select-Nav 'Nav history' }      { $null -ne (Find-Visible $script:win 'History and Undo Window') })
-        [void](Step 'presets'  { Select-Nav 'Nav presets' }      { $null -ne (Find-Visible $script:win 'Preset library window') })
-        [void](Step 'watch'    { Select-Nav 'Nav watch folder' } { $null -ne (Find-Visible $script:win 'Watch folder window') })
-        [void](Step 'settings' { Select-Nav 'Nav settings' }     { $null -ne (Find-Visible $script:win 'Settings window') })
-        [void](Step 'back-to-rename' { Select-Nav 'Nav home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
+        $sidebarPages = [ordered]@{
+            'pdf-organize' = 'PDF Studio'; 'pdf-compress' = 'PDF Studio'; 'pdf-stamp' = 'PDF Studio'; 'pdf-security' = 'PDF Studio'
+            'pdf-convert' = 'PDF Studio'; 'pdf-compare' = 'PDF Studio'
+            'docs-convert' = 'Docs & OCR'; 'docs-ocr' = 'Docs & OCR'; 'docs-privacy' = 'Docs & OCR'; 'docs-spreadsheet' = 'Docs & OCR'
+            'rename' = 'Rename'; 'organize' = 'Tools'; 'images' = 'Tools'
+            'duplicates' = 'Media & Clean'; 'remove-bg' = 'Media & Clean'; 'transcribe' = 'Media & Clean'
+        }
+        foreach ($id in $sidebarPages.Keys) {
+            $navId = $id; $title = $sidebarPages[$id]
+            [void](Step "side-$navId" { Select-Nav $navId } { (Test-Selected $navId) -and (Test-Title $title) })
+        }
+
+        # Thu rồi mở thanh bên.
+        $script:titleX = (Find-Id 'Shell.Title').Current.BoundingRectangle.X
+        [void](Step 'sidebar-collapse' { (Find-Id 'Shell.ToggleSidebar').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() } { $n = Find-Id 'Nav.home'; ($null -eq $n -or $n.Current.IsOffscreen -or -not $n.Current.IsEnabled) -and ($script:titleX - (Find-Id 'Shell.Title').Current.BoundingRectangle.X) -ge 130 })
+        [void](Step 'sidebar-expand' { (Find-Id 'Shell.ToggleSidebar').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() } { $n = Find-Id 'Nav.home'; $null -ne $n -and -not $n.Current.IsOffscreen -and $n.Current.IsEnabled })
+
+        [void](Step 'shelf'    { Select-Nav 'shelf' }        { $null -ne (Find-Visible $script:win 'Shelf page') })
+        [void](Step 'history'  { Select-Nav 'history' }      { $null -ne (Find-Visible $script:win 'History and Undo Window') })
+        [void](Step 'presets'  { Select-Nav 'presets' }      { $null -ne (Find-Visible $script:win 'Preset library window') })
+        [void](Step 'watch'    { Select-Nav 'watch' } { $null -ne (Find-Visible $script:win 'Watch folder window') })
+        [void](Step 'settings' { (Find-Id 'Nav.settings').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() } { $null -ne (Find-Visible $script:win 'Settings window') })
+        [void](Step 'back-to-rename' { Select-Nav 'home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Dọn dẹp cuối lượt: để watchdog có thời gian ghi nếu có treo ngầm.
         Start-Sleep -Seconds 7

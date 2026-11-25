@@ -14,6 +14,13 @@ public abstract class PageBase : UserControl
 
     protected void RequestClose() => CloseRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Chế độ hoặc công cụ đang mở bên trong trang, để thanh bên chọn đúng mục; null nếu trang không chia nhỏ.</summary>
+    public virtual string? NavSubKey => null;
+
+    public event EventHandler? NavSubKeyChanged;
+
+    protected void RaiseNavSubKeyChanged() => NavSubKeyChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Gọi mỗi khi trang được hiển thị: nạp lại dữ liệu để luôn mới.</summary>
     public virtual void OnShown() { }
 

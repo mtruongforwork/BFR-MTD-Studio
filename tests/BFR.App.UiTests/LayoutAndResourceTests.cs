@@ -110,7 +110,7 @@ public class LayoutAndResourceTests
     {
         var p = relativePath.Replace('\\', '/');
         return p.Contains("/Themes/Mac/") || p.Contains("/Controls/Mac/") || p.Contains("/Infrastructure/Mac/")
-            || p.Contains("/MacGalleryWindow.");
+            || p.Contains("/MacGalleryWindow.") || p.Contains("/MainWindow.");
     }
 
     private static ResourceDictionary MacScope(bool dark, bool highContrast)

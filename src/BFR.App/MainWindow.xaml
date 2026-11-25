@@ -4,12 +4,13 @@
         xmlns:local="clr-namespace:BFR.App"
         xmlns:conv="clr-namespace:BFR.App.Converters"
         xmlns:ctl="clr-namespace:BFR.App.Controls"
+        xmlns:mac="clr-namespace:BFR.App.Controls.Mac"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="{DynamicResource WindowTitle}" Height="820" Width="1380"
         MinHeight="620" MinWidth="1020"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
-        WindowBackdropType="Mica"
+        WindowBackdropType="Tabbed"
         FontFamily="{StaticResource AppFont}"
         FontSize="{StaticResource AppFontSizeBody}"
         TextOptions.TextFormattingMode="Ideal"
@@ -18,6 +19,15 @@
         AutomationProperties.Name="FileFlow Studio Main Window">
 
     <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Giao diện kiểu macOS. Bảng màu được MacTheme.Apply thay theo sáng/tối, màu nhấn và tương phản cao. -->
+                <ResourceDictionary Source="Themes/Mac/Palette.Light.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Tokens.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Icons.xaml" />
+                <ResourceDictionary Source="Themes/Mac/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
         <!-- Menu ngữ cảnh cho từng dòng trong bảng xem trước (v1.0.2) -->
         <ContextMenu x:Key="RowContextMenu" Style="{StaticResource AppContextMenuStyle}">
             <MenuItem Header="{DynamicResource CtxOpenFile}" Click="ContextMenu_OpenFile_Click" Style="{StaticResource AppMenuItemStyle}">
@@ -253,28 +263,52 @@
                 </Border>
             </Grid>
         </DataTemplate>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Grid>
-        <!-- Nền macOS #1E1E1E đặc sạch -->
-        <ctl:BackdropBlobs />
-
-        <!-- Split-View: Left Translucent Sidebar (220px) + Right (Unified Toolbar 52px + Content) -->
+        <!-- Khung kiểu macOS: thanh bên | toolbar hợp nhất + (trang | inspector) + thanh trạng thái -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="SidebarColumn" Width="220" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <ctl:MacSidebar x:Name="Sidebar" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            <!-- Thu thanh bên = thu độ rộng vùng cắt; nội dung giữ nguyên 232 px nên không bị bóp méo. -->
+            <Border x:Name="SidebarClip" Width="232" ClipToBounds="True">
+                <Border x:Name="SidebarSurface" Width="232" HorizontalAlignment="Right" Background="{DynamicResource Mac.SidebarSolid}"
+                        BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,0,1,0">
+                    <mac:MacSourceList x:Name="Sidebar" KeyboardNavigation.TabNavigation="Continue" />
+                </Border>
+            </Border>
 
-            <Grid Grid.Column="1">
+            <Grid Grid.Column="1" Background="{DynamicResource Mac.ContentBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="52" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <ctl:MacToolbar x:Name="Toolbar" Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                <mac:MacUnifiedToolbar x:Name="Toolbar" Grid.Row="0" />
+
+                <Border x:Name="StatusBar" Grid.Row="2" Height="26" Visibility="Collapsed" Background="{DynamicResource Mac.ToolbarBg}"
+                        BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,1,0,0">
+                    <TextBlock x:Name="StatusBarText" Style="{DynamicResource Mac.Callout}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite" />
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="InspectorClip" Grid.Column="1" Width="0" IsEnabled="False" ClipToBounds="True">
+                        <Border Width="300" HorizontalAlignment="Left" Background="{DynamicResource Mac.PaneBg}"
+                                BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="1,0,0,0">
+                            <ContentControl x:Name="InspectorContent" Focusable="False" />
+                        </Border>
+                    </Border>
 
                 <!-- Vùng trang: trang Đổi tên là phần nội dung cũ; các trang khác được tạo khi cần -->
                 <Grid x:Name="PageHost" Grid.Row="1">
@@ -834,8 +868,17 @@
             </Grid>
         </Grid>
                 </Grid>
+                </Grid>
             </Grid>
-            </Grid>
+        </Grid>
+
+            <!-- Traffic light nằm đè góc trái trên nên không đổi chỗ khi thu thanh bên -->
+            <!-- Trải cả hai cột: nếu chỉ nằm ở cột đầu thì cột thanh bên không co được dưới độ rộng cụm nút. -->
+            <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,20,0,0" Background="Transparent">
+                <Button x:Name="CloseDot" Style="{DynamicResource Mac.TrafficDot}" Background="#FF5F57" Tag="×" Click="CloseDot_Click" />
+                <Button x:Name="MinimizeDot" Style="{DynamicResource Mac.TrafficDot}" Background="#FEBC2E" Tag="–" Click="MinimizeDot_Click" />
+                <Button x:Name="ZoomDot" Style="{DynamicResource Mac.TrafficDot}" Background="#28C840" Tag="+" Click="ZoomDot_Click" />
+            </StackPanel>
 
             <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên toàn cửa sổ -->
             <ui:ContentDialogHost x:Name="DialogHost" Grid.ColumnSpan="2" />

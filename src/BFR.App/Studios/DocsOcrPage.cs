@@ -145,9 +145,22 @@ public sealed class DocsOcrPage : PageBase
             }
         };
 
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(_vm.Mode)) RaiseNavSubKeyChanged();
+        };
+
         Content = BuildLayout();
         BuildModeView();
     }
+
+    public override string? NavSubKey => _vm.Mode switch
+    {
+        DocsOcrMode.PrivacyCleaner => "privacy",
+        DocsOcrMode.SpreadsheetData => "spreadsheet",
+        DocsOcrMode.OcrWorkbench => "ocr",
+        _ => "convert"
+    };
 
     public void SetMode(string? mode)
     {

@@ -60,19 +60,9 @@ public partial class MainWindow : FluentWindow
         _vm = new MainViewModel(_license, initialPayload, null, new LocStringProvider(), new WpfUiDispatcher());
         DataContext = _vm;
         _shelfModel = new ShelfModel(_license.License);
-        _shelfModel.Items.CollectionChanged += (_, _) => Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
+        _shelfModel.Items.CollectionChanged += (_, _) => Sidebar.SetShelfCount(_shelfModel.Items.Count);
 
-        Sidebar.NavigateRequested += key => NavigateTo(key);
-        Sidebar.FavoriteToolRequested += OpenFavoriteTool;
-        Sidebar.TierRequested += () => ShowUpgradeDialog(contextFeature: null);
-
-        Toolbar.ToggleSidebarRequested += ToggleSidebar;
-        Toolbar.BackRequested += NavigateBack;
-        Toolbar.ForwardRequested += NavigateForward;
-        Toolbar.SearchRequested += ShowCommandPalette;
-        Toolbar.SettingsRequested += () => NavigateTo("Settings");
-
-        Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
+        InitializeShell();
         RefreshSidebarFavorites();
 
         _collectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
@@ -155,6 +145,8 @@ public partial class MainWindow : FluentWindow
     {
         ShelfButtonText.Text = Loc.T("ShelfButton");
         ShelfButton.ToolTip = Loc.T("ShelfTooltip");
+        LocalizeShell();
+        RefreshSidebarFavorites();
         UpdateLicenseState();
         NameTitleBarButtons();
 
@@ -172,10 +164,13 @@ public partial class MainWindow : FluentWindow
             rebuilt.Visibility = Visibility.Visible;
             rebuilt.OnShown();
         }
+
+        SyncShell();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
     {
+        ApplyShellTheme();
         _floatingOrb?.RefreshTheme();
 
         // Dựng lại các trang tạo bằng code (trừ WatchFolderPage đang chạy nền) để áp dụng màu sáng/tối/nhấn mới ngay lập tức.
@@ -277,7 +272,7 @@ public partial class MainWindow : FluentWindow
     {
         var status = _license.Status;
         var badgeText = status.IsTrial ? Loc.T("TierTrial") : Loc.T(status.IsPro ? "TierPro" : "TierFree");
-        Sidebar.UpdateLicenseState(badgeText);
+        Sidebar.SetTier(badgeText);
         _vm.RefreshLicenseState();
     }
 
@@ -652,7 +647,6 @@ public partial class MainWindow : FluentWindow
     private ShelfModel _shelfModel = null!;
     private readonly Dictionary<string, PageBase> _pages = new();
     private string _currentPage = "Rename";
-    private bool _navigating;
     private MouseHook? _shakeHook;
     private GlobalHotkey? _hotkey;
 
@@ -1532,17 +1526,6 @@ public partial class MainWindow : FluentWindow
 
     // ----------------------------------------------------------------- Điều hướng (macOS Split-View Shell)
 
-    private readonly Stack<string> _backStack = new();
-    private readonly Stack<string> _forwardStack = new();
-    private bool _sidebarCollapsed;
-
-    private void ToggleSidebar()
-    {
-        _sidebarCollapsed = !_sidebarCollapsed;
-        SidebarColumn.Width = new GridLength(_sidebarCollapsed ? 0 : 220);
-        Sidebar.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
-    }
-
     private void OpenFavoriteTool(string key)
     {
         if (key.StartsWith("page:", StringComparison.Ordinal))
@@ -1572,95 +1555,7 @@ public partial class MainWindow : FluentWindow
             if (favSet.Contains(t.Key))
                 items.Add((t.Key, Loc.T(t.TitleKey), t.Icon));
         }
-        var isVi = string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
-        Sidebar.UpdateFavorites(items, isVi);
-    }
-
-    private static string PageBreadcrumbTitle(string key) => key switch
-    {
-        "Home" => Loc.T("NavHome"),
-        "Tools" => Loc.T("NavTools"),
-        "Shelf" => Loc.T("NavShelf"),
-        "Watch" => Loc.T("NavWatch"),
-        "History" => Loc.T("NavHistory"),
-        "Presets" => Loc.T("NavPresets"),
-        "Settings" => Loc.T("NavSettings"),
-        "Rename" => Loc.T("NavRename"),
-        "PdfStudio" => Loc.T("NavPdfStudio"),
-        "DocsOcr" => Loc.T("NavDocsOcr"),
-        "MediaClean" => Loc.T("NavMediaClean"),
-        _ => Loc.T("NavHome")
-    };
-
-    private void NavigateBack()
-    {
-        if (_backStack.Count == 0) return;
-        var target = _backStack.Pop();
-        _forwardStack.Push(_currentPage);
-        ShowPage(target, recordHistory: false);
-    }
-
-    private void NavigateForward()
-    {
-        if (_forwardStack.Count == 0) return;
-        var target = _forwardStack.Pop();
-        _backStack.Push(_currentPage);
-        ShowPage(target, recordHistory: false);
-    }
-
-    /// <summary>Chuyển sang một trang và đồng bộ Sidebar + Toolbar.</summary>
-    public void NavigateTo(string key) => ShowPage(key, recordHistory: true);
-
-    private void ShowPage(string key, bool recordHistory = true)
-    {
-        if (_navigating) return;
-
-        // Watch Folder là tính năng Pro: Free thấy hộp thoại nâng cấp và ở lại trang hiện tại.
-        if (key == "Watch" && !EnsurePro(ProFeature.UnlimitedRecursion))
-        {
-            _navigating = true;
-            Sidebar.SetActivePage(_currentPage);
-            _navigating = false;
-            return;
-        }
-
-        var isVi = string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
-        if (key == _currentPage)
-        {
-            Sidebar.SetActivePage(key);
-            Toolbar.SetState(PageBreadcrumbTitle(key), _backStack.Count > 0, _forwardStack.Count > 0, isVi);
-            return;
-        }
-
-        var leaving = _currentPage;
-        if (recordHistory && !string.IsNullOrEmpty(leaving))
-        {
-            _backStack.Push(leaving);
-            _forwardStack.Clear();
-        }
-
-        _currentPage = key;
-        Sidebar.SetActivePage(key);
-        Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
-        Toolbar.SetState(PageBreadcrumbTitle(key), _backStack.Count > 0, _forwardStack.Count > 0, isVi);
-
-        if (leaving != "Rename" && _pages.TryGetValue(leaving, out var old))
-        {
-            old.Visibility = Visibility.Collapsed;
-            old.OnHidden();
-        }
-
-        RenamePage.Visibility = key == "Rename" ? Visibility.Visible : Visibility.Collapsed;
-        if (key == "Rename")
-        {
-            FadeIn(RenamePage);
-            return;
-        }
-
-        var page = GetPage(key);
-        page.Visibility = Visibility.Visible;
-        FadeIn(page);
-        page.OnShown();
+        Sidebar.SetFavorites(items.Select(i => (i.Key, i.Title)).ToList());
     }
 
     /// <summary>Nút thu nhỏ/phóng to/đóng của WPF-UI TitleBar không có tên: đặt tên để trình đọc màn hình đọc được.</summary>
@@ -1686,36 +1581,6 @@ public partial class MainWindow : FluentWindow
         }
 
         Walk(this);
-    }
-
-    /// <summary>Chuyển trang: trượt dọc nhẹ + hiện dần trong 200 ms; tắt khi giảm chuyển động.</summary>
-    private static void FadeIn(UIElement element)
-    {
-        element.BeginAnimation(OpacityProperty, null);
-        if (BfrTheme.ReduceMotion)
-        {
-            element.Opacity = 1;
-            if (element.RenderTransform is TranslateTransform existing) existing.Y = 0;
-            return;
-        }
-
-        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
-        var duration = TimeSpan.FromMilliseconds(200);
-        element.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration)
-        {
-            EasingFunction = ease
-        });
-
-        var translate = element.RenderTransform as TranslateTransform;
-        if (translate is null || translate.IsFrozen)
-        {
-            translate = new TranslateTransform();
-            element.RenderTransform = translate;
-        }
-        translate.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(10, 0, duration)
-        {
-            EasingFunction = ease
-        });
     }
 
     private PageBase GetPage(string key)
@@ -1821,6 +1686,7 @@ public partial class MainWindow : FluentWindow
         }
 
         page.CloseRequested += (_, _) => NavigateTo("Rename");
+        TrackPage(page);
         page.Visibility = Visibility.Collapsed;
         PageHost.Children.Add(page);
         _pages[key] = page;

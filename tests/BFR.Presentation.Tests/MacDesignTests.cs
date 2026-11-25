@@ -195,7 +195,8 @@ public class MacDesignTests
     // ---------------- Đổi giá trị cài đặt cũ ----------------
 
     [Theory]
-    [InlineData("Sunset", "Orange")]
+    [InlineData("Sunset", "Blue")]
+    [InlineData("Orange", "Orange")]
     [InlineData("mint", "Green")]
     [InlineData("AURORA", "Purple")]
     [InlineData("Blue", "Blue")]

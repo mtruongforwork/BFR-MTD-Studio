@@ -79,6 +79,12 @@ public static class MacLegacyAliasMap
         ["BfrAccFg"] = "Mac.AccentText",
         ["BfrAcc1"] = "Mac.AccentFill",
         ["BfrAcc2"] = "Mac.AccentFill",
+        ["BfrAcc1Soft"] = "Mac.AccentSoft",
+        ["BfrAcc2Soft"] = "Mac.AccentSoft",
+        ["BfrGlow1"] = "Mac.Accent",
+        ["BfrGlow2"] = "Mac.Accent",
+        ["BfrAccFgDark"] = "Mac.AccentText",
+        ["BfrAccFgLight"] = "Mac.AccentText",
         ["BfrAccGradient"] = "Mac.AccentFill",
         ["BfrAccGradientSoft"] = "Mac.AccentSoft"
     };

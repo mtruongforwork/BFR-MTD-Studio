@@ -102,35 +102,32 @@ public class SettingsPage : PageBase
         var accentCaption = Caption(Loc.T("SettingsAccent"));
         accentCaption.Margin = new Thickness(0, 12, 0, 4);
         look.Children.Add(accentCaption);
-        var accentTrack = new Border { Style = (Style)Application.Current.FindResource("BfrSegmentedTrack"), HorizontalAlignment = HorizontalAlignment.Left };
-        var accentRow = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (name, c1, c2) in new[]
+        var accentRow = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        var savedAccent = BFR.Presentation.Design.MacAccents.Parse(_settings.AccentPalette);
+        foreach (var accent in BFR.Presentation.Design.MacAccents.All)
         {
-            ("Aurora", Color.FromRgb(0x63, 0x66, 0xF1), Color.FromRgb(0xA8, 0x55, 0xF7)),
-            ("Mint", Color.FromRgb(0x10, 0xB9, 0x81), Color.FromRgb(0x14, 0xB8, 0xA6)),
-            ("Sunset", Color.FromRgb(0xF9, 0x73, 0x16), Color.FromRgb(0xEC, 0x48, 0x99))
-        })
-        {
+            var label = Loc.T("MacAccent" + accent.Id);
             var swatch = new System.Windows.Shapes.Ellipse
             {
                 Width = 10,
                 Height = 10,
                 Margin = new Thickness(0, 0, 6, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Fill = new LinearGradientBrush(c1, c2, 45)
+                Fill = MacTheme.Solid(accent.Tint(ThemeManager.IsDark))
             };
             var labelRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             labelRow.Children.Add(swatch);
-            labelRow.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+            labelRow.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
 
             var option = new RadioButton
             {
                 Content = labelRow,
                 GroupName = "accent",
                 Style = (Style)Application.Current.FindResource("BfrSegmentedItem"),
-                IsChecked = string.Equals(_settings.AccentPalette, name, StringComparison.OrdinalIgnoreCase)
+                IsChecked = accent.Id == savedAccent.Id
             };
-            var chosen = name;
+            AutomationProperties.SetName(option, label);
+            var chosen = accent.Id;
             option.Checked += (_, _) =>
             {
                 if (string.Equals(_settings.AccentPalette, chosen, StringComparison.OrdinalIgnoreCase)) return;
@@ -140,8 +137,7 @@ public class SettingsPage : PageBase
             };
             accentRow.Children.Add(option);
         }
-        accentTrack.Child = accentRow;
-        look.Children.Add(accentTrack);
+        look.Children.Add(accentRow);
 
         var mascot = Toggle(Loc.T("SettingsMascot"), _settings.ShowMascot, on =>
         {

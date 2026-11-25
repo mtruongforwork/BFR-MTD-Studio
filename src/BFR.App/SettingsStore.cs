@@ -84,8 +84,11 @@ public sealed class AppSettings
     /// <summary>Giao diện: "System", "Light" hoặc "Dark".</summary>
     public string Theme { get; set; } = "System";
 
-    /// <summary>Bảng màu nhấn: "Aurora" (mặc định), "Mint" hoặc "Sunset".</summary>
-    public string AccentPalette { get; set; } = "Sunset";
+    /// <summary>Màu nhấn: tên trong <c>MacAccents</c> (mặc định "Blue"). Tên cũ Sunset/Mint/Aurora vẫn đọc được.</summary>
+    public string AccentPalette { get; set; } = "Blue";
+
+    /// <summary>Người dùng đã thu thanh bên của cửa sổ chính.</summary>
+    public bool SidebarCollapsed { get; set; }
 
     /// <summary>Hiện linh vật Tem (trang chủ, trạng thái rỗng). Mặc định bật.</summary>
     public bool ShowMascot { get; set; } = true;

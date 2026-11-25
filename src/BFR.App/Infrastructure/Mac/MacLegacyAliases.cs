@@ -7,15 +7,13 @@ using System.Windows.Media;
 using BFR.Presentation.Design;
 
 /// <summary>
-/// XEM TRƯỚC khi phát triển (BFR_MAC_TOKENS=1): ghi đè khoá màu và phông cũ bằng token "Mac.*" để các màn hình
-/// chưa viết lại mang màu mới. Mặc định TẮT nên giao diện đang phát hành không đổi.
-/// Khi khung cửa sổ mới (P3) vào app thì bỏ công tắc này. Được gọi từ <see cref="LegacyBridge"/>.
+/// Ghi đè khoá màu và phông cũ bằng token "Mac.*" để nội dung các trang chưa viết lại khớp màu với khung mới.
+/// Tương phản cao giữ đường cũ (màu hệ thống). Gỡ lớp này khi không còn trang nào dùng khoá cũ.
+/// Được gọi từ <see cref="LegacyBridge"/>.
 /// </summary>
 public static class MacLegacyAliases
 {
     private static readonly List<string> Applied = new();
-
-    public static bool Enabled { get; } = Environment.GetEnvironmentVariable("BFR_MAC_TOKENS") == "1";
 
     public static void Remove(Application app)
     {
@@ -25,7 +23,7 @@ public static class MacLegacyAliases
 
     public static void Apply(Application app, bool dark)
     {
-        if (!Enabled || MacTheme.IsHighContrast) return;
+        if (MacTheme.IsHighContrast) return;
 
         var palette = MacTheme.LoadPalette(dark);
         var tokens = MacTheme.Load("Tokens.xaml");

@@ -19,6 +19,7 @@ public static class ThemeManager
     private const int DwmwaUseImmersiveDarkMode = 20;
     private const int DwmwaSystemBackdropType = 38;
     private const int DwmSystemBackdropMica = 2;
+    private const int DwmSystemBackdropMicaAlt = 4;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -91,9 +92,10 @@ public static class ThemeManager
             app.Resources.MergedDictionaries.Add(dictionary);
         }
 
-        // Nút Primary, mục chọn của WPF-UI theo bảng màu nhấn của BFR thay vì màu nhấn của Windows.
-        if (Application.Current.TryFindResource("BfrAcc1Color") is Color brand && !BfrTheme.IsHighContrast)
+        // Công tắc, nút Primary, mục chọn của WPF-UI theo màu nhấn trong cài đặt (không theo màu nhấn của Windows).
+        if (!BfrTheme.IsHighContrast)
         {
+            var brand = MacTheme.Solid(BFR.Presentation.Design.MacAccents.Parse(settings.AccentPalette).Fill).Color;
             Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(
                 brand, IsDark ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light);
         }
@@ -161,7 +163,8 @@ public static class ThemeManager
 
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621))
             {
-                var backdrop = solid ? 1 : DwmSystemBackdropMica;
+                // Cửa sổ chính dùng Mica Alt (đậm hơn) cho thanh bên kiểu Finder.
+                var backdrop = solid ? 1 : window is MainWindow ? DwmSystemBackdropMicaAlt : DwmSystemBackdropMica;
                 DwmSetWindowAttribute(handle, DwmwaSystemBackdropType, ref backdrop, sizeof(int));
             }
         }

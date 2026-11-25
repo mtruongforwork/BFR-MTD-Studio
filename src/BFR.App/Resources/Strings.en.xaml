@@ -1305,4 +1305,28 @@
     <sys:String x:Key="MediaWhisperExportTxt">Save .txt</sys:String>
     <sys:String x:Key="MediaWhisperExportSrt">Save .srt Subtitles</sys:String>
     <sys:String x:Key="MediaWhisperExportVtt">Save .vtt</sys:String>
+
+    <!-- Khung cửa sổ kiểu macOS (v3.2) -->
+    <sys:String x:Key="MacSectionPdf">PDF</sys:String>
+    <sys:String x:Key="MacSectionDocs">Documents</sys:String>
+    <sys:String x:Key="MacSectionFiles">Files &amp; images</sys:String>
+    <sys:String x:Key="MacSectionLibrary">Library</sys:String>
+    <sys:String x:Key="MacSectionFavorites">Favorites</sys:String>
+    <sys:String x:Key="MacNavDuplicates">Duplicate files</sys:String>
+    <sys:String x:Key="MacNavRemoveBg">Remove background</sys:String>
+    <sys:String x:Key="MacNavTranscribe">Transcribe audio</sys:String>
+    <sys:String x:Key="MacSidebarSearch">Search</sys:String>
+    <sys:String x:Key="MacToolbarSearch">Search tools</sys:String>
+    <sys:String x:Key="MacToolbarSidebar">Show or hide the sidebar</sys:String>
+    <sys:String x:Key="MacToolbarBack">Back</sys:String>
+    <sys:String x:Key="MacToolbarForward">Forward</sys:String>
+    <sys:String x:Key="MacToolbarInspector">Show or hide the inspector</sys:String>
+    <sys:String x:Key="MacAccentBlue">Blue</sys:String>
+    <sys:String x:Key="MacAccentPurple">Purple</sys:String>
+    <sys:String x:Key="MacAccentPink">Pink</sys:String>
+    <sys:String x:Key="MacAccentRed">Red</sys:String>
+    <sys:String x:Key="MacAccentOrange">Orange</sys:String>
+    <sys:String x:Key="MacAccentYellow">Yellow</sys:String>
+    <sys:String x:Key="MacAccentGreen">Green</sys:String>
+    <sys:String x:Key="MacAccentGraphite">Graphite</sys:String>
 </ResourceDictionary>
