@@ -1366,4 +1366,22 @@
     <sys:String x:Key="MacDetailModified">修改时间</sys:String>
     <sys:String x:Key="MacDetailState">状态</sys:String>
     <sys:String x:Key="MacPresetSelectHint">选择一个预设以查看其规则。</sys:String>
+    <!-- v3.2 P7: alerts, settings window, popover -->
+    <sys:String x:Key="MacAlertOk">好</sys:String>
+    <sys:String x:Key="MacAlertYes">是</sys:String>
+    <sys:String x:Key="MacAlertNo">否</sys:String>
+    <sys:String x:Key="MacSearchRules">搜索规则</sys:String>
+    <sys:String x:Key="MacInsertToken">插入占位符</sys:String>
+    <sys:String x:Key="MacSettingsGeneral">通用</sys:String>
+    <sys:String x:Key="MacSettingsAppearance">外观</sys:String>
+    <sys:String x:Key="MacSettingsShortcuts">快捷键与鼠标</sys:String>
+    <sys:String x:Key="MacSettingsRadial">环形菜单</sys:String>
+    <sys:String x:Key="MacSettingsPro">Pro</sys:String>
+    <sys:String x:Key="MacSettingsAbout">关于</sys:String>
+    <sys:String x:Key="MacSettingsKeyCombination">组合键</sys:String>
+    <sys:String x:Key="MacSettingsHoldDuration">按住时长</sys:String>
+    <sys:String x:Key="SettingsReduceMotion">减弱动态效果</sys:String>
+    <sys:String x:Key="SettingsReduceMotionHint">仅保留短暂淡入淡出；关闭滑动、缩放和抖动。Windows 关闭动画时也会自动启用。</sys:String>
+    <sys:String x:Key="MacSettingsLanguageLabel">语言</sys:String>
+    <sys:String x:Key="MacSettingsThemeLabel">主题</sys:String>
 </ResourceDictionary>

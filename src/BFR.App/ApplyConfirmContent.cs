@@ -6,7 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 
 /// <summary>
-/// Nội dung hộp xác nhận áp dụng (spec 7.4) cho <c>ContentDialog</c>: tóm tắt số thư mục bị tác động,
+/// Nội dung hộp xác nhận áp dụng (spec 7.4) cho sheet xác nhận: tóm tắt số thư mục bị tác động,
 /// số tệp đổi phần mở rộng, gợi ý luôn có thể Hoàn tác và vài ví dụ "tên cũ → tên mới".
 /// Tiêu đề (số tệp) do hộp thoại hiển thị; ở đây chỉ dựng phần thân.
 /// </summary>

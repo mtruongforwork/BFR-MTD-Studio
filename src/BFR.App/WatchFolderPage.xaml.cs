@@ -520,19 +520,19 @@ public class WatchFolderPage : PageBase, IMacShellContent
     {
         if (!_license.Allows(ProFeature.UnlimitedRecursion))
         {
-            MessageBox.Show(FeatureMessages.For(ProFeature.UnlimitedRecursion), Loc.T("ProLockedTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            MacAlert.Show(FeatureMessages.For(ProFeature.UnlimitedRecursion), Loc.T("ProLockedTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         if (!_license.Allows(ProFeature.Workflow))
         {
-            MessageBox.Show(FeatureMessages.For(ProFeature.Workflow), Loc.T("ProLockedTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            MacAlert.Show(FeatureMessages.For(ProFeature.Workflow), Loc.T("ProLockedTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         if (_rules.Count(r => r.Enabled) == 0)
         {
-            MessageBox.Show(Loc.T("WatchFolderMissing"), Loc.T("WatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(Loc.T("WatchFolderMissing"), Loc.T("WatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -577,7 +577,7 @@ public class WatchFolderPage : PageBase, IMacShellContent
         {
             _manager?.Dispose();
             _manager = null;
-            MessageBox.Show(ex.Message, Loc.T("WatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T("WatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

@@ -156,6 +156,9 @@ public static class ThemeManager
             var dark = IsDark && !BfrTheme.IsHighContrast ? 1 : 0;
             DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
 
+            // Cửa sổ Cài đặt tự đặt nền đặc theo bảng màu Mac: không xoá nền và không gắn Mica.
+            if (window is SettingsWindow) return;
+
             // Tương phản cao: nền đặc của hệ thống, không Mica (Mica làm mờ độ tương phản chữ).
             var solid = !BfrTheme.GlassEffectsEnabled;
             if (solid) window.SetResourceReference(Window.BackgroundProperty, "AppBackground");

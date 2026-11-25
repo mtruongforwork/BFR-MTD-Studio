@@ -142,7 +142,7 @@ public sealed class ShelfPage : PageBase, IMacShellContent
         }
         catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            MessageBox.Show(ex.Message, Loc.T("NavShelf"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T("NavShelf"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

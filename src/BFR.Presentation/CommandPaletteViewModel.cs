@@ -171,6 +171,10 @@ public sealed class CommandPaletteViewModel : ObservableObject
                 .ToList();
         }
 
+        // Danh sách hiện theo nhóm (kiểu Spotlight): gom các lệnh cùng nhóm lại, giữ thứ tự xuất hiện đầu tiên
+        // (nhóm có kết quả tốt nhất đứng trước). Phải gom ở đây để ↑↓ đi đúng thứ tự đang nhìn thấy.
+        matches = matches.GroupBy(c => c.Category, StringComparer.Ordinal).SelectMany(g => g).ToList();
+
         _dispatcher.Post(() =>
         {
             Filtered.Clear();

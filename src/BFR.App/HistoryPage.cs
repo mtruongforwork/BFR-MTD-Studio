@@ -303,7 +303,7 @@ public sealed class HistoryPage : PageBase, IMacShellContent
     {
         if (_list.SelectedItem is not HistoryRow row)
         {
-            MessageBox.Show(Loc.T("SelectHistoryFirst"), Loc.T("UndoTitle"),
+            MacAlert.Show(Loc.T("SelectHistoryFirst"), Loc.T("UndoTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -320,8 +320,8 @@ public sealed class HistoryPage : PageBase, IMacShellContent
 
         var owner = Window.GetWindow(this);
         var confirm = owner is not null
-            ? MessageBox.Show(owner, confirmMsg, TryLoc("UndoConfirmTitle", Loc.T("UndoTitle")), MessageBoxButton.YesNo, MessageBoxImage.Question)
-            : MessageBox.Show(confirmMsg, TryLoc("UndoConfirmTitle", Loc.T("UndoTitle")), MessageBoxButton.YesNo, MessageBoxImage.Question);
+            ? MacAlert.Show(owner, confirmMsg, TryLoc("UndoConfirmTitle", Loc.T("UndoTitle")), MessageBoxButton.YesNo, MessageBoxImage.Question)
+            : MacAlert.Show(confirmMsg, TryLoc("UndoConfirmTitle", Loc.T("UndoTitle")), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes) return;
 
         _undo.IsEnabled = false;
@@ -331,8 +331,8 @@ public sealed class HistoryPage : PageBase, IMacShellContent
             var message = Loc.F("UndoMessage", result.Undone, result.Total)
                 + (result.Failed > 0 ? Loc.F("UndoPartial", result.Failed) : string.Empty);
 
-            if (owner is not null) MessageBox.Show(owner, message, Loc.T("UndoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-            else MessageBox.Show(message, Loc.T("UndoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            if (owner is not null) MacAlert.Show(owner, message, Loc.T("UndoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            else MacAlert.Show(message, Loc.T("UndoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             Refresh();
         }
         finally

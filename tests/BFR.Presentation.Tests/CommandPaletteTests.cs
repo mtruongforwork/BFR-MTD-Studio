@@ -11,6 +11,28 @@ using Xunit;
 /// </summary>
 public class CommandPaletteTests
 {
+    [Fact]
+    public void Results_StayTogetherByCategory_SoKeyboardOrderMatchesTheGroupedList()
+    {
+        var registry = new CommandRegistry();
+        registry.Register("Open history", "Pages", () => { });
+        registry.Register("Open file", "Actions", () => { });
+        registry.Register("Open presets", "Pages", () => { });
+        registry.Register("Open folder", "Actions", () => { });
+        var vm = new CommandPaletteViewModel(registry, new KeyOnlyStringProvider(), new ImmediateUiDispatcher());
+
+        Assert.Equal(new[] { "Pages", "Pages", "Actions", "Actions" }, vm.Filtered.Select(c => c.Category));
+
+        vm.Query = "open";
+
+        var categories = vm.Filtered.Select(c => c.Category).ToList();
+        var runs = categories.Where((c, i) => i == 0 || categories[i - 1] != c).Count();
+        Assert.Equal(2, runs);
+        Assert.Same(vm.Filtered[0], vm.Selected);
+        vm.MoveSelection(1);
+        Assert.Same(vm.Filtered[1], vm.Selected);
+    }
+
     private static CommandPaletteViewModel Create(out CommandRegistry registry)
     {
         registry = new CommandRegistry();

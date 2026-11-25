@@ -1,5 +1,6 @@
 namespace BFR.App;
 
+using BFR.App.Controls.Mac;
 using BFR.Presentation.Tools;
 using BFR.Core;
 using BFR.App.Context;
@@ -165,6 +166,7 @@ public partial class MainWindow : FluentWindow
         }
 
         SyncShell();
+        RebuildSettingsWindow();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -173,11 +175,8 @@ public partial class MainWindow : FluentWindow
         _floatingOrb?.RefreshTheme();
 
         // Dựng lại các trang tạo bằng code (trừ WatchFolderPage đang chạy nền) để áp dụng màu sáng/tối/nhấn mới ngay lập tức.
-        // Nếu đang đứng ở Settings, trì hoãn dựng lại sau khi sự kiện bấm/chọn hiện tại kết thúc để tránh ngắt chuỗi tương tác.
-        var isOnSettings = _currentPage == "Settings";
         var toRebuild = _pages
-            .Where(kv => kv.Value is not WatchFolderPage { IsRunning: true }
-                         && (!isOnSettings || kv.Key != "Settings"))
+            .Where(kv => kv.Value is not WatchFolderPage { IsRunning: true })
             .Select(kv => kv.Key)
             .ToList();
 
@@ -196,24 +195,9 @@ public partial class MainWindow : FluentWindow
             rebuilt.Visibility = Visibility.Visible;
             rebuilt.OnShown();
         }
-        else if (isOnSettings)
-        {
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_currentPage != "Settings") return;
-                if (_pages.Remove("Settings", out var oldSettings))
-                {
-                    oldSettings.Shutdown();
-                    PageHost.Children.Remove(oldSettings);
-                }
-                var rebuilt = GetPage("Settings");
-                rebuilt.Visibility = Visibility.Visible;
-                rebuilt.OnShown();
-                SyncShell();
-            }, DispatcherPriority.Background);
-        }
 
         SyncShell();
+        RebuildSettingsWindow();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -638,7 +622,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -682,7 +666,7 @@ public partial class MainWindow : FluentWindow
         catch (System.ComponentModel.Win32Exception)
         {
             // Tổ hợp đang được ứng dụng khác dùng: báo để người dùng chọn tổ hợp khác.
-            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"),
+            MacAlert.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -872,7 +856,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -899,7 +883,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -946,7 +930,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -954,23 +938,15 @@ public partial class MainWindow : FluentWindow
     private async void AddRule_Click(object sender, RoutedEventArgs e)
     {
         var library = new RuleLibraryContent();
-        var dialog = new Wpf.Ui.Controls.ContentDialog(DialogHost)
-        {
-            Title = Loc.T("RuleLibraryTitle"),
-            Content = library,
-            CloseButtonText = Loc.T("CloseDialog"),
-            DialogMaxWidth = 800
-        };
-
         string? chosen = null;
         library.RuleChosen += (_, type) =>
         {
             chosen = type;
-            dialog.Hide();
+            SheetHost.Dismiss();
         };
 
         ActivateAndForeground();
-        await dialog.ShowAsync();
+        await SheetHost.ShowAsync(Loc.T("RuleLibraryTitle"), library, string.Empty, Loc.T("CloseDialog"), width: 700);
 
         if (chosen is not null) _vm.AddRule(chosen);
     }
@@ -1229,7 +1205,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1415,37 +1391,12 @@ public partial class MainWindow : FluentWindow
         var card = _vm.Rules.FirstOrDefault(r => r.CanOpenRegexTester);
         if (card is null)
         {
-            MessageBox.Show(Loc.T("RegexTesterNeedFindReplace"), Loc.T("RegexTesterTitle"),
+            MacAlert.Show(Loc.T("RegexTesterNeedFindReplace"), Loc.T("RegexTesterTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         OpenRegexTesterFor(card);
-    }
-
-    // ----------------------------------------------------------------- Hộp thoại nổi (ContentDialog)
-
-    /// <summary>
-    /// Hiện hộp thoại nổi ngay trong cửa sổ (không mở cửa sổ mới). Trả về true nếu người dùng chọn nút chính.
-    /// Cửa sổ chính được đưa lên trước nếu đang ẩn trong khay.
-    /// </summary>
-    private async System.Threading.Tasks.Task<bool> ShowDialogAsync(
-        string title, object content, string primaryText, string closeText, bool showFooter = true)
-    {
-        ActivateAndForeground();
-
-        var dialog = new Wpf.Ui.Controls.ContentDialog(DialogHost)
-        {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = primaryText,
-            CloseButtonText = closeText,
-            DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Primary,
-            IsFooterVisible = showFooter
-        };
-
-        var result = await dialog.ShowAsync();
-        return result == Wpf.Ui.Controls.ContentDialogResult.Primary;
     }
 
     // ----------------------------------------------------------------- Điều hướng (macOS Split-View Shell)
@@ -1509,8 +1460,6 @@ public partial class MainWindow : FluentWindow
 
     private PageBase GetPage(string key)
     {
-        // Trang Cài đặt dựng từ cài đặt hiện tại nên tạo mới mỗi lần mở.
-        if (key == "Settings" && _pages.Remove(key, out var stale)) PageHost.Children.Remove(stale);
         if (_pages.TryGetValue(key, out var existing)) return existing;
 
         string AppData(string name) => Path.Combine(
@@ -1606,12 +1555,7 @@ public partial class MainWindow : FluentWindow
                 page = new WatchFolderPage(new PresetStore(_fs, AppData("presets")), _license.License);
                 break;
             default:
-                var settings = new SettingsPage(_license);
-                settings.UpgradeRequested += (_, _) => ShowUpgradeDialog(contextFeature: null);
-                settings.SettingsLeft += (_, _) => ApplySettingsChanges();
-                settings.SettingsChanged += (_, _) => ApplyLiveSettings();
-                page = settings;
-                break;
+                throw new ArgumentOutOfRangeException(nameof(key), key, "Trang không tồn tại");
         }
 
         page.CloseRequested += (_, _) => NavigateTo("Rename");
@@ -1666,7 +1610,7 @@ public partial class MainWindow : FluentWindow
         var report = _vm.LastReport;
         if (report.Count == 0)
         {
-            MessageBox.Show(Loc.T("ReportNoData"), Loc.T("WindowTitle"),
+            MacAlert.Show(Loc.T("ReportNoData"), Loc.T("WindowTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1692,14 +1636,14 @@ public partial class MainWindow : FluentWindow
 
         if (ShellIntegration.IsPackaged)
         {
-            MessageBox.Show(Loc.T("ContextMenuPackaged"), Loc.T("WindowTitle"),
+            MacAlert.Show(Loc.T("ContextMenuPackaged"), Loc.T("WindowTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var registered = ShellIntegration.IsRegistered();
         var prompt = registered ? Loc.T("ContextMenuToggleDisable") : Loc.T("ContextMenuToggleEnable");
-        if (MessageBox.Show(prompt, Loc.T("WindowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (MacAlert.Show(prompt, Loc.T("WindowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
             return;
         }
@@ -1707,7 +1651,7 @@ public partial class MainWindow : FluentWindow
         if (registered)
         {
             ShellIntegration.Unregister();
-            MessageBox.Show(Loc.T("ContextMenuDisabled"), Loc.T("WindowTitle"),
+            MacAlert.Show(Loc.T("ContextMenuDisabled"), Loc.T("WindowTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
@@ -1715,7 +1659,7 @@ public partial class MainWindow : FluentWindow
             var exePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "BatchFileRenamer.exe");
             ShellIntegration.Register(exePath, comServerPath: ShellIntegration.ResolveComServerPath(exePath));
 
-            MessageBox.Show(
+            MacAlert.Show(
                 ShellIntegration.IsComRegistered() ? Loc.T("ContextMenuEnabled") : Loc.T("ContextMenuFallback"),
                 Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -1742,15 +1686,16 @@ public partial class MainWindow : FluentWindow
     }
 
     /// <summary>
-    /// Hộp thoại nâng cấp Pro hiện ngay trong cửa sổ (ContentDialog). Nếu đã là Pro (không phải dùng thử)
+    /// Sheet nâng cấp Pro hiện ngay trong cửa sổ. Nếu đã là Pro (không phải dùng thử)
     /// thì hiện thông tin license thay vì hộp nâng cấp.
     /// </summary>
     private async System.Threading.Tasks.Task ShowUpgradeDialogAsync(ProFeature? contextFeature)
     {
         if (_license.Status.IsPro && !_license.Status.IsTrial)
         {
-            await ShowDialogAsync(Loc.T("LicenseInfoTitle"), LicenseInfoContent.Build(_license.License, _license.Status),
-                primaryText: string.Empty, closeText: Loc.T("SettingsClose"));
+            ActivateAndForeground();
+            await SheetHost.ShowAsync(Loc.T("LicenseInfoTitle"), LicenseInfoContent.Build(_license.License, _license.Status),
+                string.Empty, Loc.T("SettingsClose"), width: 480);
             return;
         }
 
@@ -1764,15 +1709,12 @@ public partial class MainWindow : FluentWindow
 
         var view = new UpgradeView(vm);
         ActivateAndForeground();
-        var dialog = new Wpf.Ui.Controls.ContentDialog(DialogHost)
-        {
-            Content = view,
-            IsFooterVisible = false,
-            DialogMaxWidth = 720
-        };
-        view.CloseRequested += (_, _) => dialog.Hide();
+        // Đang có sheet khác thì không chồng thêm.
+        if (SheetHost.IsOpen) return;
+        view.CloseRequested += (_, _) => SheetHost.Dismiss();
 
-        await dialog.ShowAsync();
+        // Khung nâng cấp có tiêu đề và nút riêng nên sheet không thêm gì.
+        await SheetHost.ShowAsync(string.Empty, view, string.Empty, string.Empty, width: 680, automationName: Loc.T("CommandUpgrade"));
 
         UpdateLicenseState();
         _ = _vm.RebuildAsync();
@@ -1786,12 +1728,12 @@ public partial class MainWindow : FluentWindow
 
         if (result.Status != UpdateCheckStatus.UpdateAvailable)
         {
-            MessageBox.Show(result.Message, Loc.T("UpdateTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            MacAlert.Show(result.Message, Loc.T("UpdateTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             StatusText.Text = result.Message;
             return;
         }
 
-        if (MessageBox.Show(result.Message, Loc.T("UpdateTitle"),
+        if (MacAlert.Show(result.Message, Loc.T("UpdateTitle"),
                 MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes
             && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
         {
@@ -2017,7 +1959,7 @@ public partial class MainWindow : FluentWindow
             settings.HasPromptedRating = true;
             SettingsStore.Save(settings);
 
-            var answer = MessageBox.Show(
+            var answer = MacAlert.Show(
                 this,
                 Loc.T("RateAppPrompt"),
                 Loc.T("RateAppTitle"),
@@ -2059,7 +2001,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -2078,7 +2020,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(this, ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -2228,9 +2170,11 @@ public partial class MainWindow : FluentWindow
         if (Application.Current is App { BackgroundEnabled: true, IsExiting: false })
         {
             e.Cancel = true;
+            CloseSettings();
             Hide();
             return;
         }
         base.OnClosing(e);
+        if (!e.Cancel) _closingForReal = true;
     }
 }

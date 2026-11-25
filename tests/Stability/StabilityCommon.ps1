@@ -12,7 +12,6 @@ Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
 using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
 public static class StabNative {
   [DllImport("user32.dll")] public static extern uint GetGuiResources(IntPtr hProcess, uint flags); // 0 = GDI, 1 = USER
-  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
   [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
@@ -136,15 +135,6 @@ function Get-MainWindow($proc, [int]$timeoutMs = 45000) {
     return $script:__w
 }
 
-# Bấm Yes trên hộp thoại MessageBox của app. Một số bản Windows không cho nút của hộp thoại này InvokePattern,
-# nên gửi WM_COMMAND (IDYES = 6) thẳng tới đúng hộp thoại đó: không dùng chuột hay bàn phím.
-function Confirm-MessageBox($win) {
-    $cond = New-Object System.Windows.Automation.AndCondition((Prop-Cond $script:AE::ControlTypeProperty $script:CT::Window), (Prop-Cond $script:AE::ClassNameProperty '#32770'))
-    $box = $win.FindFirst($script:TS::Descendants, $cond)
-    if ($null -eq $box) { return $false }
-    return [StabNative]::PostMessage([IntPtr]$box.Current.NativeWindowHandle, 0x0111, [IntPtr]6, [IntPtr]::Zero)
-}
-
 function Find-ById($parent, [string]$id) {
     $parent.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::AutomationIdProperty $id))
 }
@@ -155,8 +145,17 @@ function Invoke-Id($win, [string]$id) {
     $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
-# Màu nhấn trên trang Cài đặt (tên hiển thị đổi theo ngôn ngữ nên chọn theo AutomationId).
+# Cửa sổ Cài đặt chia tab: mở đúng tab trước khi tìm điều khiển.
+function Show-SettingsTab($win, [string]$tab) {
+    $el = Find-ById $win "Settings.Tab.$tab"
+    if ($null -eq $el) { throw "Không thấy tab Cài đặt '$tab' (cửa sổ Cài đặt đã mở chưa?)" }
+    $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 350
+}
+
+# Màu nhấn (tên hiển thị đổi theo ngôn ngữ nên chọn theo AutomationId).
 function Select-Accent($win, [string]$accent) {
+    Show-SettingsTab $win 'appearance'
     $el = Find-ById $win "Accent.$accent"
     if ($null -eq $el) { throw "Không thấy màu nhấn '$accent'" }
     $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
@@ -172,11 +171,24 @@ function Get-ToolTiles($win) {
     return $out
 }
 
+# Bản Free (bản Release không ép được tier) mở Watch sẽ hiện sheet mời nâng cấp và khoá cửa sổ phía sau: bấm "Để sau".
+# Trả về $true nếu đã đóng một sheet như vậy.
+function Close-UpgradeSheet($win) {
+    $sheet = $win.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::NameProperty 'Upgrade to Pro dialog'))
+    if ($null -eq $sheet -or $sheet.Current.IsOffscreen) { return $false }
+    $later = $sheet.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::NameProperty 'Close'))
+    if ($null -eq $later) { return $false }
+    $later.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 700
+    return $true
+}
+
 # Mục thanh bên: 'Nav home', 'Nav watch folder'... đổi thành AutomationId 'Nav.home', 'Nav.watch'
 # (thanh bên kiểu macOS đặt tên hiển thị theo ngôn ngữ, chỉ AutomationId là cố định).
 function Select-Nav($win, [string]$name) {
     $nav = $null
     if ($name -match '^Nav (\S+)') { $nav = Find-ById $win ("Nav." + $Matches[1]) }
+    if ($null -ne $nav -and -not $nav.Current.IsEnabled) { [void](Close-UpgradeSheet $win) }
     # Thanh bên đã thu thì bị vô hiệu hoá (không Tab hay chọn được): mở ra trước, như người dùng làm.
     if ($null -ne $nav -and -not $nav.Current.IsEnabled) { Invoke-Id $win 'Shell.ToggleSidebar'; Start-Sleep -Milliseconds 450 }
     if ($null -eq $nav) { $nav = Find-Visible $win $name }
@@ -188,6 +200,7 @@ function Select-Nav($win, [string]$name) {
     } else {
         $nav.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     }
+    if ($name -eq 'Nav watch folder') { Start-Sleep -Milliseconds 600; [void](Close-UpgradeSheet $win) }
 }
 
 function Invoke-Named($win, [string]$name) {
@@ -198,6 +211,8 @@ function Invoke-Named($win, [string]$name) {
 
 # Chọn một mục (theo chỉ số) trong ComboBox có Name cho trước. Trả về số mục.
 function Select-ComboIndex($win, [string]$comboName, [int]$index) {
+    if ($comboName -eq 'Language selector') { Show-SettingsTab $win 'general' }
+    elseif ($comboName -eq 'Theme selector') { Show-SettingsTab $win 'appearance' }
     $combo = $win.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::NameProperty $comboName))
     if ($null -eq $combo) { throw "Không thấy ComboBox '$comboName'" }
     $expand = $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)

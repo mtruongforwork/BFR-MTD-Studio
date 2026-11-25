@@ -6,8 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-using Ui = Wpf.Ui.Controls;
+using BFR.App.Controls.Mac;
 
 /// <summary>
 /// Thư viện quy tắc (A5): lưới thẻ có biểu tượng, tên và mô tả ngắn, có ô tìm kiếm.
@@ -23,14 +22,16 @@ public sealed class RuleLibraryContent : UserControl
     };
 
     private readonly WrapPanel _cards = new() { Margin = new Thickness(0, 12, 0, 0) };
-    private readonly Ui.TextBox _search = new() { PlaceholderText = string.Empty, Icon = new Ui.SymbolIcon(Ui.SymbolRegular.Search24) };
+    private readonly TextBox _search = new();
 
     /// <summary>Người dùng chọn một loại quy tắc (khoá như "FindReplace").</summary>
     public event EventHandler<string>? RuleChosen;
 
     public RuleLibraryContent()
     {
-        Width = 700;
+        Width = 650;
+        _search.SetResourceReference(StyleProperty, "Mac.SearchBox");
+        _search.Tag = Loc.T("MacSearchRules");
         System.Windows.Automation.AutomationProperties.SetName(this, "Rule library");
         System.Windows.Automation.AutomationProperties.SetName(_search, "Search rules");
 
@@ -39,11 +40,13 @@ public sealed class RuleLibraryContent : UserControl
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 420,
+            MaxHeight = 520,
             Content = _cards
         };
+        scroll.SetResourceReference(StyleProperty, "Mac.ScrollViewer");
 
         var root = new StackPanel();
+        _search.Margin = new Thickness(4, 4, 4, 0);
         root.Children.Add(_search);
         root.Children.Add(scroll);
         Content = root;
@@ -74,62 +77,44 @@ public sealed class RuleLibraryContent : UserControl
     {
         var glyph = Glyphs.FirstOrDefault(g => g.Type == type).Glyph ?? "•";
 
+        var mark = new TextBlock { Text = glyph, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        mark.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Accent");
+        mark.SetResourceReference(TextBlock.FontFamilyProperty, "Mac.FontSemi");
         var icon = new Border
         {
-            Width = 40,
-            Height = 40,
+            Width = 36,
+            Height = 36,
             CornerRadius = new CornerRadius(8),
-            Background = (Brush)Application.Current.FindResource("AccentSoft"),
-            Margin = new Thickness(0, 0, 12, 0),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Top,
-            Child = new TextBlock
-            {
-                Text = glyph,
-                FontSize = 16,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)Application.Current.FindResource("Accent"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            Child = mark
         };
+        icon.SetResourceReference(Border.BackgroundProperty, "Mac.AccentSoft");
 
-        var text = new StackPanel { Width = 134 };
-        text.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            Foreground = (Brush)Application.Current.FindResource("TextPrimary")
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = description,
-            FontSize = 11.5,
-            TextWrapping = TextWrapping.Wrap,
-            MaxHeight = 52,
-            Margin = new Thickness(0, 3, 0, 0),
-            Foreground = (Brush)Application.Current.FindResource("TextSecondary")
-        });
+        var name = new TextBlock { Text = title, TextTrimming = TextTrimming.CharacterEllipsis };
+        name.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        name.SetResourceReference(TextBlock.FontFamilyProperty, "Mac.FontSemi");
+        var detail = new TextBlock { Text = description, FontSize = 11.5, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis,
+            LineHeight = 16, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = 48, Margin = new Thickness(0, 3, 0, 0), ToolTip = description };
+        detail.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label2");
+        var text = new StackPanel { Width = 130 };
+        text.Children.Add(name);
+        text.Children.Add(detail);
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(icon);
         row.Children.Add(text);
 
-        // ui:Button: có focus bàn phím, Enter/Space, và UI Automation (Border thì không).
-        var card = new Ui.Button
+        // Button: có focus bàn phím, Enter/Space, và UI Automation (Border thì không).
+        var card = new Button
         {
-            Width = 212,
-            Height = 96,
-            Margin = new Thickness(0, 0, 10, 10),
-            Padding = new Thickness(12),
-            Appearance = Ui.ControlAppearance.Transparent,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            VerticalContentAlignment = VerticalAlignment.Top,
-            BorderThickness = new Thickness(1),
-            BorderBrush = (Brush)Application.Current.FindResource("Divider"),
-            Background = (Brush)Application.Current.FindResource("SurfaceBackground"),
+            Width = 206,
+            MinHeight = 92,
+            Margin = new Thickness(0, 0, 8, 8),
             Content = row
         };
+        card.SetResourceReference(StyleProperty, "Mac.Tile");
+        card.HorizontalContentAlignment = HorizontalAlignment.Left;
         System.Windows.Automation.AutomationProperties.SetName(card, "Rule card " + type);
         card.Click += (_, _) => RuleChosen?.Invoke(this, type);
 

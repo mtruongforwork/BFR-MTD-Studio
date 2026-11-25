@@ -231,6 +231,10 @@ function Run-Walk([string]$run) {
         [void](Step 'presets'  { Select-Nav 'presets' }      { $null -ne (Find-Visible $script:win 'Preset library window') })
         [void](Step 'watch'    { Select-Nav 'watch' } { $null -ne (Find-Visible $script:win 'Watch folder window') })
         [void](Step 'settings' { (Find-Id 'Nav.settings').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() } { $null -ne (Find-Visible $script:win 'Settings window') })
+        foreach ($tab in 'appearance', 'shortcuts', 'radial', 'pro', 'about', 'general') {
+            $tabId = "Settings.Tab.$tab"
+            [void](Step "settings-$tab" { (Find-Id $tabId).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } { (Find-Id $tabId).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected })
+        }
         [void](Step 'back-to-rename' { Select-Nav 'rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Dọn dẹp cuối lượt: để watchdog có thời gian ghi nếu có treo ngầm.

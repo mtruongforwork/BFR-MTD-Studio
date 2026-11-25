@@ -7,7 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 
 /// <summary>
-/// Nội dung hộp thoại nâng cấp Pro, hiện trong <c>ContentDialog</c> của cửa sổ chính (không còn cửa sổ riêng).
+/// Nội dung hộp thoại nâng cấp Pro, hiện trong sheet của cửa sổ chính (không còn cửa sổ riêng).
 ///
 /// - Bố cục và nội dung do <see cref="UpgradeViewModel"/> quyết định (Free/Pro, trạng thái dùng thử).
 /// - Mọi vùng có AutomationProperties.Name; lỗi kích hoạt có thông báo riêng.

@@ -1,5 +1,6 @@
 namespace BFR.App;
 
+using BFR.App.Controls.Mac;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -813,7 +814,7 @@ internal sealed class ToolView : UserControl
 
         var (_, license, runner, _, _, _) = _services();
         var message = Loc.F("ToolConfirmApply", plan.Operations.Count);
-        if (MessageBox.Show(message, Loc.T(_tool.TitleKey), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        if (MacAlert.Show(message, Loc.T(_tool.TitleKey), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
 
         SetBusy(true);
         _cts = new CancellationTokenSource();
@@ -868,7 +869,7 @@ internal sealed class ToolView : UserControl
         try { File.WriteAllText(dialog.FileName, export.Content); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(ex.Message, Loc.T(_tool.TitleKey), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T(_tool.TitleKey), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

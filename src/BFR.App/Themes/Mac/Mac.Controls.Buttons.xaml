@@ -389,4 +389,65 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Tab của cửa sổ Cài đặt: biểu tượng trên, nhãn dưới; mục chọn có nền xám và màu nhấn -->
+    <Style x:Key="Mac.SettingsTab" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{DynamicResource Mac.Font}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource Mac.Label2}" />
+        <Setter Property="MinWidth" Value="86" />
+        <Setter Property="Height" Value="50" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Wash" CornerRadius="7" Background="{DynamicResource Mac.Hover}" Opacity="0" />
+                        <Border x:Name="Ring" CornerRadius="7" BorderThickness="2" BorderBrush="{DynamicResource Mac.FocusRing}" Visibility="Collapsed" />
+                        <ContentPresenter Margin="8,0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource Mac.AccentText}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Chấm chọn màu nhấn: nền là màu (Background), mục chọn có vòng bao quanh -->
+    <Style x:Key="Mac.AccentDot" TargetType="RadioButton">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Margin" Value="3,0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <Ellipse x:Name="Ring" Stroke="{DynamicResource Mac.Label2}" StrokeThickness="1.5" Visibility="Collapsed" />
+                        <Ellipse x:Name="Focus" Stroke="{DynamicResource Mac.FocusRing}" StrokeThickness="3" Visibility="Collapsed" />
+                        <Ellipse Width="16" Height="16" Fill="{TemplateBinding Background}" Stroke="{DynamicResource Mac.Separator}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Focus" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

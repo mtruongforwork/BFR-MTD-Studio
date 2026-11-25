@@ -195,7 +195,7 @@ public class PresetsPage : PageBase, IMacShellContent
             var gate = _license.CheckPresetCount(existing.Count + 1);
             if (!gate.Allowed)
             {
-                MessageBox.Show(gate.Message, Loc.T("ProLockedTitle"),
+                MacAlert.Show(gate.Message, Loc.T("ProLockedTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -222,8 +222,8 @@ public class PresetsPage : PageBase, IMacShellContent
             ?? "Delete preset \"{0}\"?";
         var owner = Window.GetWindow(this);
         var answer = owner is not null
-            ? MessageBox.Show(owner, string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
-            : MessageBox.Show(string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            ? MacAlert.Show(owner, string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+            : MacAlert.Show(string.Format(confirmTemplate, preset.DisplayName), Loc.T("LibraryDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
 
         _store.Delete(preset.Name);
@@ -242,7 +242,7 @@ public class PresetsPage : PageBase, IMacShellContent
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, Loc.T("LibraryTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T("LibraryTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -259,7 +259,7 @@ public class PresetsPage : PageBase, IMacShellContent
             var gate = _license.CheckPresetCount(existing.Count + 1);
             if (!gate.Allowed)
             {
-                MessageBox.Show(gate.Message, Loc.T("ProLockedTitle"),
+                MacAlert.Show(gate.Message, Loc.T("ProLockedTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -270,7 +270,7 @@ public class PresetsPage : PageBase, IMacShellContent
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, Loc.T("LibraryTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MacAlert.Show(ex.Message, Loc.T("LibraryTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

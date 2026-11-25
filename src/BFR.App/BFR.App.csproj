@@ -39,6 +39,7 @@
   <!-- Phông nhúng (giấy phép OFL, xem Resources/Fonts/OFL-*.txt): Inter cho thân chữ, Plus Jakarta Sans cho tiêu đề. -->
   <ItemGroup>
     <Resource Include="Resources\Fonts\*.ttf" />
+    <Resource Include="Resources\app.ico" />
     <None Include="Resources\Fonts\OFL-*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

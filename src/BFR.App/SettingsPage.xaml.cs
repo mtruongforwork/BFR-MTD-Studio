@@ -1,35 +1,56 @@
 namespace BFR.App;
 
+using BFR.App.Controls.Mac;
 using BFR.Core.Licensing;
 using BFR.App.Infrastructure;
+using BFR.Presentation.Design;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
-using Ui = Wpf.Ui.Controls;
 
 /// <summary>
-/// Trang Cài đặt (v1.4: một trang trong khung điều hướng): ngôn ngữ, giao diện, Shelf/chạy nền,
-/// phím tắt, cập nhật, giấy phép Pro, quyền riêng tư. Mỗi nhóm là một Card của WPF-UI,
-/// tuỳ chọn bật/tắt dùng ToggleSwitch.
+/// Nội dung cửa sổ Cài đặt kiểu macOS (v3.2): hàng tab biểu tượng (Chung · Giao diện · Phím tắt &amp; Chuột ·
+/// Menu tròn · Pro · Giới thiệu), mỗi tab là các nhóm "inset grouped" với nhãn bên trái, điều khiển bên phải.
+/// Mọi thay đổi lưu ngay.
 /// </summary>
 public class SettingsPage : PageBase
 {
-    /// <summary>Người dùng bấm "Nâng cấp" trong nhóm giấy phép.</summary>
+    /// <summary>Các tab theo thứ tự hiển thị: mã, khoá chuỗi, biểu tượng.</summary>
+    public static readonly IReadOnlyList<(string Id, string TitleKey, string Icon)> Tabs = new[]
+    {
+        ("general", "MacSettingsGeneral", "Settings"),
+        ("appearance", "MacSettingsAppearance", "Sun"),
+        ("shortcuts", "MacSettingsShortcuts", "Keyboard"),
+        ("radial", "MacSettingsRadial", "CircleDot"),
+        ("pro", "MacSettingsPro", "Star"),
+        ("about", "MacSettingsAbout", "Info")
+    };
+
+    /// <summary>Tab mở lần trước, giữ qua các lần dựng lại (đổi ngôn ngữ, đổi giao diện).</summary>
+    private static string _lastSection = "general";
+
+    /// <summary>Người dùng bấm "Nâng cấp" trong tab Pro.</summary>
     public event EventHandler? UpgradeRequested;
 
-    /// <summary>Trang bị rời đi: cửa sổ chính áp dụng các thay đổi (khay, hook, phím tắt...).</summary>
+    /// <summary>Cửa sổ Cài đặt đóng: cửa sổ chính áp dụng các thay đổi (khay, hook, phím tắt...).</summary>
     public event EventHandler? SettingsLeft;
 
-    /// <summary>Một cài đặt vừa đổi: cửa sổ chính áp dụng ngay (phím tắt, lắc chuột, chạy nền) thay vì đợi rời trang.</summary>
+    /// <summary>Một cài đặt vừa đổi: cửa sổ chính áp dụng ngay (phím tắt, lắc chuột, chạy nền) thay vì đợi đóng cửa sổ.</summary>
     public event EventHandler? SettingsChanged;
+
+    /// <summary>Đổi tab: cửa sổ chứa chỉnh lại chiều cao.</summary>
+    public event EventHandler? SectionChanged;
 
     public override void OnHidden() => SettingsLeft?.Invoke(this, EventArgs.Empty);
 
     private readonly LicenseCoordinator _license;
     private readonly AppSettings _settings;
+    private readonly Dictionary<string, StackPanel> _sections = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, RadioButton> _tabButtons = new(StringComparer.Ordinal);
+    private readonly ScrollViewer _scroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
 
     public SettingsPage(LicenseCoordinator license)
     {
@@ -37,29 +58,87 @@ public class SettingsPage : PageBase
         _settings = SettingsStore.Load();
 
         AutomationProperties.SetName(this, "Settings window");
+        SetResourceReference(FontFamilyProperty, "Mac.Font");
+        SetResourceReference(ForegroundProperty, "Mac.Label");
+        FontSize = 13;
 
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var header = new TextBlock
+        var host = new Grid { Margin = new Thickness(24, 16, 24, 20) };
+        foreach (var (id, _, _) in Tabs)
         {
-            Text = Loc.T("SettingsTitle"),
-            FontSize = (double)Application.Current.FindResource("AppFontSizeTitle"),
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Application.Current.FindResource("TextPrimary"),
-            Margin = new Thickness(28, 20, 28, 6)
-        };
-        Grid.SetRow(header, 0);
-        root.Children.Add(header);
+            var section = new StackPanel { Visibility = Visibility.Collapsed };
+            _sections[id] = section;
+            host.Children.Add(section);
+        }
 
-        var content = new TileColumns();
+        BuildGeneral(_sections["general"]);
+        BuildAppearance(_sections["appearance"]);
+        BuildShortcuts(_sections["shortcuts"]);
+        BuildRadial(_sections["radial"]);
+        BuildPro(_sections["pro"]);
+        BuildAbout(_sections["about"]);
 
-        // ---- Giao diện & ngôn ngữ ----
-        var look = Card(content, Loc.T("SettingsLanguage") + " · " + Loc.T("SettingsTheme"));
+        _scroll.SetResourceReference(StyleProperty, "Mac.ScrollViewer");
+        _scroll.Content = host;
 
-        var language = new ComboBox { MinWidth = 240, HorizontalAlignment = HorizontalAlignment.Left };
-        AutomationProperties.SetName(language, "Language selector");
+        var root = new DockPanel();
+        var strip = BuildTabStrip();
+        DockPanel.SetDock(strip, Dock.Top);
+        root.Children.Add(strip);
+        root.Children.Add(_scroll);
+        Content = root;
+
+        Show(_sections.ContainsKey(_lastSection) ? _lastSection : "general");
+    }
+
+    public string CurrentSection { get; private set; } = "general";
+
+    /// <summary>Mở một tab theo mã trong <see cref="Tabs"/>; mã lạ thì bỏ qua.</summary>
+    public void Show(string id)
+    {
+        if (!_sections.ContainsKey(id)) return;
+        var changed = CurrentSection != id;
+        CurrentSection = _lastSection = id;
+        foreach (var (key, section) in _sections) section.Visibility = key == id ? Visibility.Visible : Visibility.Collapsed;
+        _tabButtons[id].IsChecked = true;
+        _scroll.ScrollToTop();
+        if (changed && IsLoaded) Motion.FadeIn(_sections[id], MotionKind.Standard);
+        SectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private UIElement BuildTabStrip()
+    {
+        var row = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(8, 0, 8, 8) };
+        foreach (var (id, titleKey, icon) in Tabs)
+        {
+            var glyph = new MacIcon { Size = 20, Margin = new Thickness(0, 0, 0, 3) };
+            glyph.SetResourceReference(MacIcon.DataProperty, "Icon." + icon);
+            var content = new StackPanel();
+            content.Children.Add(glyph);
+            content.Children.Add(new TextBlock { Text = Loc.T(titleKey), HorizontalAlignment = HorizontalAlignment.Center });
+
+            var button = new RadioButton { Content = content, GroupName = "settingsTabs" };
+            button.SetResourceReference(StyleProperty, "Mac.SettingsTab");
+            AutomationProperties.SetName(button, Loc.T(titleKey));
+            AutomationProperties.SetAutomationId(button, "Settings.Tab." + id);
+            var chosen = id;
+            button.Checked += (_, _) =>
+            {
+                if (CurrentSection != chosen) Show(chosen);
+            };
+            _tabButtons[id] = button;
+            row.Children.Add(button);
+        }
+
+        var line = new Border { BorderThickness = new Thickness(0, 0, 0, 1), Child = row };
+        line.SetResourceReference(Border.BorderBrushProperty, "Mac.Separator");
+        return line;
+    }
+
+    // ---------------------------------------------------------------- Chung
+
+    private void BuildGeneral(StackPanel page)
+    {
+        var language = Combo("Language selector");
         foreach (var code in new[] { "vi", "en", "fr", "zh-Hans" })
         {
             language.Items.Add(new ComboBoxItem { Content = LanguageName(code), Tag = code });
@@ -69,189 +148,25 @@ public class SettingsPage : PageBase
         {
             if (language.SelectedItem is ComboBoxItem { Tag: string code })
             {
-                Loc.Apply(code);
                 _settings.Language = code;
                 SettingsStore.Save(_settings);
+                Loc.Apply(code);
             }
         };
-        look.Children.Add(Caption(Loc.T("SettingsLanguage")));
-        look.Children.Add(language);
+        Group(page, null).Add(Row(Loc.T("MacSettingsLanguageLabel"), language));
 
-        var theme = new ComboBox { MinWidth = 240, HorizontalAlignment = HorizontalAlignment.Left };
-        AutomationProperties.SetName(theme, "Theme selector");
-        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeSystem"), Tag = "System" });
-        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeLight"), Tag = "Light" });
-        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeDark"), Tag = "Dark" });
-        SelectByTag(theme, _settings.Theme);
-        theme.SelectionChanged += (_, _) =>
-        {
-            if (theme.SelectedItem is ComboBoxItem { Tag: string tag }
-                && Enum.TryParse<ThemeManager.AppTheme>(tag, out var value))
-            {
-                _settings.Theme = tag;
-                SettingsStore.Save(_settings);
-                ThemeManager.Apply(value);
-            }
-        };
-        var themeCaption = Caption(Loc.T("SettingsTheme"));
-        themeCaption.Margin = new Thickness(0, 12, 0, 4);
-        look.Children.Add(themeCaption);
-        look.Children.Add(theme);
-
-        // Bảng màu nhấn: áp dụng ngay, giữ theme sáng/tối hiện tại, kèm chấm màu minh họa.
-        var accentCaption = Caption(Loc.T("SettingsAccent"));
-        accentCaption.Margin = new Thickness(0, 12, 0, 4);
-        look.Children.Add(accentCaption);
-        var accentRow = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
-        var savedAccent = BFR.Presentation.Design.MacAccents.Parse(_settings.AccentPalette);
-        foreach (var accent in BFR.Presentation.Design.MacAccents.All)
-        {
-            var label = Loc.T("MacAccent" + accent.Id);
-            var swatch = new System.Windows.Shapes.Ellipse
-            {
-                Width = 10,
-                Height = 10,
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Fill = MacTheme.Solid(accent.Tint(ThemeManager.IsDark))
-            };
-            var labelRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            labelRow.Children.Add(swatch);
-            labelRow.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-
-            var option = new RadioButton
-            {
-                Content = labelRow,
-                GroupName = "accent",
-                Style = (Style)Application.Current.FindResource("BfrSegmentedItem"),
-                IsChecked = accent.Id == savedAccent.Id
-            };
-            AutomationProperties.SetName(option, label);
-            AutomationProperties.SetAutomationId(option, "Accent." + accent.Id);
-            var chosen = accent.Id;
-            option.Checked += (_, _) =>
-            {
-                if (string.Equals(_settings.AccentPalette, chosen, StringComparison.OrdinalIgnoreCase)) return;
-                _settings.AccentPalette = chosen;
-                SettingsStore.Save(_settings);
-                ThemeManager.Apply(ThemeManager.Current);
-            };
-            accentRow.Children.Add(option);
-        }
-        look.Children.Add(accentRow);
-
-        var mascot = Toggle(Loc.T("SettingsMascot"), _settings.ShowMascot, on =>
-        {
-            _settings.ShowMascot = on;
-            SettingsStore.Save(_settings);
-            SettingsStore.NotifyMascotVisibilityChanged(on);
-        });
-        mascot.Margin = new Thickness(0, 14, 0, 0);
-        look.Children.Add(mascot);
-
-        // Giảm hiệu ứng (quyết định 6.2): áp dụng ngay, không cần khởi động lại.
-        var effects = Toggle(Loc.T("SettingsReduceEffects"), _settings.ReduceEffects, on =>
-        {
-            _settings.ReduceEffects = on;
-            SettingsStore.Save(_settings);
-            ThemeManager.Apply(ThemeManager.Current);
-        });
-        effects.Margin = new Thickness(0, 12, 0, 0);
-        AutomationProperties.SetName(effects, "Reduce visual effects");
-        look.Children.Add(effects);
-        look.Children.Add(Caption(BfrTheme.NoHardwareAcceleration ? Loc.T("SettingsReduceEffectsAuto") : Loc.T("SettingsReduceEffectsHint")));
-
-        // ---- Shelf & chạy nền ----
-        var shelf = Card(content, Loc.T("SettingsShelf"));
-        shelf.Children.Add(Toggle(
-            Loc.T("SettingsShake"),
-            _settings.ShakeToOpenShelf,
-            on => _settings.ShakeToOpenShelf = on));
-        shelf.Children.Add(Caption(Loc.T("SettingsShakeHint")));
-        var hotkeyToggle = Toggle(Loc.T("SettingsHotkey"), _settings.ShelfHotkeyEnabled, on => _settings.ShelfHotkeyEnabled = on);
-        hotkeyToggle.Margin = new Thickness(0, 12, 0, 0);
-        shelf.Children.Add(hotkeyToggle);
-
-        var hotkeyBox = new ComboBox { MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
-        AutomationProperties.SetName(hotkeyBox, "Shelf hotkey");
-        foreach (var h in BFR.Core.HotkeySpec.Presets) hotkeyBox.Items.Add(h);
-        hotkeyBox.SelectedItem = BFR.Core.HotkeySpec.TryParse(_settings.ShelfHotkey, out var currentHotkey)
-            ? currentHotkey.ToString()
-            : BFR.Core.HotkeySpec.Default;
-        hotkeyBox.SelectionChanged += (_, _) =>
-        {
-            if (hotkeyBox.SelectedItem is string chosen) { _settings.ShelfHotkey = chosen; SettingsStore.Save(_settings); SettingsChanged?.Invoke(this, EventArgs.Empty); }
-        };
-        shelf.Children.Add(hotkeyBox);
-        shelf.Children.Add(Caption(Loc.T("SettingsHotkeyHint")));
-
-        // Nút tròn nổi Desktop (Floating Orb): luôn hiện trên Desktop & mọi ứng dụng.
-        var orbToggle = Toggle(
-            Application.Current?.TryFindResource("SettingsFloatingOrb") as string ?? "Hiện nút tròn nổi trên Desktop & mọi ứng dụng",
-            _settings.ShowFloatingOrb,
-            on => _settings.ShowFloatingOrb = on);
-        orbToggle.Margin = new Thickness(0, 12, 0, 0);
-        shelf.Children.Add(orbToggle);
-        shelf.Children.Add(Caption(Application.Current?.TryFindResource("SettingsFloatingOrbHint") as string ?? "Nút tròn kiểu AssistiveTouch luôn nổi; bấm hoặc kéo-thả tệp vào để bung Menu tròn 8 chức năng."));
-
-        // Menu tròn các công cụ: phím tắt toàn cục riêng, mặc định tắt.
-        var radialToggle = Toggle(Loc.T("SettingsRadial"), _settings.RadialHotkeyEnabled, on => _settings.RadialHotkeyEnabled = on);
-        radialToggle.Margin = new Thickness(0, 12, 0, 0);
-        shelf.Children.Add(radialToggle);
-        var radialBox = new ComboBox { MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
-        AutomationProperties.SetName(radialBox, "Radial menu hotkey");
-        foreach (var h in BFR.Core.HotkeySpec.Presets) radialBox.Items.Add(h);
-        radialBox.SelectedItem = BFR.Core.HotkeySpec.TryParse(_settings.RadialHotkey, out var currentRadial)
-            ? currentRadial.ToString()
-            : "Ctrl+Alt+Q";
-        radialBox.SelectionChanged += (_, _) =>
-        {
-            if (radialBox.SelectedItem is string chosen) { _settings.RadialHotkey = chosen; SettingsStore.Save(_settings); SettingsChanged?.Invoke(this, EventArgs.Empty); }
-        };
-        shelf.Children.Add(radialBox);
-        shelf.Children.Add(Caption(Loc.T("SettingsRadialHint")));
-
-        // Giữ chuột giữa mở Menu Tròn ngữ cảnh (v3.0).
-        var mmbToggle = Toggle(Loc.T("SettingsMiddleMouseRadial"), _settings.MiddleMouseRadialEnabled, on => _settings.MiddleMouseRadialEnabled = on);
-        mmbToggle.Margin = new Thickness(0, 12, 0, 0);
-        shelf.Children.Add(mmbToggle);
-
-        var mmbHoldBox = new ComboBox { MinWidth = 160, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
-        AutomationProperties.SetName(mmbHoldBox, "Middle mouse hold duration");
-        foreach (var ms in new[] { 150, 220, 350, 500 })
-            mmbHoldBox.Items.Add(new ComboBoxItem { Content = $"{ms} ms", Tag = ms.ToString() });
-        SelectByTag(mmbHoldBox, AppSettings.NormalizeMiddleMouseHoldMs(_settings.MiddleMouseHoldMs).ToString());
-        mmbHoldBox.SelectionChanged += (_, _) =>
-        {
-            if (mmbHoldBox.SelectedItem is ComboBoxItem { Tag: string tag } && int.TryParse(tag, out var ms))
-            {
-                _settings.MiddleMouseHoldMs = AppSettings.NormalizeMiddleMouseHoldMs(ms);
-                SettingsStore.Save(_settings);
-                SettingsChanged?.Invoke(this, EventArgs.Empty);
-            }
-        };
-        shelf.Children.Add(mmbHoldBox);
-        shelf.Children.Add(Caption(Loc.T("SettingsMiddleMouseRadialHint")));
-
-        var bg = Toggle(
-            Loc.T("SettingsRunInBackground"),
-            _settings.RunInBackground,
-            on => _settings.RunInBackground = on);
-        bg.Margin = new Thickness(0, 12, 0, 0);
-        shelf.Children.Add(bg);
+        // ---- Chạy nền ----
+        var background = Group(page, null);
+        var bg = Switch(Loc.T("SettingsRunInBackground"), _settings.RunInBackground, on => _settings.RunInBackground = on);
+        background.Add(SwitchRow(bg, null));
 
         // Khởi động cùng Windows: chỉ có nghĩa khi bật chạy nền (ứng dụng khởi động ẩn trong khay).
-        Ui.ToggleSwitch? startup = null;
-        var startupHint = Caption(Loc.T("SettingsStartupBlocked"));
+        var startupHint = Hint(Loc.T("SettingsStartupBlocked"));
         startupHint.Visibility = Visibility.Collapsed;
-        var openStartupApps = new Ui.Button
-        {
-            Content = Loc.T("SettingsOpenStartupApps"),
-            Appearance = Ui.ControlAppearance.Secondary,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 0),
-            Visibility = Visibility.Collapsed
-        };
+        var openStartupApps = MacDetailPane.CreateButton(Loc.T("SettingsOpenStartupApps"));
+        openStartupApps.HorizontalAlignment = HorizontalAlignment.Left;
+        openStartupApps.Margin = new Thickness(0, 6, 0, 0);
+        openStartupApps.Visibility = Visibility.Collapsed;
         openStartupApps.Click += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:startupapps") { UseShellExecute = true }); }
@@ -259,8 +174,7 @@ public class SettingsPage : PageBase
         };
 
         var suppress = false;   // đặt IsChecked bằng code không được kích hoạt lại logic bật/tắt
-        startup = Toggle(Loc.T("SettingsStartWithWindows"), false, _ => { });
-        startup.Margin = new Thickness(0, 12, 0, 0);
+        var startup = Switch(Loc.T("SettingsStartWithWindows"), false, _ => { });
         startup.Checked += async (_, _) =>
         {
             if (suppress) return;
@@ -285,9 +199,11 @@ public class SettingsPage : PageBase
         };
         // Tắt chạy nền thì cũng tắt khởi động cùng Windows.
         bg.Unchecked += (_, _) => { if (startup.IsChecked == true) startup.IsChecked = false; };
-        shelf.Children.Add(startup);
-        shelf.Children.Add(startupHint);
-        shelf.Children.Add(openStartupApps);
+        var startupBlock = new StackPanel();
+        startupBlock.Children.Add(SwitchRow(startup, null));
+        startupBlock.Children.Add(startupHint);
+        startupBlock.Children.Add(openStartupApps);
+        background.Add(startupBlock);
         Loaded += async (_, _) =>
         {
             var current = await AutoStart.GetStateAsync();
@@ -298,41 +214,45 @@ public class SettingsPage : PageBase
             }
         };
 
-        // ---- Cập nhật ----
-        var updates = Card(content, Loc.T("SettingsUpdates"));
-        var autoCheck = Toggle(Loc.T("SettingsCheckUpdates"), _settings.CheckForUpdates,
-            on => _settings.CheckForUpdates = on);
-        updates.Children.Add(autoCheck);
+        BuildUpdates(page);
+    }
 
-        var urlCaption = Caption(Loc.T("SettingsUpdateUrl"));
-        urlCaption.Margin = new Thickness(0, 12, 0, 4);
-        updates.Children.Add(urlCaption);
-        var url = new TextBox { Text = _settings.UpdateFeedUrl };
+    private void BuildUpdates(StackPanel page)
+    {
+        var updates = Group(page, Loc.T("SettingsUpdates"));
+
+        // Bản Store do Store tự cập nhật: các điều khiển cập nhật chỉ dành cho bản portable.
+        if (BFR.Core.ShellIntegration.IsPackaged)
+        {
+            var storeManaged = Hint(Loc.T("UpdateStoreManaged"));
+            storeManaged.Margin = new Thickness(0, 10, 0, 10);
+            AutomationProperties.SetName(storeManaged, "Updates managed by Microsoft Store");
+            updates.Add(storeManaged);
+            return;
+        }
+
+        updates.Add(SwitchRow(Switch(Loc.T("SettingsCheckUpdates"), _settings.CheckForUpdates, on => _settings.CheckForUpdates = on), null));
+
+        var url = new TextBox { Text = _settings.UpdateFeedUrl, Margin = new Thickness(0, 4, 0, 0) };
+        url.SetResourceReference(StyleProperty, "Mac.TextBox");
         AutomationProperties.SetName(url, "Update feed url");
         url.TextChanged += (_, _) => { _settings.UpdateFeedUrl = url.Text; SettingsStore.Save(_settings); };
-        updates.Children.Add(url);
+        var urlBlock = new StackPanel { Margin = new Thickness(0, 8, 0, 10) };
+        urlBlock.Children.Add(Label(Loc.T("SettingsUpdateUrl")));
+        urlBlock.Children.Add(url);
+        updates.Add(urlBlock);
 
-        var checkNow = new Ui.Button
-        {
-            Content = Loc.T("SettingsCheckUpdateNow"),
-            Appearance = Ui.ControlAppearance.Secondary,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 10, 0, 0)
-        };
-        AutomationProperties.SetName(checkNow, "Check for updates now");
-        updates.Children.Add(checkNow);
-
-        var updateStatus = new TextBlock
-        {
-            Text = string.Empty,
-            Foreground = (Brush)Application.Current.FindResource("TextSecondary"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
+        var checkNow = MacDetailPane.CreateButton(Loc.T("SettingsCheckUpdateNow"), automationName: "Check for updates now");
+        checkNow.HorizontalAlignment = HorizontalAlignment.Left;
+        var updateStatus = Hint(string.Empty);
+        updateStatus.Margin = new Thickness(0, 6, 0, 0);
         AutomationProperties.SetName(updateStatus, "Update check result");
-        updates.Children.Add(updateStatus);
+        var checkBlock = new StackPanel { Margin = new Thickness(0, 10, 0, 10) };
+        checkBlock.Children.Add(checkNow);
+        checkBlock.Children.Add(updateStatus);
+        updates.Add(checkBlock);
 
-        Ui.Button? downloadButton = null;
+        Button? downloadButton = null;
         checkNow.Click += async (_, _) =>
         {
             checkNow.IsEnabled = false;
@@ -341,7 +261,7 @@ public class SettingsPage : PageBase
 
             if (downloadButton is not null)
             {
-                updates.Children.Remove(downloadButton);
+                checkBlock.Children.Remove(downloadButton);
                 downloadButton = null;
             }
 
@@ -353,13 +273,9 @@ public class SettingsPage : PageBase
                 if (result.Status == UpdateCheckStatus.UpdateAvailable
                     && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
                 {
-                    downloadButton = new Ui.Button
-                    {
-                        Content = Loc.T("UpdateDownload"),
-                        Appearance = Ui.ControlAppearance.Primary,
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        Margin = new Thickness(0, 8, 0, 0)
-                    };
+                    downloadButton = MacDetailPane.CreateButton(Loc.T("UpdateDownload"), "Mac.Button.Primary");
+                    downloadButton.HorizontalAlignment = HorizontalAlignment.Left;
+                    downloadButton.Margin = new Thickness(0, 8, 0, 0);
                     downloadButton.Click += (_, _) =>
                     {
                         try
@@ -375,7 +291,8 @@ public class SettingsPage : PageBase
                             // Bỏ qua nếu không mở được trình duyệt.
                         }
                     };
-                    updates.Children.Add(downloadButton);
+                    checkBlock.Children.Add(downloadButton);
+                    SectionChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
             finally
@@ -384,21 +301,159 @@ public class SettingsPage : PageBase
                 checkNow.Content = Loc.T("SettingsCheckUpdateNow");
             }
         };
+    }
 
-        // Bản Store do Store tự cập nhật: các điều khiển trên chỉ dành cho bản portable.
-        if (BFR.Core.ShellIntegration.IsPackaged)
+    // ---------------------------------------------------------------- Giao diện
+
+    private void BuildAppearance(StackPanel page)
+    {
+        var look = Group(page, null);
+
+        var theme = Combo("Theme selector");
+        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeSystem"), Tag = "System" });
+        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeLight"), Tag = "Light" });
+        theme.Items.Add(new ComboBoxItem { Content = Loc.T("ThemeDark"), Tag = "Dark" });
+        SelectByTag(theme, _settings.Theme);
+        theme.SelectionChanged += (_, _) =>
         {
-            foreach (var e in new UIElement[] { autoCheck, urlCaption, url, checkNow, updateStatus })
+            if (theme.SelectedItem is ComboBoxItem { Tag: string tag }
+                && Enum.TryParse<ThemeManager.AppTheme>(tag, out var value))
             {
-                e.Visibility = Visibility.Collapsed;
+                _settings.Theme = tag;
+                SettingsStore.Save(_settings);
+                ThemeManager.Apply(value);
             }
-            var storeManaged = Caption(Loc.T("UpdateStoreManaged"));
-            AutomationProperties.SetName(storeManaged, "Updates managed by Microsoft Store");
-            updates.Children.Add(storeManaged);
-        }
+        };
+        look.Add(Row(Loc.T("MacSettingsThemeLabel"), theme));
 
-        // ---- Giấy phép ----
-        var licenseCard = Card(content, Loc.T("SettingsLicense"));
+        // Màu nhấn: chấm tròn kiểu macOS, tên màu hiện ở tooltip; áp dụng ngay.
+        var dots = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        var savedAccent = MacAccents.Parse(_settings.AccentPalette);
+        foreach (var accent in MacAccents.All)
+        {
+            var label = Loc.T("MacAccent" + accent.Id);
+            var option = new RadioButton
+            {
+                GroupName = "accent",
+                Background = MacTheme.Solid(accent.Tint(ThemeManager.IsDark)),
+                ToolTip = label,
+                IsChecked = accent.Id == savedAccent.Id
+            };
+            option.SetResourceReference(StyleProperty, "Mac.AccentDot");
+            AutomationProperties.SetName(option, label);
+            AutomationProperties.SetAutomationId(option, "Accent." + accent.Id);
+            var chosen = accent.Id;
+            option.Checked += (_, _) =>
+            {
+                if (string.Equals(_settings.AccentPalette, chosen, StringComparison.OrdinalIgnoreCase)) return;
+                _settings.AccentPalette = chosen;
+                SettingsStore.Save(_settings);
+                ThemeManager.Apply(ThemeManager.Current);
+            };
+            dots.Children.Add(option);
+        }
+        look.Add(Row(Loc.T("SettingsAccent"), dots));
+
+        var effectsGroup = Group(page, null);
+
+        effectsGroup.Add(SwitchRow(Switch(Loc.T("SettingsMascot"), _settings.ShowMascot, on =>
+        {
+            _settings.ShowMascot = on;
+            SettingsStore.Save(_settings);
+            SettingsStore.NotifyMascotVisibilityChanged(on);
+        }), null));
+
+        // Giảm chuyển động: có hiệu lực ngay (Windows tắt hiệu ứng hoặc tương phản cao cũng tự bật).
+        effectsGroup.Add(SwitchRow(Switch(Loc.T("SettingsReduceMotion"), _settings.ReduceMotion, on =>
+        {
+            _settings.ReduceMotion = on;
+            Motion.UserReduced = on;
+        }), Loc.T("SettingsReduceMotionHint")));
+
+        // Giảm hiệu ứng (quyết định 6.2): áp dụng ngay, không cần khởi động lại.
+        var effects = Switch(Loc.T("SettingsReduceEffects"), _settings.ReduceEffects, on =>
+        {
+            _settings.ReduceEffects = on;
+            SettingsStore.Save(_settings);
+            ThemeManager.Apply(ThemeManager.Current);
+        });
+        AutomationProperties.SetName(effects, "Reduce visual effects");
+        effectsGroup.Add(SwitchRow(effects,
+            BfrTheme.NoHardwareAcceleration ? Loc.T("SettingsReduceEffectsAuto") : Loc.T("SettingsReduceEffectsHint")));
+    }
+
+    // ---------------------------------------------------------------- Phím tắt & Chuột
+
+    private void BuildShortcuts(StackPanel page)
+    {
+        var shake = Group(page, Loc.T("SettingsShelf"));
+        shake.Add(SwitchRow(Switch(Loc.T("SettingsShake"), _settings.ShakeToOpenShelf, on => _settings.ShakeToOpenShelf = on),
+            Loc.T("SettingsShakeHint")));
+
+        var hotkeys = Group(page, null);
+        hotkeys.Add(SwitchRow(Switch(Loc.T("SettingsHotkey"), _settings.ShelfHotkeyEnabled, on => _settings.ShelfHotkeyEnabled = on),
+            Loc.T("SettingsHotkeyHint")));
+        var hotkeyBox = HotkeyCombo("Shelf hotkey", _settings.ShelfHotkey, BFR.Core.HotkeySpec.Default, chosen => _settings.ShelfHotkey = chosen);
+        hotkeys.Add(Row(Loc.T("MacSettingsKeyCombination"), hotkeyBox));
+
+        var radial = Group(page, null);
+        radial.Add(SwitchRow(Switch(Loc.T("SettingsRadial"), _settings.RadialHotkeyEnabled, on => _settings.RadialHotkeyEnabled = on),
+            Loc.T("SettingsRadialHint")));
+        var radialBox = HotkeyCombo("Radial menu hotkey", _settings.RadialHotkey, "Ctrl+Alt+Q", chosen => _settings.RadialHotkey = chosen);
+        radial.Add(Row(Loc.T("MacSettingsKeyCombination"), radialBox));
+    }
+
+    private ComboBox HotkeyCombo(string name, string saved, string fallback, Action<string> set)
+    {
+        var box = Combo(name);
+        foreach (var h in BFR.Core.HotkeySpec.Presets) box.Items.Add(h);
+        box.SelectedItem = BFR.Core.HotkeySpec.TryParse(saved, out var current) ? current.ToString() : fallback;
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedItem is not string chosen) return;
+            set(chosen);
+            SettingsStore.Save(_settings);
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        };
+        return box;
+    }
+
+    // ---------------------------------------------------------------- Menu tròn
+
+    private void BuildRadial(StackPanel page)
+    {
+        var orb = Group(page, null);
+        orb.Add(SwitchRow(Switch(
+            Application.Current?.TryFindResource("SettingsFloatingOrb") as string ?? "Hiện nút tròn nổi trên Desktop & mọi ứng dụng",
+            _settings.ShowFloatingOrb,
+            on => _settings.ShowFloatingOrb = on),
+            Application.Current?.TryFindResource("SettingsFloatingOrbHint") as string ?? "Nút tròn kiểu AssistiveTouch luôn nổi; bấm hoặc kéo-thả tệp vào để bung Menu tròn 8 chức năng."));
+
+        // Giữ chuột giữa mở Menu Tròn ngữ cảnh (v3.0).
+        var middle = Group(page, null);
+        middle.Add(SwitchRow(Switch(Loc.T("SettingsMiddleMouseRadial"), _settings.MiddleMouseRadialEnabled, on => _settings.MiddleMouseRadialEnabled = on),
+            Loc.T("SettingsMiddleMouseRadialHint")));
+
+        var hold = Combo("Middle mouse hold duration");
+        foreach (var ms in new[] { 150, 220, 350, 500 })
+            hold.Items.Add(new ComboBoxItem { Content = $"{ms} ms", Tag = ms.ToString() });
+        SelectByTag(hold, AppSettings.NormalizeMiddleMouseHoldMs(_settings.MiddleMouseHoldMs).ToString());
+        hold.SelectionChanged += (_, _) =>
+        {
+            if (hold.SelectedItem is ComboBoxItem { Tag: string tag } && int.TryParse(tag, out var ms))
+            {
+                _settings.MiddleMouseHoldMs = AppSettings.NormalizeMiddleMouseHoldMs(ms);
+                SettingsStore.Save(_settings);
+                SettingsChanged?.Invoke(this, EventArgs.Empty);
+            }
+        };
+        middle.Add(Row(Loc.T("MacSettingsHoldDuration"), hold));
+    }
+
+    // ---------------------------------------------------------------- Pro
+
+    private void BuildPro(StackPanel page)
+    {
         var status = _license.Status;
         var licenseText = status.IsTrial
             ? Loc.F("SettingsLicenseTrial", (int)Math.Ceiling((_license.License.TrialRemaining() ?? TimeSpan.Zero).TotalDays))
@@ -406,37 +461,31 @@ public class SettingsPage : PageBase
                 ? Loc.T("SettingsLicensePro")
                 : Loc.T("SettingsLicenseFree");
 
-        licenseCard.Children.Add(new TextBlock
-        {
-            Text = licenseText,
-            Foreground = (Brush)Application.Current.FindResource("TextSecondary"),
-            TextWrapping = TextWrapping.Wrap
-        });
-
+        var block = new StackPanel { Margin = new Thickness(0, 12, 0, 12) };
+        block.Children.Add(Label(licenseText));
         if (!status.IsPro)
         {
-            var upgrade = new Ui.Button
-            {
-                Content = Loc.T("Upgrade"),
-                Appearance = Ui.ControlAppearance.Primary,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 10, 0, 0)
-            };
+            var upgrade = MacDetailPane.CreateButton(Loc.T("Upgrade"), "Mac.Button.Primary");
+            upgrade.HorizontalAlignment = HorizontalAlignment.Left;
+            upgrade.Margin = new Thickness(0, 10, 0, 0);
             upgrade.Click += (_, _) => UpgradeRequested?.Invoke(this, EventArgs.Empty);
-            licenseCard.Children.Add(upgrade);
+            block.Children.Add(upgrade);
         }
 
-        // ---- Quyền riêng tư & giới thiệu ----
-        var about = Card(content, Loc.T("SettingsPrivacy") + " · " + Loc.T("SettingsAbout"));
-        about.Children.Add(Caption(Loc.T("SettingsPrivacyHint")));
+        Group(page, Loc.T("SettingsLicense")).Add(block);
+    }
+
+    // ---------------------------------------------------------------- Giới thiệu và quyền riêng tư
+
+    private void BuildAbout(StackPanel page)
+    {
+        var privacy = Group(page, Loc.T("SettingsPrivacy"));
+        var privacyText = Hint(Loc.T("SettingsPrivacyHint"));
+        privacyText.Margin = new Thickness(0, 10, 0, 10);
+        privacy.Add(privacyText);
 
         // C8: thời hạn giữ lịch sử/journal và xoá dữ liệu hoạt động theo yêu cầu.
-        var retentionCaption = Caption(Loc.T("SettingsRetention"));
-        retentionCaption.Margin = new Thickness(0, 12, 0, 4);
-        about.Children.Add(retentionCaption);
-
-        var retention = new ComboBox { MinWidth = 240, HorizontalAlignment = HorizontalAlignment.Left };
-        AutomationProperties.SetName(retention, "History retention");
+        var retention = Combo("History retention");
         foreach (var days in AppSettings.RetentionChoices)
             retention.Items.Add(new ComboBoxItem { Content = Loc.F("SettingsRetentionDays", days), Tag = days.ToString() });
         SelectByTag(retention, AppSettings.NormalizeRetentionDays(_settings.HistoryRetentionDays).ToString());
@@ -449,21 +498,15 @@ public class SettingsPage : PageBase
                 BFR.Core.HistoryStore.DefaultRetention = TimeSpan.FromDays(_settings.HistoryRetentionDays);
             }
         };
-        about.Children.Add(retention);
+        privacy.Add(Row(Loc.T("SettingsRetention"), retention));
 
-        var erase = new Ui.Button
-        {
-            Content = Loc.T("SettingsEraseActivity"),
-            Appearance = Ui.ControlAppearance.Secondary,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 10, 0, 0)
-        };
-        AutomationProperties.SetName(erase, "Clear history and undo data");
-        var eraseStatus = Caption(string.Empty);
+        var erase = MacDetailPane.CreateButton(Loc.T("SettingsEraseActivity"), "Mac.Button.Destructive", "Clear history and undo data");
+        erase.HorizontalAlignment = HorizontalAlignment.Left;
+        var eraseStatus = Hint(string.Empty);
         eraseStatus.Margin = new Thickness(0, 6, 0, 0);
         erase.Click += (_, _) =>
         {
-            var answer = MessageBox.Show(Window.GetWindow(this), Loc.T("SettingsEraseConfirm"),
+            var answer = MacAlert.Show(Window.GetWindow(this), Loc.T("SettingsEraseConfirm"),
                 Loc.T("SettingsEraseActivity"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
             if (answer != MessageBoxResult.Yes) return;
 
@@ -472,115 +515,130 @@ public class SettingsPage : PageBase
                 ? Loc.F("SettingsEraseDone", result.FilesDeleted)
                 : Loc.F("SettingsEraseDoneFailed", result.FilesDeleted, result.Failed);
         };
-        about.Children.Add(erase);
-        about.Children.Add(eraseStatus);
+        var eraseBlock = new StackPanel { Margin = new Thickness(0, 10, 0, 10) };
+        eraseBlock.Children.Add(erase);
+        eraseBlock.Children.Add(eraseStatus);
+        privacy.Add(eraseBlock);
 
-        about.Children.Add(Caption(Loc.F("SettingsVersion", BFR.Core.AppVersion.Current)));
-
-        var rateButton = new Ui.Button
-        {
-            Content = Loc.T("RateApp"),
-            Appearance = Ui.ControlAppearance.Secondary,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
-        AutomationProperties.SetName(rateButton, "Rate this app");
-        rateButton.Click += async (_, _) =>
+        var about = Group(page, Loc.T("SettingsAbout"));
+        var rate = MacDetailPane.CreateButton(Loc.T("RateApp"), automationName: "Rate this app");
+        rate.Click += async (_, _) =>
         {
             var owner = Window.GetWindow(this);
             var hwnd = owner is null ? IntPtr.Zero : new System.Windows.Interop.WindowInteropHelper(owner).Handle;
             await BFR.Store.StoreRatingService.RequestRateAndReviewAsync(hwnd);
         };
-        about.Children.Add(rateButton);
-
-        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = content.Root };
-        Grid.SetRow(scroll, 1);
-        root.Children.Add(scroll);
-
-        Content = root;
+        about.Add(Row(Loc.F("SettingsVersion", BFR.Core.AppVersion.Current), rate));
     }
 
-    /// <summary>Hai cột ô kính xếp xen kẽ (masonry); tự gập về 1 cột khi chiều rộng nhỏ hơn 740px.</summary>
-    private sealed class TileColumns
+    // ---------------------------------------------------------------- Khối dựng chung
+
+    /// <summary>Nhóm "inset grouped": các hàng cách nhau bằng đường kẻ mảnh.</summary>
+    private sealed class GroupBox
     {
-        private readonly StackPanel _left = new() { Margin = new Thickness(0, 0, 6, 0) };
-        private readonly StackPanel _right = new() { Margin = new Thickness(6, 0, 0, 0) };
-        private readonly ColumnDefinition _rightCol = new();
-        private readonly System.Collections.Generic.List<UIElement> _tiles = new();
-        private bool _singleColumn;
+        private readonly StackPanel _rows;
 
-        public TileColumns()
+        public GroupBox(StackPanel rows) => _rows = rows;
+
+        public void Add(FrameworkElement row)
         {
-            _left.Margin = new Thickness(0);
-            Root = new Grid { Margin = new Thickness(24, 8, 24, 24), MaxWidth = 640, HorizontalAlignment = HorizontalAlignment.Center };
-            Root.ColumnDefinitions.Add(new ColumnDefinition());
-            Root.ColumnDefinitions.Add(_rightCol);
-            Grid.SetColumn(_right, 1);
-            Root.Children.Add(_left);
-            Root.Children.Add(_right);
-            UpdateLayout(single: true);
-        }
-
-        public Grid Root { get; }
-
-        public void Add(UIElement tile)
-        {
-            _tiles.Add(tile);
-            if (_singleColumn || (_tiles.Count - 1) % 2 == 0) _left.Children.Add(tile);
-            else _right.Children.Add(tile);
-        }
-
-        private void UpdateLayout(bool single)
-        {
-            if (single == _singleColumn) return;
-            _singleColumn = single;
-            _left.Children.Clear();
-            _right.Children.Clear();
-
-            if (_singleColumn)
+            if (_rows.Children.Count > 0)
             {
-                _rightCol.Width = new GridLength(0);
-                _left.Margin = new Thickness(0);
-                _right.Visibility = Visibility.Collapsed;
-                foreach (var t in _tiles) _left.Children.Add(t);
+                var line = new Border();
+                line.SetResourceReference(StyleProperty, "Mac.RowLine");
+                _rows.Children.Add(line);
             }
-            else
-            {
-                _rightCol.Width = new GridLength(1, GridUnitType.Star);
-                _left.Margin = new Thickness(0, 0, 8, 0);
-                _right.Margin = new Thickness(8, 0, 0, 0);
-                _right.Visibility = Visibility.Visible;
-                for (var i = 0; i < _tiles.Count; i++)
-                    (i % 2 == 0 ? _left : _right).Children.Add(_tiles[i]);
-            }
+
+            _rows.Children.Add(row);
         }
     }
 
-    /// <summary>Thêm một ô kính có tiêu đề vào <paramref name="parent"/> và trả về StackPanel bên trong.</summary>
-    private static StackPanel Card(TileColumns parent, string title)
+    private static GroupBox Group(StackPanel page, string? title)
     {
-        var inner = new StackPanel();
-        parent.Add(new BFR.App.Controls.BentoCard
+        if (title is not null)
         {
-            Header = title,
-            Content = inner,
-            Margin = new Thickness(0, 0, 0, 16),
-            Padding = new Thickness(20, 18, 20, 18),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        });
-        return inner;
+            var heading = new TextBlock { Text = title, Margin = new Thickness(2, page.Children.Count == 0 ? 0 : 6, 0, 6) };
+            heading.SetResourceReference(StyleProperty, "Mac.Section");
+            page.Children.Add(heading);
+        }
+
+        var rows = new StackPanel();
+        var border = new Border { Child = rows, Margin = new Thickness(0, 0, 0, 12) };
+        border.SetResourceReference(StyleProperty, "Mac.Group");
+        page.Children.Add(border);
+        return new GroupBox(rows);
+    }
+
+    private static Grid Row(string label, FrameworkElement control)
+    {
+        var grid = new Grid { MinHeight = 40 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var text = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 6, 12, 6) };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        grid.Children.Add(text);
+
+        control.VerticalAlignment = VerticalAlignment.Center;
+        control.Margin = new Thickness(0, 6, 0, 6);
+        Grid.SetColumn(control, 1);
+        grid.Children.Add(control);
+        return grid;
+    }
+
+    /// <summary>Hàng công tắc: nhãn và gợi ý bên trái, công tắc bên phải.</summary>
+    private static Grid SwitchRow(CheckBox toggle, string? hint)
+    {
+        var grid = new Grid { MinHeight = 40 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 8, 12, 8) };
+        var label = new TextBlock { Text = (string)toggle.Tag, TextWrapping = TextWrapping.Wrap };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        // Bấm vào nhãn cũng bật/tắt như hàng cài đặt của macOS.
+        label.MouseLeftButtonUp += (_, _) => { if (toggle.IsEnabled) toggle.IsChecked = toggle.IsChecked != true; };
+        texts.Children.Add(label);
+        if (!string.IsNullOrEmpty(hint)) texts.Children.Add(Hint(hint));
+        grid.Children.Add(texts);
+
+        toggle.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(toggle, 1);
+        grid.Children.Add(toggle);
+        return grid;
     }
 
     /// <summary>Công tắc bật/tắt: lưu ngay vào cài đặt khi đổi.</summary>
-    private Ui.ToggleSwitch Toggle(string text, bool isOn, Action<bool> set)
+    private CheckBox Switch(string text, bool isOn, Action<bool> set)
     {
-        // Content là TextBlock có xuống dòng: ToggleSwitch không tự wrap chuỗi dài (tiếng Pháp, tiếng Trung).
-        var label = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 460 };
-        var toggle = new Ui.ToggleSwitch { Content = label, IsChecked = isOn };
+        var toggle = new CheckBox { Tag = text, IsChecked = isOn };
+        toggle.SetResourceReference(StyleProperty, "Mac.Switch");
         AutomationProperties.SetName(toggle, text);
         toggle.Checked += (_, _) => { set(true); SettingsStore.Save(_settings); SettingsChanged?.Invoke(this, EventArgs.Empty); };
         toggle.Unchecked += (_, _) => { set(false); SettingsStore.Save(_settings); SettingsChanged?.Invoke(this, EventArgs.Empty); };
         return toggle;
+    }
+
+    private static ComboBox Combo(string automationName)
+    {
+        var combo = new ComboBox { Width = 220 };
+        combo.SetResourceReference(StyleProperty, "Mac.ComboBox");
+        AutomationProperties.SetName(combo, automationName);
+        return combo;
+    }
+
+    private static TextBlock Label(string text)
+    {
+        var block = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        block.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label");
+        return block;
+    }
+
+    private static TextBlock Hint(string text)
+    {
+        var block = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) };
+        block.SetResourceReference(TextBlock.ForegroundProperty, "Mac.Label3");
+        return block;
     }
 
     private static void SelectByTag(ComboBox combo, string? tag)
@@ -603,13 +661,5 @@ public class SettingsPage : PageBase
         "fr" => "Français",
         "zh-Hans" => "简体中文",
         _ => "Tiếng Việt"
-    };
-
-    private static TextBlock Caption(string text) => new()
-    {
-        Text = text,
-        Style = (Style)Application.Current.FindResource("CaptionTextStyle"),
-        TextWrapping = TextWrapping.Wrap,
-        Margin = new Thickness(0, 0, 0, 4)
     };
 }

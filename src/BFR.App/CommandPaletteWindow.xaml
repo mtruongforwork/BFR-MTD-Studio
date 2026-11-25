@@ -2,61 +2,72 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BFR.App"
+        xmlns:mac="clr-namespace:BFR.App.Controls.Mac"
         Title="Command palette"
-        Width="640" SizeToContent="Height" MaxHeight="540"
-        WindowStartupLocation="CenterOwner"
+        Width="672" Height="472"
+        WindowStartupLocation="Manual"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
-        FontFamily="{StaticResource AppFont}"
-        FontSize="{StaticResource AppFontSizeBody}"
+        FontFamily="{DynamicResource Mac.Font}"
+        FontSize="13"
         UseLayoutRounding="True"
         AutomationProperties.Name="Command palette dialog">
 
     <Window.Resources>
         <local:ShortcutKeycapsConverter x:Key="ShortcutKeycapsConverter" />
         <local:StringNotEmptyToVisConverter x:Key="StringNotEmptyToVis" />
+
+        <DataTemplate x:Key="Keycaps">
+            <Border Background="{DynamicResource Mac.Track}" BorderBrush="{DynamicResource Mac.Separator}"
+                    BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="3,0,0,0">
+                <TextBlock Text="{Binding}" FontSize="10.5" Foreground="{DynamicResource Mac.Label2}" />
+            </Border>
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="Row">
+            <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
     </Window.Resources>
 
+    <!-- Spotlight: 640 px, ô nhập lớn, kết quả theo nhóm bên trái, xem trước bên phải -->
     <Border x:Name="RootCard"
-            Background="{DynamicResource BfrGlassFillStrong}"
-            BorderBrush="{DynamicResource BfrHoverRim}"
+            Background="{DynamicResource Mac.SheetBg}"
+            BorderBrush="{DynamicResource Mac.Separator}"
             BorderThickness="1"
-            CornerRadius="22"
+            CornerRadius="14"
             Margin="16">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.42" Color="Black" />
+            <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.4" Color="Black" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Ô tìm kiếm (hỗ trợ đầy đủ bộ gõ IME tiếng Việt / Trung) -->
-            <Border Grid.Row="0" Padding="18,14,18,12" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
-                               Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,10,0" />
-
-                    <Grid Grid.Column="1">
+            <Border Grid.Row="0" Padding="18,12" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,0,0,1">
+                <DockPanel>
+                    <mac:MacIcon DockPanel.Dock="Left" Data="{DynamicResource Icon.Search}" Size="22" Margin="0,0,12,0"
+                                 Foreground="{DynamicResource Mac.Label3}" />
+                    <Grid>
                         <TextBox x:Name="InputBox" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource AppTextBoxStyle}"
-                                 AutomationProperties.Name="Command palette search" />
-                        <TextBlock Text="{DynamicResource CommandPaletteSearch}"
-                                   Foreground="{DynamicResource TextSecondary}"
-                                   Opacity="0.7"
-                                   Margin="12,0,12,0"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False">
+                                 FontSize="22" Background="Transparent" BorderThickness="0" Padding="0"
+                                 Foreground="{DynamicResource Mac.Label}" CaretBrush="{DynamicResource Mac.Label}"
+                                 VerticalContentAlignment="Center"
+                                 AutomationProperties.Name="Command palette search">
+                            <TextBox.Template>
+                                <ControlTemplate TargetType="TextBox">
+                                    <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                                </ControlTemplate>
+                            </TextBox.Template>
+                        </TextBox>
+                        <TextBlock Text="{DynamicResource CommandPaletteSearch}" FontSize="22" Margin="2,0,0,0"
+                                   Foreground="{DynamicResource Mac.Label4}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -69,114 +80,74 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Grid>
-                </Grid>
+                </DockPanel>
             </Border>
 
-            <!-- Danh sách lệnh + Raycast bottom fade OpacityMask -->
-            <Grid Grid.Row="1" Margin="10,6,10,0">
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="390" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
                 <ListBox x:Name="ResultsList"
-                         MaxHeight="390"
-                         ItemsSource="{Binding Filtered}"
                          SelectedItem="{Binding Selected, Mode=TwoWay}"
                          HorizontalContentAlignment="Stretch"
-                         Style="{StaticResource AppListBoxStyle}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                         Style="{DynamicResource Mac.ListBox}"
                          PreviewMouseLeftButtonDown="ResultsList_PreviewMouseLeftButtonDown"
                          PreviewMouseLeftButtonUp="ResultsList_PreviewMouseLeftButtonUp"
                          MouseDoubleClick="ResultsList_MouseDoubleClick"
                          AutomationProperties.Name="Command palette results">
-                    <ListBox.OpacityMask>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#FF000000" Offset="0.0" />
-                            <GradientStop Color="#FF000000" Offset="0.90" />
-                            <GradientStop Color="#00000000" Offset="1.0" />
-                        </LinearGradientBrush>
-                    </ListBox.OpacityMask>
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" FontSize="11" FontFamily="{DynamicResource Mac.FontSemi}"
+                                               Foreground="{DynamicResource Mac.Label3}" Margin="16,8,12,3" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="4,4" AutomationProperties.Name="{Binding Title}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Biểu tượng tùy chọn -->
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding Icon}"
-                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                           FontSize="14"
-                                           Foreground="{DynamicResource BfrAccFg}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"
-                                           Visibility="{Binding Icon, Converter={StaticResource StringNotEmptyToVis}}" />
-
-                                <!-- Tiêu đề lệnh -->
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding Title}"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" />
-
-                                <!-- Huy hiệu nhóm (Category badge) -->
-                                <Border Grid.Column="2"
-                                        Background="{DynamicResource ChipBackground}"
-                                        BorderBrush="{DynamicResource ChipBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="7,1"
-                                        Margin="10,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Visibility="{Binding Category, Converter={StaticResource StringNotEmptyToVis}}">
-                                    <TextBlock Text="{Binding Category}"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextSecondary}" />
-                                </Border>
-
-                                <!-- Phím tắt dạng <kbd> keycap badges -->
-                                <ItemsControl Grid.Column="3"
-                                              ItemsSource="{Binding Shortcut, Converter={StaticResource ShortcutKeycapsConverter}}"
-                                              Margin="10,0,0,0"
-                                              VerticalAlignment="Center"
-                                              Visibility="{Binding Shortcut, Converter={StaticResource StringNotEmptyToVis}}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{DynamicResource BfrSurface2}"
-                                                    BorderBrush="{DynamicResource BorderStrong}"
-                                                    BorderThickness="1,1,1,2"
-                                                    CornerRadius="4"
-                                                    Padding="5,1"
-                                                    Margin="3,0,0,0">
-                                                <TextBlock Text="{Binding}"
-                                                           FontFamily="Cascadia Mono, Consolas, Segoe UI"
-                                                           FontSize="10.5"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextSecondary}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Grid>
+                            <DockPanel AutomationProperties.Name="{Binding Title}">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Icon}" Width="24"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center"
+                                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                            </DockPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <TextBlock Text="{Binding EmptyText}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Margin="0,24,0,24"
-                           Foreground="{DynamicResource TextSecondary}"
+                <!-- Xem trước lệnh đang chọn -->
+                <Border Grid.Column="1" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="1,0,0,0" Padding="16">
+                    <StackPanel x:Name="PreviewPane" VerticalAlignment="Center" DataContext="{Binding Selected}"
+                                AutomationProperties.Name="Command preview">
+                        <Border Width="64" Height="64" CornerRadius="15" Background="{DynamicResource Mac.AccentFill}" HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding Icon}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28"
+                                       Foreground="{DynamicResource Mac.OnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" FontSize="15" Margin="0,12,0,0"
+                                   FontFamily="{DynamicResource Mac.FontSemi}" Foreground="{DynamicResource Mac.Label}" />
+                        <TextBlock Text="{Binding Category}" TextAlignment="Center" FontSize="11.5" Margin="0,3,0,0"
+                                   Foreground="{DynamicResource Mac.Label3}" />
+                        <ItemsControl ItemsSource="{Binding Shortcut, Converter={StaticResource ShortcutKeycapsConverter}}"
+                                      ItemsPanel="{StaticResource Row}" ItemTemplate="{StaticResource Keycaps}"
+                                      HorizontalAlignment="Center" Margin="0,10,0,0"
+                                      Visibility="{Binding Shortcut, Converter={StaticResource StringNotEmptyToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Grid.ColumnSpan="2" Text="{Binding EmptyText}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Mac.Label3}" Background="{DynamicResource Mac.SheetBg}"
                            Visibility="{Binding HasResults, Converter={StaticResource InverseBoolToVis}}" />
             </Grid>
 
-            <!-- Chân -->
-            <Border Grid.Row="2" Margin="0,8,0,0" Padding="18,10" CornerRadius="0,0,21,21"
-                    Background="{DynamicResource BfrSurface1}"
-                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,1,0,0">
-                <TextBlock Text="{Binding HintText}" FontSize="11.5" Foreground="{DynamicResource BfrFg3}" />
+            <Border Grid.Row="2" Padding="16,8" BorderBrush="{DynamicResource Mac.Separator}" BorderThickness="0,1,0,0">
+                <TextBlock Text="{Binding HintText}" FontSize="11" Foreground="{DynamicResource Mac.Label3}" />
             </Border>
         </Grid>
     </Border>

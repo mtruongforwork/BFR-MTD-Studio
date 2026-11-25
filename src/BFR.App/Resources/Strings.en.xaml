@@ -1366,4 +1366,22 @@
     <sys:String x:Key="MacDetailModified">Modified</sys:String>
     <sys:String x:Key="MacDetailState">Status</sys:String>
     <sys:String x:Key="MacPresetSelectHint">Select a preset to see its rules.</sys:String>
+    <!-- v3.2 P7: alerts, settings window, popover -->
+    <sys:String x:Key="MacAlertOk">OK</sys:String>
+    <sys:String x:Key="MacAlertYes">Yes</sys:String>
+    <sys:String x:Key="MacAlertNo">No</sys:String>
+    <sys:String x:Key="MacSearchRules">Search rules</sys:String>
+    <sys:String x:Key="MacInsertToken">Insert token</sys:String>
+    <sys:String x:Key="MacSettingsGeneral">General</sys:String>
+    <sys:String x:Key="MacSettingsAppearance">Appearance</sys:String>
+    <sys:String x:Key="MacSettingsShortcuts">Keys &amp; Mouse</sys:String>
+    <sys:String x:Key="MacSettingsRadial">Radial menu</sys:String>
+    <sys:String x:Key="MacSettingsPro">Pro</sys:String>
+    <sys:String x:Key="MacSettingsAbout">About</sys:String>
+    <sys:String x:Key="MacSettingsKeyCombination">Key combination</sys:String>
+    <sys:String x:Key="MacSettingsHoldDuration">Hold duration</sys:String>
+    <sys:String x:Key="SettingsReduceMotion">Reduce motion</sys:String>
+    <sys:String x:Key="SettingsReduceMotionHint">Only short fades remain; sliding, zooming and shaking are off. Also on when Windows animations are off.</sys:String>
+    <sys:String x:Key="MacSettingsLanguageLabel">Language</sys:String>
+    <sys:String x:Key="MacSettingsThemeLabel">Theme</sys:String>
 </ResourceDictionary>

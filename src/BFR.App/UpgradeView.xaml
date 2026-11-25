@@ -4,8 +4,8 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:local="clr-namespace:BFR.App"
         MinWidth="560" MaxWidth="640"
-        FontFamily="{StaticResource AppFont}"
-        FontSize="{StaticResource AppFontSizeBody}"
+        FontFamily="{DynamicResource Mac.Font}"
+        FontSize="13"
         UseLayoutRounding="True"
         AutomationProperties.Name="Upgrade to Pro dialog">
 
@@ -18,7 +18,7 @@
             </Grid.RowDefinitions>
 
             <!-- ===== Header ===== -->
-            <Grid Grid.Row="0" Margin="22,18,14,0">
+            <Grid Grid.Row="0" Margin="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -26,28 +26,28 @@
 
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="{Binding Header}" FontSize="20" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" />
+                               Foreground="{DynamicResource Mac.Label}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding Subtitle}" Margin="0,4,0,0"
-                               Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
+                               Foreground="{DynamicResource Mac.Label2}" TextWrapping="Wrap" />
                 </StackPanel>
 
             </Grid>
 
             <!-- ===== Dòng bối cảnh (tính năng đang chạm tới Pro) ===== -->
-            <Border Grid.Row="1" Margin="22,14,22,0" CornerRadius="8" Padding="12,9"
-                    Background="{DynamicResource AccentSoft}"
-                    BorderBrush="{DynamicResource AccentBorder}" BorderThickness="1"
+            <Border Grid.Row="1" Margin="0,14,0,0" CornerRadius="8" Padding="12,9"
+                    Background="{DynamicResource Mac.AccentSoft}"
+                    BorderBrush="{DynamicResource Mac.Accent}" BorderThickness="1"
                     Visibility="{Binding HasContext, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="&#xE946;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                               Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                               Foreground="{DynamicResource Mac.Accent}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <TextBlock Text="{Binding ContextMessage}" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                               Foreground="{DynamicResource Mac.Label}" VerticalAlignment="Center" />
                 </StackPanel>
             </Border>
 
             <!-- ===== Bảng so sánh Free vs Pro ===== -->
-            <Grid Grid.Row="2" Margin="22,16,22,0">
+            <Grid Grid.Row="2" Margin="0,16,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -59,9 +59,9 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FreeColumnHeader}" HorizontalAlignment="Center"
-                           Style="{StaticResource PanelHeaderTextStyle}" Margin="0,0,0,6" />
+                           Style="{DynamicResource Mac.Section}" Margin="0,0,0,6" />
                 <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ProColumnHeader}" HorizontalAlignment="Center"
-                           Style="{StaticResource PanelHeaderTextStyle}" Margin="0,0,0,6" />
+                           Style="{DynamicResource Mac.Section}" Margin="0,0,0,6" />
 
                 <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" VerticalScrollBarVisibility="Auto" MaxHeight="340">
                 <ItemsControl ItemsSource="{Binding Features}"
@@ -74,12 +74,12 @@
                                     <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="150" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Feature}" Foreground="{DynamicResource TextPrimary}"
+                                <TextBlock Grid.Column="0" Text="{Binding Feature}" Foreground="{DynamicResource Mac.Label}"
                                            TextWrapping="Wrap" Margin="0,0,10,0" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="{Binding FreeText}" HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" />
+                                           Foreground="{DynamicResource Mac.Label2}" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text="{Binding ProText}" HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource Success}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                           Foreground="{DynamicResource Mac.Ok}" FontWeight="SemiBold" VerticalAlignment="Center" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -88,7 +88,7 @@
             </Grid>
 
             <!-- ===== Hành động ===== -->
-            <StackPanel Grid.Row="3" Margin="22,20,22,20">
+            <StackPanel Grid.Row="3" Margin="0,20,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -96,36 +96,36 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <ui:Button Grid.Column="0" Appearance="Primary"
+                    <Button Grid.Column="0" Style="{DynamicResource Mac.Button.Primary}"
                             Content="{Binding BuyButtonText}" Click="Buy_Click" MinWidth="150"
                             AutomationProperties.Name="Buy Pro" />
 
-                    <ui:Button Grid.Column="1" Appearance="Secondary"
+                    <Button Grid.Column="1" Style="{DynamicResource Mac.Button}"
                             Content="{Binding TrialButtonText}" Click="Trial_Click" MinWidth="150" Margin="10,0,0,0"
                             Visibility="{Binding ShowTrialButton, Converter={StaticResource BoolToVis}}"
                             AutomationProperties.Name="Start Pro trial" />
 
-                    <ui:Button Grid.Column="2" Appearance="Transparent"
+                    <Button Grid.Column="2" Style="{DynamicResource Mac.Button.Link}"
                             Content="{Binding LaterButtonText}" Click="Close_Click" HorizontalAlignment="Right"
                             AutomationProperties.Name="Close" />
                 </Grid>
 
                 <!-- Dùng thử: còn X ngày -->
                 <Border Margin="0,12,0,0" CornerRadius="8" Padding="12,9"
-                        Background="{DynamicResource SuccessSoft}" BorderBrush="{DynamicResource Success}"
+                        Background="{DynamicResource Mac.OkSoft}" BorderBrush="{DynamicResource Mac.Ok}"
                         BorderThickness="1"
                         Visibility="{Binding ShowTrialRemaining, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                                   Foreground="{DynamicResource Success}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{Binding TrialRemainingText}" Foreground="{DynamicResource TextPrimary}"
+                                   Foreground="{DynamicResource Mac.Ok}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding TrialRemainingText}" Foreground="{DynamicResource Mac.Label}"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 
                 <!-- Nhập mã kích hoạt -->
                 <StackPanel Margin="0,12,0,0">
-                    <ui:Button Appearance="Transparent" Content="{Binding LicenseKeyLinkText}"
+                    <Button Style="{DynamicResource Mac.Button.Link}" Content="{Binding LicenseKeyLinkText}"
                             HorizontalAlignment="Left" Padding="0,2" Click="ShowLicenseKey_Click"
                             AutomationProperties.Name="I already have an activation key" />
 
@@ -137,14 +137,14 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0" Text="{Binding LicenseKeyText, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource AppTextBoxStyle}"
+                                     Style="{DynamicResource Mac.TextBox}"
                                      ToolTip="{Binding LicenseKeyPlaceholder}"
                                      AutomationProperties.Name="Activation key" KeyDown="LicenseKey_KeyDown" />
-                            <ui:Button Grid.Column="1" Appearance="Secondary"
+                            <Button Grid.Column="1" Style="{DynamicResource Mac.Button}"
                                     Content="{Binding ActivateKeyText}" Click="ActivateKey_Click" Margin="8,0,0,0"
                                     AutomationProperties.Name="Activate with key" />
                         </Grid>
-                        <TextBlock Text="{Binding LicenseKeyError}" Foreground="{DynamicResource Error}"
+                        <TextBlock Text="{Binding LicenseKeyError}" Foreground="{DynamicResource Mac.Bad}"
                                    Margin="0,6,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding HasLicenseKeyError, Converter={StaticResource BoolToVis}}"
                                    AutomationProperties.Name="Activation error" />

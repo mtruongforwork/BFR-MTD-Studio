@@ -1366,4 +1366,22 @@
     <sys:String x:Key="MacDetailModified">Modifié</sys:String>
     <sys:String x:Key="MacDetailState">État</sys:String>
     <sys:String x:Key="MacPresetSelectHint">Sélectionnez un préréglage pour voir ses règles.</sys:String>
+    <!-- v3.2 P7: alerts, settings window, popover -->
+    <sys:String x:Key="MacAlertOk">OK</sys:String>
+    <sys:String x:Key="MacAlertYes">Oui</sys:String>
+    <sys:String x:Key="MacAlertNo">Non</sys:String>
+    <sys:String x:Key="MacSearchRules">Rechercher une règle</sys:String>
+    <sys:String x:Key="MacInsertToken">Insérer un jeton</sys:String>
+    <sys:String x:Key="MacSettingsGeneral">Général</sys:String>
+    <sys:String x:Key="MacSettingsAppearance">Apparence</sys:String>
+    <sys:String x:Key="MacSettingsShortcuts">Clavier et souris</sys:String>
+    <sys:String x:Key="MacSettingsRadial">Menu radial</sys:String>
+    <sys:String x:Key="MacSettingsPro">Pro</sys:String>
+    <sys:String x:Key="MacSettingsAbout">À propos</sys:String>
+    <sys:String x:Key="MacSettingsKeyCombination">Raccourci</sys:String>
+    <sys:String x:Key="MacSettingsHoldDuration">Durée d’appui</sys:String>
+    <sys:String x:Key="SettingsReduceMotion">Réduire les animations</sys:String>
+    <sys:String x:Key="SettingsReduceMotionHint">Seuls de courts fondus restent ; glissements, zooms et secousses sont désactivés. Actif aussi quand les animations Windows sont coupées.</sys:String>
+    <sys:String x:Key="MacSettingsLanguageLabel">Langue</sys:String>
+    <sys:String x:Key="MacSettingsThemeLabel">Thème</sys:String>
 </ResourceDictionary>

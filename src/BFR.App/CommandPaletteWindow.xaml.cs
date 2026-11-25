@@ -8,7 +8,6 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using BFR.App.Infrastructure;
 using BFR.Presentation;
 
@@ -28,8 +27,12 @@ public partial class CommandPaletteWindow : Window
 
         InitializeComponent();
         DataContext = vm;
+        var grouped = new ListCollectionView(vm.Filtered);
+        grouped.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PaletteCommand.Category)));
+        ResultsList.ItemsSource = grouped;
 
         if (owner is not null) Owner = owner;
+        PlaceLikeSpotlight(owner);
 
         InputBindings.Add(new KeyBinding(new RelayCommand(SafeClose), Key.Escape, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MoveAndScroll(-1)), Key.Up, ModifierKeys.None));
@@ -46,19 +49,19 @@ public partial class CommandPaletteWindow : Window
                 InputBox.SelectAll();
             }
 
-            if (!BfrTheme.ReduceMotion && RootCard is not null)
-            {
-                RootCard.Opacity = 0;
-                var scale = new ScaleTransform(0.97, 0.97);
-                RootCard.RenderTransformOrigin = new Point(0.5, 0.25);
-                RootCard.RenderTransform = scale;
-                var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-                var dur = TimeSpan.FromMilliseconds(130);
-                RootCard.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { EasingFunction = ease });
-                scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.97, 1, dur) { EasingFunction = ease });
-                scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, 1, dur) { EasingFunction = ease });
-            }
+            // M16: phóng nhẹ từ 0,98 (Motion tự bỏ phóng khi giảm chuyển động).
+            Motion.ScaleIn(RootCard, new Point(0.5, 0.3), 0.98);
         };
+    }
+
+    /// <summary>Giữa theo chiều ngang, ở khoảng một phần năm từ trên xuống của cửa sổ chủ (hoặc màn hình).</summary>
+    private void PlaceLikeSpotlight(Window? owner)
+    {
+        var area = owner is { IsVisible: true, WindowState: WindowState.Normal }
+            ? new Rect(owner.Left, owner.Top, owner.ActualWidth, owner.ActualHeight)
+            : SystemParameters.WorkArea;
+        Left = area.Left + (area.Width - Width) / 2;
+        Top = area.Top + Math.Max(24, (area.Height - Height) / 5);
     }
 
     private void MoveAndScroll(int delta)

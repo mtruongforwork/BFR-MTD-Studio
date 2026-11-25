@@ -648,9 +648,6 @@
             <!-- Sheet kiểu macOS (xác nhận áp dụng): phủ cả cửa sổ, khoá ShellRoot khi mở -->
             <mac:MacSheetHost x:Name="SheetHost" />
 
-            <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên toàn cửa sổ -->
-            <ui:ContentDialogHost x:Name="DialogHost" />
-
         <!-- Lớp phủ kính mờ khi kéo tệp vào bất kỳ vị trí nào trên cửa sổ -->
         <Border x:Name="DropOverlay" Grid.RowSpan="2" Panel.ZIndex="100"
                 Visibility="Collapsed" IsHitTestVisible="False"

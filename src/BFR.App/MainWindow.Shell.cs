@@ -99,8 +99,16 @@ public partial class MainWindow
             }
         }
 
-        SyncShell();
+        // Không đến được trang đã bấm (Watch bị khoá ở bản Free, hoặc Cài đặt mở cửa sổ riêng).
+        if (_currentPage != item.Page) SyncShellLater();
+        else SyncShell();
     }
+
+    /// <summary>
+    /// Chọn lại mục cũ ở thanh bên SAU khi sự kiện Checked hiện tại chạy xong. Bỏ chọn một nút ngay trong Checked của chính nó
+    /// thì WPF áp hiệu ứng "đang chọn" sau đó, để lại hai mục cùng tô sáng.
+    /// </summary>
+    private void SyncShellLater() => Dispatcher.BeginInvoke(new Action(SyncShell));
 
     private void NavigateBack()
     {
@@ -123,10 +131,18 @@ public partial class MainWindow
 
     private void ShowPage(string key, bool recordHistory = true, double slideX = 0)
     {
+        // Cài đặt là cửa sổ riêng, không phải một trang: trang đang xem giữ nguyên.
+        if (key == "Settings")
+        {
+            ShowSettings();
+            SyncShell();
+            return;
+        }
+
         // Watch Folder là tính năng Pro: Free thấy hộp thoại nâng cấp và ở lại trang hiện tại.
         if (key == "Watch" && !EnsurePro(ProFeature.UnlimitedRecursion))
         {
-            SyncShell();
+            SyncShellLater();
             return;
         }
 

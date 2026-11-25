@@ -828,41 +828,8 @@ public sealed class QuickActionCoordinator
 
     private static string? PromptPassword(string fileName)
     {
-        string? result = null;
-        var win = new Window
-        {
-            Title = Loc.T("EdgePasswordTitle"),
-            Width = 360,
-            SizeToContent = SizeToContent.Height,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            ResizeMode = ResizeMode.NoResize,
-            Topmost = true,
-            WindowStyle = WindowStyle.ToolWindow
-        };
-
-        var panel = new StackPanel { Margin = new Thickness(18) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = Loc.F("EdgePasswordPrompt", fileName),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 10)
-        });
-
-        var box = new PasswordBox { Margin = new Thickness(0, 0, 0, 14) };
-        panel.Children.Add(box);
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var cancel = new Ui.Button { Content = Loc.T("Cancel"), Appearance = Ui.ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
-        cancel.Click += (_, _) => { win.DialogResult = false; win.Close(); };
-        var ok = new Ui.Button { Content = Loc.T("EdgeUnlockContinue"), Appearance = Ui.ControlAppearance.Primary, IsDefault = true };
-        ok.Click += (_, _) => { result = box.Password; win.DialogResult = true; win.Close(); };
-        row.Children.Add(cancel);
-        row.Children.Add(ok);
-        panel.Children.Add(row);
-
-        win.Content = panel;
-        box.Focus();
-        return win.ShowDialog() == true ? result : null;
+        return BFR.App.Controls.Mac.MacAlert.AskPassword(
+            owner: null, Loc.T("EdgePasswordTitle"), Loc.F("EdgePasswordPrompt", fileName), Loc.T("EdgeUnlockContinue"));
     }
 
     private static string FormatBytes(long bytes)

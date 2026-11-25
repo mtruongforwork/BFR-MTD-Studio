@@ -34,6 +34,7 @@ public sealed class MacSheetHost : Grid
     private readonly TranslateTransform _slide = new();
     private readonly TextBlock _title = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ScrollViewer _body = new() { Margin = new Thickness(0, 8, 0, 0) };
+    private readonly StackPanel _buttons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
     private readonly Button _primary = new() { MinWidth = 90, IsDefault = true };
     private readonly Button _cancel = new() { MinWidth = 90, IsCancel = true, Margin = new Thickness(0, 0, 10, 0) };
     private TaskCompletionSource<bool>? _pending;
@@ -55,6 +56,7 @@ public sealed class MacSheetHost : Grid
         Children.Add(slot);
 
         _sheet.SetResourceReference(Border.BackgroundProperty, "Mac.SheetBg");
+        _sheet.SetResourceReference(System.Windows.Documents.TextElement.FontFamilyProperty, "Mac.Font");
         _sheet.SetResourceReference(Border.BorderBrushProperty, "Mac.Separator");
         _sheet.Effect = new DropShadowEffect { BlurRadius = 28, ShadowDepth = 8, Direction = 270, Opacity = 0.35 };
         _sheet.RenderTransform = _slide;
@@ -62,20 +64,18 @@ public sealed class MacSheetHost : Grid
         _title.SetResourceReference(StyleProperty, "Mac.Title2");
         _title.TextTrimming = TextTrimming.None;
         _body.SetResourceReference(StyleProperty, "Mac.ScrollViewer");
-        _body.MaxHeight = 320;
 
         _primary.SetResourceReference(StyleProperty, "Mac.Button.Primary");
         _cancel.SetResourceReference(StyleProperty, "Mac.Button");
         _primary.Click += (_, _) => Close(true);
         _cancel.Click += (_, _) => Close(false);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
-        buttons.Children.Add(_cancel);
-        buttons.Children.Add(_primary);
+        _buttons.Children.Add(_cancel);
+        _buttons.Children.Add(_primary);
 
         var stack = new StackPanel();
         stack.Children.Add(_title);
         stack.Children.Add(_body);
-        stack.Children.Add(buttons);
+        stack.Children.Add(_buttons);
         _sheet.Child = stack;
 
         PreviewKeyDown += (_, e) =>
@@ -91,8 +91,15 @@ public sealed class MacSheetHost : Grid
 
     public bool IsOpen => _pending is not null;
 
+    /// <summary>Đóng sheet đang mở như khi bấm Huỷ (dùng cho nội dung có nút riêng).</summary>
+    public void Dismiss() => Close(false);
+
     /// <summary>Hiện sheet và chờ người dùng chọn. True = nút chính. Đang có sheet khác thì trả false ngay.</summary>
-    public Task<bool> ShowAsync(string title, UIElement content, string primaryText, string cancelText)
+    /// <param name="title">Rỗng: không có dòng tiêu đề (nội dung tự có tiêu đề).</param>
+    /// <param name="primaryText">Rỗng: không có nút chính.</param>
+    /// <param name="cancelText">Rỗng: không có nút huỷ; cả hai rỗng thì ẩn hẳn hàng nút (Esc vẫn đóng).</param>
+    public Task<bool> ShowAsync(string title, UIElement content, string primaryText, string cancelText,
+        double width = 460, string? automationName = null)
     {
         if (_pending is not null) return Task.FromResult(false);
 
@@ -100,11 +107,22 @@ public sealed class MacSheetHost : Grid
         _pending = pending;
         _focusBefore = Keyboard.FocusedElement;
 
+        var name = automationName ?? title;
         _title.Text = title;
+        _title.Visibility = string.IsNullOrEmpty(title) ? Visibility.Collapsed : Visibility.Visible;
+        _body.Margin = new Thickness(0, string.IsNullOrEmpty(title) ? 0 : 8, 0, 0);
         _body.Content = content;
         _primary.Content = primaryText;
         _cancel.Content = cancelText;
-        AutomationProperties.SetName(this, title);
+        _primary.Visibility = string.IsNullOrEmpty(primaryText) ? Visibility.Collapsed : Visibility.Visible;
+        _cancel.Visibility = string.IsNullOrEmpty(cancelText) ? Visibility.Collapsed : Visibility.Visible;
+        _buttons.Visibility = _primary.Visibility == Visibility.Visible || _cancel.Visibility == Visibility.Visible
+            ? Visibility.Visible : Visibility.Collapsed;
+        _sheet.Width = width;
+        // Chừa chỗ cho toolbar, tiêu đề, hàng nút và lề dưới; nội dung dài thì cuộn.
+        var available = Blocked?.RenderSize.Height ?? 0;
+        _body.MaxHeight = available > 0 ? Math.Max(220, available - 190) : 440;
+        AutomationProperties.SetName(this, name);
         AutomationProperties.SetName(_primary, primaryText);
         AutomationProperties.SetName(_cancel, cancelText);
 
@@ -121,7 +139,8 @@ public sealed class MacSheetHost : Grid
         _slide.Y = Motion.Reduced ? 0 : -_sheet.ActualHeight - 20;
         Motion.To(_slide, TranslateTransform.YProperty, 0, MotionKind.Standard);
 
-        _primary.Focus();
+        if (_primary.Visibility == Visibility.Visible) _primary.Focus();
+        else if (!content.MoveFocus(new TraversalRequest(FocusNavigationDirection.First))) _cancel.Focus();
         UIElementAutomationPeer.CreatePeerForElement(_title)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
         return pending.Task;
     }

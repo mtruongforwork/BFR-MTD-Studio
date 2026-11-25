@@ -299,6 +299,47 @@ public class LayoutAndResourceTests
         });
     }
 
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void SettingsTabs_Palette_And_RegexTester_RenderInEveryTheme(bool dark, BfrTheme.Accent accent, bool highContrast)
+    {
+        StaHost.WithTheme(dark, accent, highContrast, () =>
+        {
+            static void Layout(FrameworkElement element, Size size, string what)
+            {
+                element.Measure(size);
+                element.Arrange(new Rect(size));
+                element.UpdateLayout();
+                AssertFinite(element.DesiredSize, what);
+            }
+
+            var fs = new BFR.Core.FakeFileSystem();
+            var license = new BFR.Core.Licensing.LicenseCoordinator(
+                new BFR.Core.Licensing.LicenseService(new BFR.Core.Licensing.LicenseStore(fs, "/license.json"), trialEnabled: false));
+            var settings = new SettingsPage(license);
+            foreach (var (id, _, _) in SettingsPage.Tabs)
+            {
+                settings.Show(id);
+                Assert.Equal(id, settings.CurrentSection);
+                Layout(settings, new Size(660, 520), "Settings " + id);
+            }
+            settings.Show("general");
+
+            var registry = new BFR.Presentation.CommandRegistry()
+                .Register("Open history", "Pages", () => { }, "Ctrl+H", "\uE81C")
+                .Register("Add files", "Actions", () => { });
+            var palette = new CommandPaletteWindow(new BFR.Presentation.CommandPaletteViewModel(
+                registry, new LocStringProvider(), new WpfUiDispatcher()));
+            Layout((FrameworkElement)palette.Content, new Size(672, 472), "Command palette");
+            palette.Close();
+
+            var regex = new RegexTesterWindow(
+                new BFR.Presentation.RegexTesterViewModel(new LocStringProvider(), new WpfUiDispatcher()), () => null);
+            Layout((FrameworkElement)regex.Content, new Size(780, 640), "Regex tester");
+            regex.Close();
+        });
+    }
+
     public static IEnumerable<object[]> Themes() => StaHost.AllThemes();
 
     /// <summary>Ba tổ hợp đại diện (tối, sáng, tương phản cao) cho các test nặng.</summary>

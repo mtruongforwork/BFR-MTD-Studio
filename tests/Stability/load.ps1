@@ -41,7 +41,9 @@ try {
     $lines.Add("- Tạo $Files tệp: $([int]$sw.Elapsed.TotalSeconds) s")
 
     # ---------------- Lượt 1: nạp đầy đủ rồi thao tác
-    $proc = Start-TestApp $Exe ('--file-list "' + $data.List + '"')
+    # Đưa cả thư mục chứ không dùng --file-list: tệp danh sách bị giới hạn 4 MB và 20 000 đường dẫn (SEC-6),
+    # nên 100 000 đường dẫn bị bỏ qua cả danh sách.
+    $proc = Start-TestApp $Exe ('"' + $data.Dir + '"')
     $win = Get-MainWindow $proc
     Select-Nav $win 'Nav rename'   # thanh trạng thái nằm trên trang Rename; trang bị ẩn không có trong cây UIA
     $sw.Restart()
@@ -111,7 +113,7 @@ try {
     # ---------------- Lượt 2: đóng cửa sổ khi đang nạp
     Remove-Item $ctx.Crash -ErrorAction SilentlyContinue
     Remove-Item $ctx.Diag -Recurse -Force -ErrorAction SilentlyContinue
-    $proc = Start-TestApp $Exe ('--file-list "' + $data.List + '"')
+    $proc = Start-TestApp $Exe ('"' + $data.Dir + '"')
     $win = Get-MainWindow $proc
     Start-Sleep -Milliseconds 700
     $w = [Diagnostics.Stopwatch]::StartNew()

@@ -1366,4 +1366,22 @@
     <sys:String x:Key="MacDetailModified">Sửa đổi</sys:String>
     <sys:String x:Key="MacDetailState">Trạng thái</sys:String>
     <sys:String x:Key="MacPresetSelectHint">Chọn một preset để xem chuỗi quy tắc.</sys:String>
+    <!-- v3.2 P7: alerts, settings window, popover -->
+    <sys:String x:Key="MacAlertOk">OK</sys:String>
+    <sys:String x:Key="MacAlertYes">Có</sys:String>
+    <sys:String x:Key="MacAlertNo">Không</sys:String>
+    <sys:String x:Key="MacSearchRules">Tìm quy tắc</sys:String>
+    <sys:String x:Key="MacInsertToken">Chèn token</sys:String>
+    <sys:String x:Key="MacSettingsGeneral">Chung</sys:String>
+    <sys:String x:Key="MacSettingsAppearance">Giao diện</sys:String>
+    <sys:String x:Key="MacSettingsShortcuts">Phím tắt &amp; Chuột</sys:String>
+    <sys:String x:Key="MacSettingsRadial">Menu tròn</sys:String>
+    <sys:String x:Key="MacSettingsPro">Pro</sys:String>
+    <sys:String x:Key="MacSettingsAbout">Giới thiệu</sys:String>
+    <sys:String x:Key="MacSettingsKeyCombination">Tổ hợp phím</sys:String>
+    <sys:String x:Key="MacSettingsHoldDuration">Thời gian giữ</sys:String>
+    <sys:String x:Key="SettingsReduceMotion">Giảm chuyển động</sys:String>
+    <sys:String x:Key="SettingsReduceMotionHint">Chỉ còn mờ dần ngắn; tắt trượt, phóng to và rung. Tự bật khi Windows tắt hiệu ứng.</sys:String>
+    <sys:String x:Key="MacSettingsLanguageLabel">Ngôn ngữ</sys:String>
+    <sys:String x:Key="MacSettingsThemeLabel">Chế độ hiển thị</sys:String>
 </ResourceDictionary>

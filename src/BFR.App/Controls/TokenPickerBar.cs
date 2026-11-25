@@ -8,7 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 
 /// <summary>
-/// Thanh chọn token dạng chip bấm chọn phân nhóm (Basic, Date, Media, Hash).
+/// Chọn token dạng chip phân nhóm (Basic, Date, Media, Hash) trong một popover mở từ nút "Chèn token".
 /// Nhấp vào chip sẽ chèn token vào đúng vị trí con trỏ (CaretIndex) của <see cref="TargetTextBox"/>.
 /// </summary>
 public sealed class TokenPickerBar : StackPanel
@@ -72,8 +72,19 @@ public sealed class TokenPickerBar : StackPanel
         Orientation = Orientation.Vertical;
         Margin = new Thickness(0, 6, 0, 2);
 
-        Children.Add(_tabs);
-        Children.Add(_chips);
+        // Một nút nhỏ mở popover, để không chiếm chỗ trong inspector.
+        var panel = new StackPanel { Width = 280 };
+        panel.Children.Add(_tabs);
+        panel.Children.Add(_chips);
+
+        var open = new Button { Content = T("MacInsertToken", "Insert token"), HorizontalAlignment = HorizontalAlignment.Left };
+        open.SetResourceReference(StyleProperty, "Mac.Button.Small");
+        System.Windows.Automation.AutomationProperties.SetName(open, T("MacInsertToken", "Insert token"));
+        var popover = new BFR.App.Controls.Mac.MacPopover(open, panel, T("MacInsertToken", "Insert token"));
+        open.Click += (_, _) => popover.IsOpen = true;
+        Unloaded += (_, _) => popover.IsOpen = false;
+        Children.Add(open);
+        Children.Add(popover);
 
         BuildTabs();
         SelectGroup(0);
