@@ -3,14 +3,14 @@
     <!-- Bảng màu nhấn Sunset. Cặp Acc1 → Acc2 là gradient của nút chính, ô đang chọn, tiến trình:
          chữ trắng trên cả hai đầu phải đạt tương phản 4.5:1 (có test). Glow chỉ dùng cho đốm sáng nền, không chứa chữ. -->
 
-    <Color x:Key="BfrAcc1Color">#FFC93F0A</Color>
-    <Color x:Key="BfrAcc2Color">#FFC2255C</Color>
-    <Color x:Key="BfrGlow1Color">#FFFF8A3D</Color>
-    <Color x:Key="BfrGlow2Color">#FFFF4D7D</Color>
-    <Color x:Key="BfrAccFgDarkColor">#FFFFAB76</Color>
-    <Color x:Key="BfrAccFgLightColor">#FFB8400C</Color>
-    <Color x:Key="BfrAcc1SoftColor">#42C93F0A</Color>
-    <Color x:Key="BfrAcc2SoftColor">#2EC2255C</Color>
+    <Color x:Key="BfrAcc1Color">#FFD12B20</Color>
+    <Color x:Key="BfrAcc2Color">#FFC93E1E</Color>
+    <Color x:Key="BfrGlow1Color">#FFFF453A</Color>
+    <Color x:Key="BfrGlow2Color">#FFFF5E3A</Color>
+    <Color x:Key="BfrAccFgDarkColor">#FFFF6961</Color>
+    <Color x:Key="BfrAccFgLightColor">#FFC92A1E</Color>
+    <Color x:Key="BfrAcc1SoftColor">#38FF453A</Color>
+    <Color x:Key="BfrAcc2SoftColor">#24FF5E3A</Color>
 
     <LinearGradientBrush x:Key="BfrAccGradient" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="{DynamicResource BfrAcc1Color}" Offset="0" />

@@ -60,6 +60,15 @@ public sealed class AppSettings
     /// <summary>Thời gian giữ chuột giữa (ms) để bung Menu Tròn. Mặc định 220ms.</summary>
     public int MiddleMouseHoldMs { get; set; } = 220;
 
+    /// <summary>Hiện nút tròn nổi (Desktop Floating Orb) trên Desktop &amp; mọi ứng dụng. Mặc định BẬT.</summary>
+    public bool ShowFloatingOrb { get; set; } = true;
+
+    /// <summary>Vị trí X đã lưu của nút tròn nổi (DIP).</summary>
+    public double? FloatingOrbX { get; set; }
+
+    /// <summary>Vị trí Y đã lưu của nút tròn nổi (DIP).</summary>
+    public double? FloatingOrbY { get; set; }
+
     /// <summary>Danh sách khoá công cụ được người dùng gắn sao yêu thích (★) trong All Tools &amp; Smart Home.</summary>
     public List<string> FavoriteTools { get; set; } = new();
 
@@ -76,7 +85,7 @@ public sealed class AppSettings
     public string Theme { get; set; } = "System";
 
     /// <summary>Bảng màu nhấn: "Aurora" (mặc định), "Mint" hoặc "Sunset".</summary>
-    public string AccentPalette { get; set; } = "Aurora";
+    public string AccentPalette { get; set; } = "Sunset";
 
     /// <summary>Hiện linh vật Tem (trang chủ, trạng thái rỗng). Mặc định bật.</summary>
     public bool ShowMascot { get; set; } = true;
@@ -101,6 +110,24 @@ public sealed class AppSettings
     /// <summary>Đưa giá trị bất kỳ (kể cả từ tệp bị sửa) về một lựa chọn hợp lệ gần nhất; mặc định 30.</summary>
     public static int NormalizeRetentionDays(int days) =>
         Array.IndexOf(RetentionChoices, days) >= 0 ? days : 30;
+
+    /// <summary>Cấu trúc thông minh khi OCR (tiêu đề, bảng, nối đoạn qua trang).</summary>
+    public bool OcrStructuredLayout { get; set; } = true;
+
+    /// <summary>Preset máy chủ AI Deep OCR ("UnlimitedOcr2Sglang", "OllamaLocal", "OpenAiCompatible").</summary>
+    public string AiOcrPreset { get; set; } = "UnlimitedOcr2Sglang";
+
+    /// <summary>Base URL máy chủ AI Deep OCR do người dùng tự cấu hình.</summary>
+    public string AiOcrBaseUrl { get; set; } = "http://127.0.0.1:10000";
+
+    /// <summary>Tên model Vision OCR.</summary>
+    public string AiOcrModel { get; set; } = "Unlimited-OCR-2";
+
+    /// <summary>API Key AI Deep OCR đã mã hoá cục bộ bằng Windows DPAPI.</summary>
+    public string AiOcrEncryptedApiKey { get; set; } = string.Empty;
+
+    /// <summary>Số trang mỗi cửa sổ trượt (sliding window) cho AI Deep OCR.</summary>
+    public int AiOcrWindowSize { get; set; } = 4;
 }
 
 /// <summary>

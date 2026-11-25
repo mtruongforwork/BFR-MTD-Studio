@@ -69,10 +69,10 @@ public partial class CommandPaletteWindow : Window
 
     private void RunSelected()
     {
-        if (_vm.ExecuteSelected())
-        {
-            SafeClose();
-        }
+        var selected = _vm.Selected;
+        if (selected is null) return;
+        SafeClose();
+        _vm.Execute(selected);
     }
 
     private void RunCommand(PaletteCommand? command)

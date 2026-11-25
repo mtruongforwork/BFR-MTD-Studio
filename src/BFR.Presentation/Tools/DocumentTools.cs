@@ -199,6 +199,18 @@ public sealed class PdfMergeTool : ITool
                 return ToolPlan.Error(res.Message ?? "Merge failed.");
             }
 
+            if (res.PagesProcessed > ctx.License.Limits.MaxPdfPages)
+            {
+                staged.Cleanup();
+                return new ToolPlan
+                {
+                    Blocked = true,
+                    Messages = new[] { FeatureMessages.For(ProFeature.PdfUnlimitedPages) },
+                    UpgradeFeature = ProFeature.PdfUnlimitedPages,
+                    Summary = FeatureMessages.For(ProFeature.PdfUnlimitedPages)
+                };
+            }
+
             return new ToolPlan
             {
                 Rows = new[] { new ToolRow(Path.GetFileName(finalPath), $"{res.PagesProcessed} pages · {ToolText.Size(res.OutputBytes)}") },
@@ -231,7 +243,14 @@ public sealed class DocToPdfTool : ITool
         if (files.Count > 1 && !ctx.License.Allows(ProFeature.DocumentBatch))
             return new ToolPlan { Blocked = true, Messages = new[] { FeatureMessages.For(ProFeature.DocumentBatch) }, UpgradeFeature = ProFeature.DocumentBatch, Summary = FeatureMessages.For(ProFeature.DocumentBatch) };
 
+        static bool IsTextDoc(string path) =>
+            Path.GetExtension(path).ToLowerInvariant() is ".md" or ".markdown" or ".txt" or ".csv" or ".tsv";
+
+        if (files.Any(f => !IsTextDoc(f.FullPath)) && !ctx.License.Allows(ProFeature.OfficeConversion))
+            return new ToolPlan { Blocked = true, Messages = new[] { FeatureMessages.For(ProFeature.OfficeConversion) }, UpgradeFeature = ProFeature.OfficeConversion, Summary = FeatureMessages.For(ProFeature.OfficeConversion) };
+
         var bridge = new HybridOfficePdfBridge();
+        var textRenderer = new TextDocumentPdfRenderer();
         var staged = new StagedOutputs(ctx);
 
         return await staged.BuildAsync(async () =>
@@ -247,7 +266,9 @@ public sealed class DocToPdfTool : ITool
                     continue;
                 }
 
-                var res = await bridge.ConvertToPdfAsync(f.FullPath, stagingPath, ct: ct).ConfigureAwait(false);
+                var res = IsTextDoc(f.FullPath)
+                    ? await textRenderer.RenderToPdfAsync(f.FullPath, stagingPath, ct: ct).ConfigureAwait(false)
+                    : await bridge.ConvertToPdfAsync(f.FullPath, stagingPath, ct: ct).ConfigureAwait(false);
                 rows.Add(res.Success && staged.Commit(stagingPath, finalPath)
                     ? new ToolRow(ToolText.Name(f.FullPath), Path.GetFileName(finalPath))
                     : new ToolRow(ToolText.Name(f.FullPath), res.Message ?? res.ErrorCode.ToString(), ToolRowState.Error));
@@ -339,6 +360,9 @@ public sealed class OfflineOcrTool : ITool
     {
         var files = ctx.ScanFiles();
         if (files.Count == 0) return ToolPlan.Empty(ToolText.T("CoreToolNoFiles", "No PDF or image files added."));
+
+        if (files.Count > 1 && !ctx.License.Allows(ProFeature.DocumentBatch))
+            return new ToolPlan { Blocked = true, Messages = new[] { FeatureMessages.For(ProFeature.DocumentBatch) }, UpgradeFeature = ProFeature.DocumentBatch, Summary = FeatureMessages.For(ProFeature.DocumentBatch) };
 
         var lang = ctx.Text("lang", "en-US");
         var ocr = new WindowsOcrService();

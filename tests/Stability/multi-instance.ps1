@@ -83,7 +83,7 @@ try {
         $visible = $script:AE::RootElement.FindFirst($script:TS::Children, (Prop-Cond $script:AE::ProcessIdProperty $bg.Id))
         $hiddenOk = (-not $bg.HasExited) -and ($null -eq $visible -or $visible.Current.IsOffscreen)
         $second = Launch ''
-        $shown = Wait-For { $w = $script:AE::RootElement.FindFirst($script:TS::Children, (Prop-Cond $script:AE::NameProperty 'Batch File Renamer Main Window')); $null -ne $w -and $w.Current.ProcessId -eq $bg.Id } 15000 300
+        $shown = Wait-For { $w = $script:AE::RootElement.FindFirst($script:TS::Children, (Prop-Cond $script:AE::NameProperty 'FileFlow Studio Main Window')); $null -ne $w -and $w.Current.ProcessId -eq $bg.Id } 15000 300
         $single = Wait-For { (App-Processes).Count -eq 1 } 15000 300
         $lines.Add("- background: khởi động ẩn = $hiddenOk; mở lần 2 hiện cửa sổ của tiến trình nền = $shown; một tiến trình = $single")
         if (-not $hiddenOk) { $failures.Add('[background] --background vẫn hiện cửa sổ hoặc tiến trình đã thoát') }

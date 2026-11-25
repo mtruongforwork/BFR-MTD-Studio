@@ -128,7 +128,7 @@ function Find-ByClass($parent, [string]$className) {
 function Get-MainWindow($proc, [int]$timeoutMs = 45000) {
     $win = $null
     $ok = Wait-For {
-        $script:__w = $script:AE::RootElement.FindFirst($script:TS::Children, (Prop-Cond $script:AE::NameProperty 'Batch File Renamer Main Window'))
+        $script:__w = $script:AE::RootElement.FindFirst($script:TS::Children, (Prop-Cond $script:AE::NameProperty 'FileFlow Studio Main Window'))
         $null -ne $script:__w -and $script:__w.Current.ProcessId -eq $proc.Id
     } $timeoutMs 300
     if (-not $ok) { throw 'Không thấy cửa sổ chính' }
@@ -139,7 +139,12 @@ function Select-Nav($win, [string]$name) {
     $nav = Find-Visible $win $name
     if ($null -eq $nav) { $nav = $win.FindFirst($script:TS::Descendants, (Prop-Cond $script:AE::NameProperty $name)) }
     if ($null -eq $nav) { throw "Không thấy mục '$name'" }
-    $nav.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $sel = $null
+    if ($nav.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern, [ref]$sel)) {
+        $sel.Select()
+    } else {
+        $nav.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    }
 }
 
 function Invoke-Named($win, [string]$name) {

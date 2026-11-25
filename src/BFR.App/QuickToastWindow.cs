@@ -410,10 +410,13 @@ public sealed class QuickToastWindow : Window
                 continueBtn.Click += (_, _) =>
                 {
                     var menu = new ContextMenu();
+                    if (Application.Current?.TryFindResource("AppContextMenuStyle") is Style menuStyle)
+                        menu.Style = menuStyle;
+                    var itemStyle = Application.Current?.TryFindResource("AppMenuItemStyle") as Style;
                     foreach (var suggestion in suggestions)
                     {
                         var captured = suggestion;
-                        var item = new MenuItem { Header = Loc.T(suggestion.LabelKey) };
+                        var item = new MenuItem { Header = Loc.T(suggestion.LabelKey), Style = itemStyle };
                         item.Click += (_, _) =>
                         {
                             onContinueWith(captured, existingOutputs);

@@ -36,6 +36,9 @@ public sealed class WatchFolderService : IDisposable
     /// <summary>Giới hạn số đường dẫn lưu trong bộ nhớ đệm chống lặp (STAB-5).</summary>
     public const int MaxTrackedPaths = 50_000;
 
+    /// <summary>Số lần thử lại tối đa khi tệp tạm bị khóa lúc sao chép/quét virus.</summary>
+    private const int MaxFileRetries = 3;
+
     private readonly WatchFolderOptions _options;
     private readonly string _label;
     private readonly Func<IReadOnlyList<string>, WatchFolderResult> _process;
@@ -44,6 +47,7 @@ public sealed class WatchFolderService : IDisposable
     private readonly WatchFolderPlanner _planner = new();
     private readonly BoundedPathSet _seen = new(MaxTrackedPaths);
     private readonly BoundedPathSet _produced = new(MaxTrackedPaths);
+    private readonly Dictionary<string, int> _retries = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
 
     private FileSystemWatcher? _watcher;
@@ -213,7 +217,11 @@ public sealed class WatchFolderService : IDisposable
     {
         if (string.IsNullOrWhiteSpace(e.FullPath)) return;
         _planner.Forget(e.FullPath);
-        lock (_gate) { _seen.Remove(e.FullPath); }
+        lock (_gate)
+        {
+            _seen.Remove(e.FullPath);
+            _retries.Remove(e.FullPath);
+        }
     }
 
     private void OnError(object sender, ErrorEventArgs e)
@@ -232,22 +240,36 @@ public sealed class WatchFolderService : IDisposable
             var ready = _planner.TakeReady(DateTime.UtcNow, _options.SettleDelay);
             if (ready.Count == 0) return;
 
-            List<string> batch;
+            List<string> candidates;
             lock (_gate)
             {
-                batch = ready
+                candidates = ready
                     // Sự kiện của thư mục (ví dụ thư mục do Organize vừa tạo) và tệp đã biến mất không tạo lô rỗng.
                     .Where(p => !_seen.Contains(p) && !_produced.Contains(p) && _fs.FileExists(p))
                     .ToList();
-
-                foreach (var path in batch) _seen.Add(path);
             }
 
-            if (batch.Count == 0) return;
+            if (candidates.Count == 0) return;
 
-            if (batch.Count > _options.MaxFilesPerBatch)
+            List<string> batch;
+            if (candidates.Count > _options.MaxFilesPerBatch)
             {
-                batch = batch.Take(_options.MaxFilesPerBatch).ToList();
+                batch = candidates.Take(_options.MaxFilesPerBatch).ToList();
+                // Đưa phần dư trở lại hàng đợi để xử lý ở lượt kế tiếp thay vì đánh dấu _seen rồi bỏ sót vĩnh viễn.
+                var requeueTime = DateTime.UtcNow;
+                foreach (var overflow in candidates.Skip(_options.MaxFilesPerBatch))
+                {
+                    _planner.Notify(overflow, requeueTime);
+                }
+            }
+            else
+            {
+                batch = candidates;
+            }
+
+            lock (_gate)
+            {
+                foreach (var path in batch) _seen.Add(path);
             }
 
             Log("info", CoreText.Get("CoreWatchDetected", "Phát hiện {0} tệp mới, đang áp dụng preset…", batch.Count));
@@ -256,15 +278,46 @@ public sealed class WatchFolderService : IDisposable
             Interlocked.Increment(ref _processedBatches);
             Interlocked.Add(ref _renamedFiles, result.Renamed);
 
+            var failedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (path, error) in result.Errors)
             {
                 Log("warn", CoreText.Get("CoreWatchSkipped", "Bỏ qua: {0}", error), path);
+                if (!string.IsNullOrWhiteSpace(path)) failedPaths.Add(path);
             }
 
-            // Ghi nhớ các tệp mới sinh ra để không xử lý lại (chống lặp).
+            // Ghi nhớ các tệp mới sinh ra để không xử lý lại (chống lặp), và cho phép thử lại có giới hạn các tệp lỗi tạm (đang bị khóa).
+            var retryNow = DateTime.UtcNow;
+            var toRequeue = new List<string>();
             lock (_gate)
             {
                 foreach (var path in result.RenamedPaths) _produced.Add(path);
+
+                foreach (var path in batch)
+                {
+                    if (result.Failed > 0 && failedPaths.Contains(path) && _fs.FileExists(path))
+                    {
+                        var attempts = _retries.TryGetValue(path, out var prev) ? prev + 1 : 1;
+                        if (attempts <= MaxFileRetries)
+                        {
+                            _retries[path] = attempts;
+                            _seen.Remove(path);
+                            toRequeue.Add(path);
+                        }
+                        else
+                        {
+                            _retries.Remove(path);
+                        }
+                    }
+                    else
+                    {
+                        _retries.Remove(path);
+                    }
+                }
+            }
+
+            foreach (var retryPath in toRequeue)
+            {
+                _planner.Notify(retryPath, retryNow);
             }
 
             Log(result.Failed > 0 ? "warn" : "info",

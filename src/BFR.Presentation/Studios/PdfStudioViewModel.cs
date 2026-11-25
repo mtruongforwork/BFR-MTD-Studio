@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using BFR.Core.Licensing;
@@ -18,7 +19,8 @@ public enum PdfStudioMode
     Compress,
     Stamp,
     Security,
-    Convert
+    Convert,
+    Compare
 }
 
 public enum PdfSecurityAction
@@ -36,6 +38,14 @@ public enum PdfConvertTarget
     Markdown,
     Docx
 }
+
+public sealed record SplitPreviewGroup(int PartIndex, int StartPage, int EndPage, int PageCount);
+
+public sealed record SplitValidationResult(
+    bool IsValid,
+    string? ErrorMessageVi,
+    string? ErrorMessageEn,
+    IReadOnlyList<SplitPreviewGroup> Groups);
 
 public sealed class PdfSourceFileViewModel : ObservableObject
 {
@@ -105,6 +115,7 @@ public sealed class PdfPageItemViewModel : ObservableObject
     private bool _isLocked;
     private string? _password;
     private int _partIndex = 1;
+    private bool _isSelectedForExtract;
 
     public PdfPageItemViewModel(string filePath, int pageNumber, bool isLocked = false, string? password = null)
     {
@@ -160,6 +171,13 @@ public sealed class PdfPageItemViewModel : ObservableObject
         get => _partIndex;
         set => Set(ref _partIndex, value);
     }
+
+    /// <summary>True when this page is highlighted for extraction in Organize → Extract mode.</summary>
+    public bool IsSelectedForExtract
+    {
+        get => _isSelectedForExtract;
+        set => Set(ref _isSelectedForExtract, value);
+    }
 }
 
 /// <summary>
@@ -168,6 +186,10 @@ public sealed class PdfPageItemViewModel : ObservableObject
 /// </summary>
 public sealed class PdfStudioViewModel : ObservableObject
 {
+    private static readonly Regex KnownSuffixRegex = new(
+        @"_(?:extracted|organized|split|stamped|compressed|protected|unlocked|clean|pages|part\d+|p[\d\-]+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly LicenseService _license;
     private readonly IDocumentInspector _inspector;
     private readonly PdfOrganizer _organizer;
@@ -178,6 +200,7 @@ public sealed class PdfStudioViewModel : ObservableObject
     private readonly PdfExtractor _extractor;
     private readonly PdfRepairService _repairService;
     private readonly string? _journalDir;
+    private readonly List<string> _originalFileOrder = new();
 
     private PdfStudioMode _mode = PdfStudioMode.Organize;
     private bool _isBusy;
@@ -188,6 +211,7 @@ public sealed class PdfStudioViewModel : ObservableObject
     private string? _upgradePromptMessage;
     private IReadOnlyList<string> _lastOutputPaths = Array.Empty<string>();
     private IReadOnlyList<ContinueWithAction> _continueWithSuggestions = Array.Empty<ContinueWithAction>();
+    private int _unsavedChangeCount;
 
     public PdfStudioViewModel(
         LicenseService license,
@@ -285,14 +309,98 @@ public sealed class PdfStudioViewModel : ObservableObject
     public int ActivePageCount => Pages.Count(p => !p.IsDeleted);
     public bool HasSplitMarkers => Pages.Any(p => !p.IsDeleted && p.SplitAfter);
 
+    public int UnsavedChangeCount
+    {
+        get => _unsavedChangeCount;
+        private set => Set(ref _unsavedChangeCount, value);
+    }
+
+    // ---------------------------------------------------------------- Smart Output Naming (P1 #8)
+
+    /// <summary>
+    /// Iteratively strips trailing known tool suffixes so repeated operations never stack suffixes
+    /// (e.g. "report_extracted_part1_p1-3" -> "report").
+    /// </summary>
+    public static string StripKnownSuffixes(string baseName)
+    {
+        if (string.IsNullOrWhiteSpace(baseName)) return string.Empty;
+
+        var current = baseName.Trim();
+        while (true)
+        {
+            var match = KnownSuffixRegex.Match(current);
+            if (!match.Success) break;
+            var stripped = current[..match.Index];
+            if (string.IsNullOrWhiteSpace(stripped)) break;
+            current = stripped;
+        }
+
+        return current;
+    }
+
+    /// <summary>
+    /// Builds a clean extract output file name:
+    /// - empty or all pages -> "{base}_organized.pdf"
+    /// - short page list -> "{base}_p1-3-5-7.pdf"
+    /// - suffix longer than 20 chars -> "{base}_pages.pdf"
+    /// </summary>
+    public static string BuildExtractOutputFileName(
+        string sourcePath,
+        IReadOnlyList<int> selected1BasedPages,
+        int totalActivePages = 0)
+    {
+        var rawBase = string.IsNullOrWhiteSpace(sourcePath)
+            ? "document"
+            : Path.GetFileNameWithoutExtension(sourcePath);
+        var cleanBase = StripKnownSuffixes(rawBase);
+        if (string.IsNullOrWhiteSpace(cleanBase)) cleanBase = "document";
+
+        if (selected1BasedPages is null || selected1BasedPages.Count == 0)
+            return $"{cleanBase}_organized.pdf";
+
+        var pages = selected1BasedPages
+            .Where(p => p > 0)
+            .Distinct()
+            .OrderBy(p => p)
+            .ToList();
+
+        if (pages.Count == 0 || (totalActivePages > 0 && pages.Count >= totalActivePages))
+            return $"{cleanBase}_organized.pdf";
+
+        var suffix = $"_p{string.Join("-", pages)}";
+        if (suffix.Length > 20)
+            return $"{cleanBase}_pages.pdf";
+
+        return $"{cleanBase}{suffix}.pdf";
+    }
+
+    /// <summary>
+    /// Builds a clean split part file name: "{base}_part{partIndex}.pdf".
+    /// </summary>
+    public static string BuildSplitPartFileName(string sourcePath, int partIndex)
+    {
+        var rawBase = string.IsNullOrWhiteSpace(sourcePath)
+            ? "document"
+            : Path.GetFileNameWithoutExtension(sourcePath);
+        var cleanBase = StripKnownSuffixes(rawBase);
+        if (string.IsNullOrWhiteSpace(cleanBase)) cleanBase = "document";
+
+        var safePart = Math.Max(1, partIndex);
+        return $"{cleanBase}_part{safePart}.pdf";
+    }
+
     public void Clear()
     {
         LoadedFiles.Clear();
         Pages.Clear();
+        _originalFileOrder.Clear();
         ClearPrompt();
         LastOutputPaths = Array.Empty<string>();
         StatusMessage = string.Empty;
         LastErrorCode = DocumentErrorCode.None;
+        UnsavedChangeCount = 0;
+        Raise(nameof(ActivePageCount));
+        Raise(nameof(HasSplitMarkers));
     }
 
     public void ClearPrompt()
@@ -322,6 +430,7 @@ public sealed class PdfStudioViewModel : ObservableObject
                 var desc = await _inspector.InspectAsync(path, null, ct);
                 var fileVm = new PdfSourceFileViewModel(path, desc);
                 LoadedFiles.Add(fileVm);
+                _originalFileOrder.Add(path);
 
                 if (desc.RequiresUserPassword)
                 {
@@ -371,12 +480,64 @@ public sealed class PdfStudioViewModel : ObservableObject
         Pages.RemoveAt(fromIndex);
         Pages.Insert(toIndex, item);
         RecalculatePartIndices();
+        UnsavedChangeCount++;
+    }
+
+    /// <summary>
+    /// Moves multiple selected pages together to <paramref name="targetIndex"/> while preserving their relative order.
+    /// </summary>
+    public void MovePages(IReadOnlyList<int> sourceIndices, int targetIndex)
+    {
+        if (sourceIndices is null || sourceIndices.Count == 0 || Pages.Count == 0) return;
+
+        var sorted = sourceIndices
+            .Where(i => i >= 0 && i < Pages.Count)
+            .Distinct()
+            .OrderBy(i => i)
+            .ToList();
+
+        if (sorted.Count == 0 || sorted.Count == Pages.Count) return;
+
+        var clampedTarget = Math.Clamp(targetIndex, 0, Pages.Count);
+        var moving = sorted.Select(i => Pages[i]).ToList();
+        var movingSet = new HashSet<int>(sorted);
+        var remaining = new List<PdfPageItemViewModel>(Pages.Count - sorted.Count);
+        for (var i = 0; i < Pages.Count; i++)
+        {
+            if (!movingSet.Contains(i)) remaining.Add(Pages[i]);
+        }
+
+        var countBefore = sorted.Count(i => i < clampedTarget);
+        var movingStrictlyDown = clampedTarget > sorted[^1] && clampedTarget < Pages.Count;
+        var insertAt = Math.Clamp(clampedTarget - countBefore + (movingStrictlyDown ? 1 : 0), 0, remaining.Count);
+
+        var reordered = new List<PdfPageItemViewModel>(Pages.Count);
+        reordered.AddRange(remaining.Take(insertAt));
+        reordered.AddRange(moving);
+        reordered.AddRange(remaining.Skip(insertAt));
+
+        var changed = false;
+        for (var i = 0; i < Pages.Count; i++)
+        {
+            if (!ReferenceEquals(Pages[i], reordered[i]))
+            {
+                changed = true;
+                break;
+            }
+        }
+        if (!changed) return;
+
+        Pages.Clear();
+        foreach (var p in reordered) Pages.Add(p);
+        RecalculatePartIndices();
+        UnsavedChangeCount++;
     }
 
     public void RotatePage(PdfPageItemViewModel page, int deltaDegrees)
     {
-        if (page is null) return;
+        if (page is null || deltaDegrees == 0) return;
         page.RotationDegrees += deltaDegrees;
+        UnsavedChangeCount++;
     }
 
     public void DeletePage(PdfPageItemViewModel page)
@@ -386,6 +547,112 @@ public sealed class PdfStudioViewModel : ObservableObject
         RecalculatePartIndices();
         Raise(nameof(ActivePageCount));
         Raise(nameof(HasSplitMarkers));
+        UnsavedChangeCount++;
+    }
+
+    /// <summary>
+    /// Restores soft-deleted pages (used by the 5-second non-blocking Delete Undo toast).
+    /// </summary>
+    public void RestorePages(IEnumerable<PdfPageItemViewModel> pages)
+    {
+        if (pages is null) return;
+
+        var restoredCount = 0;
+        foreach (var page in pages)
+        {
+            if (page is not null && page.IsDeleted)
+            {
+                page.IsDeleted = false;
+                restoredCount++;
+            }
+        }
+
+        if (restoredCount == 0) return;
+
+        RecalculatePartIndices();
+        Raise(nameof(ActivePageCount));
+        Raise(nameof(HasSplitMarkers));
+        UnsavedChangeCount = Math.Max(0, UnsavedChangeCount - restoredCount);
+    }
+
+    /// <summary>
+    /// Restores all organize edits (deletions, rotations, split markers, page order, and file order).
+    /// </summary>
+    public void ResetOrganizeChanges()
+    {
+        if (_originalFileOrder.Count > 0 && LoadedFiles.Count > 1)
+        {
+            var origRank = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < _originalFileOrder.Count; i++)
+            {
+                origRank.TryAdd(_originalFileOrder[i], i);
+            }
+
+            var sortedFiles = LoadedFiles
+                .OrderBy(f => origRank.TryGetValue(f.FilePath, out var r) ? r : int.MaxValue)
+                .ToList();
+
+            LoadedFiles.Clear();
+            foreach (var f in sortedFiles) LoadedFiles.Add(f);
+        }
+
+        var fileOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < LoadedFiles.Count; i++)
+        {
+            fileOrder.TryAdd(LoadedFiles[i].FilePath, i);
+        }
+
+        foreach (var page in Pages)
+        {
+            page.IsDeleted = false;
+            page.RotationDegrees = 0;
+            page.SplitAfter = false;
+            page.IsSelectedForExtract = false;
+        }
+
+        var sortedPages = Pages
+            .OrderBy(p => fileOrder.TryGetValue(p.FilePath, out var idx) ? idx : int.MaxValue)
+            .ThenBy(p => p.PageNumber)
+            .ToList();
+
+        Pages.Clear();
+        foreach (var page in sortedPages) Pages.Add(page);
+
+        RecalculatePartIndices();
+        Raise(nameof(ActivePageCount));
+        Raise(nameof(HasSplitMarkers));
+        UnsavedChangeCount = 0;
+    }
+
+    /// <summary>
+    /// Reorders <see cref="LoadedFiles"/> and moves each file's pages in <see cref="Pages"/> to match the new merge order.
+    /// </summary>
+    public void ReorderLoadedFiles(int fromFileIndex, int toFileIndex)
+    {
+        if (fromFileIndex < 0 || fromFileIndex >= LoadedFiles.Count) return;
+        if (toFileIndex < 0 || toFileIndex >= LoadedFiles.Count || fromFileIndex == toFileIndex) return;
+
+        var file = LoadedFiles[fromFileIndex];
+        LoadedFiles.RemoveAt(fromFileIndex);
+        LoadedFiles.Insert(toFileIndex, file);
+
+        var reorderedPages = new List<PdfPageItemViewModel>(Pages.Count);
+        foreach (var loadedFile in LoadedFiles)
+        {
+            reorderedPages.AddRange(Pages.Where(p => string.Equals(p.FilePath, loadedFile.FilePath, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        var included = new HashSet<PdfPageItemViewModel>(reorderedPages);
+        foreach (var page in Pages)
+        {
+            if (included.Add(page)) reorderedPages.Add(page);
+        }
+
+        Pages.Clear();
+        foreach (var page in reorderedPages) Pages.Add(page);
+
+        RecalculatePartIndices();
+        UnsavedChangeCount++;
     }
 
     public void ToggleSplitAfter(PdfPageItemViewModel page)
@@ -396,8 +663,337 @@ public sealed class PdfStudioViewModel : ObservableObject
         Raise(nameof(HasSplitMarkers));
     }
 
+    // ---------------------------------------------------------------- 2-Way Split Sync & Validation (P0 #5)
+
     /// <summary>
-    /// Parses a range string (e.g. "1-3, 5, 8-end") across active pages and sets <see cref="PdfPageItemViewModel.SplitAfter"/>
+    /// Returns the current split preview groups derived from active pages' <see cref="PdfPageItemViewModel.SplitAfter"/> markers.
+    /// </summary>
+    public IReadOnlyList<SplitPreviewGroup> GetCurrentSplitGroups()
+    {
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        if (active.Count == 0) return Array.Empty<SplitPreviewGroup>();
+
+        var groups = new List<SplitPreviewGroup>();
+        var start = 1;
+        var partIndex = 1;
+
+        for (var i = 0; i < active.Count; i++)
+        {
+            var pageNum = i + 1;
+            var isCut = (active[i].SplitAfter && i < active.Count - 1) || i == active.Count - 1;
+            if (isCut)
+            {
+                groups.Add(new SplitPreviewGroup(partIndex, start, pageNum, pageNum - start + 1));
+                partIndex++;
+                start = pageNum + 1;
+            }
+        }
+
+        return groups;
+    }
+
+    /// <summary>
+    /// Converts current active pages' <see cref="PdfPageItemViewModel.SplitAfter"/> markers into a clean spec
+    /// such as "1-2; 3-8" (or "1-8" if 1 part).
+    /// </summary>
+    public string BuildSplitSpecFromMarkers()
+    {
+        var groups = GetCurrentSplitGroups();
+        if (groups.Count == 0) return string.Empty;
+
+        return string.Join("; ", groups.Select(g =>
+            g.StartPage == g.EndPage ? g.StartPage.ToString() : $"{g.StartPage}-{g.EndPage}"));
+    }
+
+    /// <summary>
+    /// Parses semicolon-separated ranges (e.g. "1-2; 3-end"), validates every page index against <see cref="ActivePageCount"/>,
+    /// updates <see cref="PdfPageItemViewModel.SplitAfter"/> markers on active pages when valid, and returns the preview groups.
+    /// </summary>
+    public SplitValidationResult ValidateAndApplySplitSpec(string spec)
+    {
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        if (active.Count == 0)
+        {
+            return new SplitValidationResult(
+                false,
+                "Chưa có trang PDF nào để tách.",
+                "No active PDF pages to split.",
+                Array.Empty<SplitPreviewGroup>());
+        }
+
+        if (string.IsNullOrWhiteSpace(spec))
+        {
+            return new SplitValidationResult(
+                false,
+                "Nhập khoảng trang cần tách (VD: 1-2; 3-end).",
+                "Enter page ranges to split (e.g. 1-2; 3-end).",
+                Array.Empty<SplitPreviewGroup>());
+        }
+
+        var segments = spec.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0)
+        {
+            return new SplitValidationResult(
+                false,
+                "Nhập khoảng trang cần tách (VD: 1-2; 3-end).",
+                "Enter page ranges to split (e.g. 1-2; 3-end).",
+                Array.Empty<SplitPreviewGroup>());
+        }
+
+        var groups = new List<SplitPreviewGroup>(segments.Length);
+        var partIndex = 1;
+
+        foreach (var seg in segments)
+        {
+            int start;
+            int end;
+
+            var dashIdx = seg.IndexOf('-');
+            if (dashIdx < 0)
+            {
+                if (seg.Equals("end", StringComparison.OrdinalIgnoreCase))
+                {
+                    start = end = active.Count;
+                }
+                else if (int.TryParse(seg, out var single))
+                {
+                    if (single < 1)
+                    {
+                        return new SplitValidationResult(
+                            false,
+                            $"Trang {single} không hợp lệ (phải từ 1 đến {active.Count}).",
+                            $"Page {single} is invalid (must be 1 to {active.Count}).",
+                            Array.Empty<SplitPreviewGroup>());
+                    }
+                    if (single > active.Count)
+                    {
+                        return new SplitValidationResult(
+                            false,
+                            $"Trang {single} vượt quá {active.Count} trang.",
+                            $"Page {single} exceeds {active.Count} pages.",
+                            Array.Empty<SplitPreviewGroup>());
+                    }
+                    start = end = single;
+                }
+                else
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Cú pháp không hợp lệ: '{seg}'.",
+                        $"Invalid syntax: '{seg}'.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+            }
+            else
+            {
+                var parts = seg.Split('-');
+                if (parts.Length != 2)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Cú pháp không hợp lệ: '{seg}'.",
+                        $"Invalid syntax: '{seg}'.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+
+                var startStr = parts[0].Trim();
+                var endStr = parts[1].Trim();
+
+                if (startStr.Equals("end", StringComparison.OrdinalIgnoreCase))
+                {
+                    start = active.Count;
+                }
+                else if (!int.TryParse(startStr, out start))
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Cú pháp không hợp lệ: '{seg}'.",
+                        $"Invalid syntax: '{seg}'.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+
+                if (endStr.Equals("end", StringComparison.OrdinalIgnoreCase))
+                {
+                    end = active.Count;
+                }
+                else if (string.IsNullOrEmpty(endStr) || !int.TryParse(endStr, out end))
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Cú pháp không hợp lệ: '{seg}'.",
+                        $"Invalid syntax: '{seg}'.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+
+                if (start < 1)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Trang {start} không hợp lệ (phải từ 1 đến {active.Count}).",
+                        $"Page {start} is invalid (must be 1 to {active.Count}).",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+                if (start > active.Count)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Trang {start} vượt quá {active.Count} trang.",
+                        $"Page {start} exceeds {active.Count} pages.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+                if (end < 1)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Trang {end} không hợp lệ (phải từ 1 đến {active.Count}).",
+                        $"Page {end} is invalid (must be 1 to {active.Count}).",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+                if (end > active.Count)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Trang {end} vượt quá {active.Count} trang.",
+                        $"Page {end} exceeds {active.Count} pages.",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+                if (start > end)
+                {
+                    return new SplitValidationResult(
+                        false,
+                        $"Khoảng trang '{seg}' không hợp lệ (trang đầu lớn hơn trang cuối).",
+                        $"Invalid range '{seg}' (start page is greater than end page).",
+                        Array.Empty<SplitPreviewGroup>());
+                }
+            }
+
+            groups.Add(new SplitPreviewGroup(partIndex++, start, end, end - start + 1));
+        }
+
+        foreach (var p in active) p.SplitAfter = false;
+        foreach (var g in groups)
+        {
+            if (g.EndPage >= 1 && g.EndPage < active.Count)
+            {
+                active[g.EndPage - 1].SplitAfter = true;
+            }
+        }
+
+        RecalculatePartIndices();
+        Raise(nameof(HasSplitMarkers));
+        return new SplitValidationResult(true, null, null, groups);
+    }
+
+    /// <summary>
+    /// Marks <see cref="PdfPageItemViewModel.SplitAfter"/> every <paramref name="pagesPerPart"/> active pages (N >= 1).
+    /// </summary>
+    public void SplitEveryNPages(int pagesPerPart)
+    {
+        if (pagesPerPart < 1) return;
+
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        for (var i = 0; i < active.Count; i++)
+        {
+            active[i].SplitAfter = i < active.Count - 1 && (i + 1) % pagesPerPart == 0;
+        }
+
+        RecalculatePartIndices();
+        Raise(nameof(HasSplitMarkers));
+    }
+
+    /// <summary>
+    /// Marks <see cref="PdfPageItemViewModel.SplitAfter"/> on every active page except the last.
+    /// </summary>
+    public void SplitEachPage() => SplitEveryNPages(1);
+
+    /// <summary>
+    /// Highlights active pages matching <paramref name="rangeSpec"/> (e.g. "1-2", "1-3, 5, 8-end") for Extract mode.
+    /// Returns the number of matched pages, or -1 if the range syntax is invalid.
+    /// </summary>
+    public int ApplyExtractSelection(string rangeSpec)
+    {
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        foreach (var p in Pages) p.IsSelectedForExtract = false;
+        if (active.Count == 0 || string.IsNullOrWhiteSpace(rangeSpec)) return 0;
+
+        try
+        {
+            var indices = PdfOrganizer.ParsePageRanges(rangeSpec, active.Count);
+            var set = new HashSet<int>(indices);
+            foreach (var idx in set)
+            {
+                if (idx >= 1 && idx <= active.Count)
+                    active[idx - 1].IsSelectedForExtract = true;
+            }
+            return set.Count;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// Extracts ONLY the pages matching <paramref name="rangeSpec"/> (e.g. "1-2" or "1-2, 5") into a single new PDF.
+    /// </summary>
+    public async Task<DocumentResult> ExecuteExtractAsync(
+        string outputPath,
+        string rangeSpec,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        if (active.Count == 0)
+            return FailWith(DocumentErrorCode.Unknown, "No active pages selected.");
+
+        IReadOnlyList<int> pageIndices;
+        try
+        {
+            pageIndices = string.IsNullOrWhiteSpace(rangeSpec)
+                ? Enumerable.Range(1, active.Count).ToList()
+                : PdfOrganizer.ParsePageRanges(rangeSpec, active.Count);
+        }
+        catch (ArgumentException ex)
+        {
+            return FailWith(DocumentErrorCode.Unknown, ex.Message);
+        }
+
+        if (pageIndices.Count == 0)
+            return FailWith(DocumentErrorCode.Unknown, "No pages matched the specified range.");
+
+        if (pageIndices.Count > _license.Limits.MaxPdfPages)
+        {
+            return DenyPro(
+                ProFeature.PdfUnlimitedPages,
+                $"Free tier supports extracting up to {_license.Limits.MaxPdfPages} pages at once (selected {pageIndices.Count}).");
+        }
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var instructions = pageIndices
+                .Select(i => active[i - 1])
+                .Select(p => new PdfPageInstruction(p.FilePath, p.PageNumber, p.RotationDegrees, p.Password ?? FindPassword(p.FilePath)))
+                .ToList();
+
+            var result = await _organizer.BuildFromInstructionsAsync(
+                instructions,
+                outputPath,
+                recordJournal: _journalDir is not null,
+                journalDir: _journalDir,
+                ct: ct).ConfigureAwait(false);
+
+            return RecordResult(result);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Parses a range string (e.g. "1-3, 5, 8-end" or "1-2; 3-5") across active pages and sets <see cref="PdfPageItemViewModel.SplitAfter"/>
     /// at the end of each segment.
     /// </summary>
     public bool ParseRangeAndMarkSplits(string rangeSpec)
@@ -407,7 +1003,7 @@ public sealed class PdfStudioViewModel : ObservableObject
 
         foreach (var p in active) p.SplitAfter = false;
 
-        var segments = rangeSpec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var segments = rangeSpec.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var marked = false;
 
         foreach (var seg in segments)
@@ -485,6 +1081,55 @@ public sealed class PdfStudioViewModel : ObservableObject
         return true;
     }
 
+    /// <summary>
+    /// Saves all active pages (with their current order and rotations) directly into a single organized PDF at <paramref name="outputPdfPath"/>,
+    /// ignoring any scissor split markers. Resets <see cref="UnsavedChangeCount"/> on success.
+    /// </summary>
+    public async Task<DocumentResult> ExecuteOrganizeToPathAsync(string outputPdfPath, CancellationToken ct = default)
+    {
+        ClearPrompt();
+        var active = Pages.Where(p => !p.IsDeleted).ToList();
+        if (active.Count == 0)
+            return FailWith(DocumentErrorCode.Unknown, "No active pages selected.");
+
+        if (LoadedFiles.Count > _license.Limits.MaxPdfMergeFiles)
+        {
+            return DenyPro(
+                ProFeature.PdfUnlimitedPages,
+                $"Free tier supports merging up to {_license.Limits.MaxPdfMergeFiles} PDFs at once (selected {LoadedFiles.Count}).");
+        }
+
+        if (active.Count > _license.Limits.MaxPdfPages)
+        {
+            return DenyPro(
+                ProFeature.PdfUnlimitedPages,
+                $"Free tier supports organizing up to {_license.Limits.MaxPdfPages} pages at once (selected {active.Count}).");
+        }
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var instructions = active
+                .Select(p => new PdfPageInstruction(p.FilePath, p.PageNumber, p.RotationDegrees, p.Password ?? FindPassword(p.FilePath)))
+                .ToList();
+
+            var result = await _organizer.BuildFromInstructionsAsync(
+                instructions,
+                outputPdfPath,
+                recordJournal: _journalDir is not null,
+                journalDir: _journalDir,
+                ct: ct).ConfigureAwait(false);
+
+            if (result.Success) UnsavedChangeCount = 0;
+            return RecordResult(result);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task<DocumentResult> ExecuteOrganizeAsync(string outputPathOrDir, CancellationToken ct = default)
     {
         ClearPrompt();
@@ -524,6 +1169,7 @@ public sealed class PdfStudioViewModel : ObservableObject
                     journalDir: _journalDir,
                     ct: ct).ConfigureAwait(false);
 
+                if (result.Success) UnsavedChangeCount = 0;
                 return RecordResult(result);
             }
 
@@ -533,9 +1179,7 @@ public sealed class PdfStudioViewModel : ObservableObject
                 : Path.GetDirectoryName(outputPathOrDir) ?? ".";
             Directory.CreateDirectory(outDir);
 
-            var baseName = LoadedFiles.FirstOrDefault() is { } first
-                ? Path.GetFileNameWithoutExtension(first.FileName)
-                : "split";
+            var sourcePath = LoadedFiles.FirstOrDefault()?.FilePath ?? "split.pdf";
 
             var segments = SplitIntoSegments(active);
             var outputs = new List<string>();
@@ -546,7 +1190,7 @@ public sealed class PdfStudioViewModel : ObservableObject
             for (var i = 0; i < segments.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                var partPath = Path.Combine(outDir, $"{baseName}_part{i + 1}.pdf");
+                var partPath = Path.Combine(outDir, BuildSplitPartFileName(sourcePath, i + 1));
                 var instructions = segments[i]
                     .Select(p => new PdfPageInstruction(p.FilePath, p.PageNumber, p.RotationDegrees, p.Password ?? FindPassword(p.FilePath)))
                     .ToList();
@@ -565,6 +1209,7 @@ public sealed class PdfStudioViewModel : ObservableObject
                 Progress = (double)(i + 1) / segments.Count;
             }
 
+            UnsavedChangeCount = 0;
             return RecordResult(DocumentResult.Ok(
                 outputPaths: outputs,
                 inputBytes: totalIn,
@@ -578,11 +1223,58 @@ public sealed class PdfStudioViewModel : ObservableObject
         }
     }
 
+    public static string BuildCompressedOutputFileName(string sourcePath)
+    {
+        var stem = StripKnownSuffixes(Path.GetFileNameWithoutExtension(sourcePath));
+        return $"{stem}_compressed.pdf";
+    }
+
+    public static string BuildStampedOutputFileName(string sourcePath)
+    {
+        var stem = StripKnownSuffixes(Path.GetFileNameWithoutExtension(sourcePath));
+        return $"{stem}_stamped.pdf";
+    }
+
+    public Task<PdfCompressionAnalysis?> AnalyzeCompressionAsync(CancellationToken ct = default, bool stripMetadata = true)
+    {
+        if (LoadedFiles.Count == 0) return Task.FromResult<PdfCompressionAnalysis?>(null);
+        var first = LoadedFiles[0];
+        if (first.IsLocked) return Task.FromResult<PdfCompressionAnalysis?>(null);
+        return _compressor.AnalyzeAsync(first.FilePath, first.Password, ct, stripMetadata);
+    }
+
+    public async Task<IReadOnlyDictionary<string, PdfCompressionAnalysis>> AnalyzeAllForCompressionAsync(
+        bool stripMetadata = true,
+        CancellationToken ct = default)
+    {
+        var map = new Dictionary<string, PdfCompressionAnalysis>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in LoadedFiles.ToList())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (file.IsLocked) continue;
+            var analysis = await _compressor.AnalyzeAsync(file.FilePath, file.Password, ct, stripMetadata).ConfigureAwait(false);
+            if (analysis is not null) map[file.FilePath] = analysis;
+        }
+        return map;
+    }
+
+    public Task<(long EstimatedBytes, long MinBytes, long MaxBytes, bool IsHighConfidence)> EstimateCustomCompressionAsync(
+        string filePath,
+        PdfCompressionOptions options,
+        CancellationToken ct = default) =>
+        _compressor.EstimateCustomAsync(filePath, options, ct);
+
     public async Task<DocumentResult> ExecuteCompressAsync(
         string outputPath,
         PdfCompressionPreset preset = PdfCompressionPreset.Balanced,
         bool stripMetadata = true,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? targetDpi = null,
+        int? jpegQualityOverride = null,
+        bool convertToGrayscale = false,
+        bool removeUnusedFonts = false,
+        bool allowOverwrite = false,
+        long? expectedEstimatedBytes = null)
     {
         ClearPrompt();
         if (LoadedFiles.Count == 0)
@@ -598,10 +1290,107 @@ public sealed class PdfStudioViewModel : ObservableObject
         try
         {
             var first = LoadedFiles[0];
-            var opts = new PdfCompressionOptions(preset, stripMetadata, first.Password, _journalDir is not null, _journalDir);
+            var opts = new PdfCompressionOptions(
+                preset,
+                stripMetadata,
+                first.Password,
+                _journalDir is not null,
+                _journalDir,
+                targetDpi,
+                jpegQualityOverride,
+                convertToGrayscale,
+                removeUnusedFonts,
+                allowOverwrite,
+                expectedEstimatedBytes);
             var progress = new Progress<double>(p => Progress = p);
             var result = await _compressor.CompressAsync(first.FilePath, outputPath, opts, progress, ct).ConfigureAwait(false);
             return RecordResult(result);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<(DocumentResult Aggregate, IReadOnlyDictionary<string, DocumentResult> PerFile)> ExecuteBatchCompressAsync(
+        string outputDirectory,
+        PdfCompressionPreset preset,
+        bool stripMetadata,
+        int? targetDpi,
+        int? jpegQualityOverride,
+        bool convertToGrayscale,
+        bool removeUnusedFonts,
+        bool allowOverwrite,
+        IReadOnlyDictionary<string, long>? expectedEstimatedByPath = null,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        var perFile = new Dictionary<string, DocumentResult>(StringComparer.OrdinalIgnoreCase);
+        if (LoadedFiles.Count == 0)
+            return (FailWith(DocumentErrorCode.FileNotFound, "No PDF file loaded."), perFile);
+
+        if (LoadedFiles.Count > 1 && !_license.Allows(ProFeature.DocumentBatch))
+            return (DenyPro(ProFeature.DocumentBatch, FeatureMessages.For(ProFeature.DocumentBatch)), perFile);
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var files = LoadedFiles.Where(f => !f.IsLocked).ToList();
+            if (files.Count == 0)
+                return (FailWith(DocumentErrorCode.PasswordRequired, "Unlock PDFs before compressing."), perFile);
+
+            var outputs = new List<string>();
+            long totalIn = 0;
+            long totalOut = 0;
+            int totalPages = 0;
+
+            for (var i = 0; i < files.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var f = files[i];
+                var targetPath = allowOverwrite
+                    ? f.FilePath
+                    : Path.Combine(
+                        string.IsNullOrWhiteSpace(outputDirectory) ? (Path.GetDirectoryName(f.FilePath) ?? ".") : outputDirectory,
+                        BuildCompressedOutputFileName(f.FilePath));
+
+                long? expected = expectedEstimatedByPath is not null && expectedEstimatedByPath.TryGetValue(f.FilePath, out var ev) ? ev : null;
+                var opts = new PdfCompressionOptions(
+                    preset,
+                    stripMetadata,
+                    f.Password,
+                    _journalDir is not null,
+                    _journalDir,
+                    targetDpi,
+                    jpegQualityOverride,
+                    convertToGrayscale,
+                    removeUnusedFonts,
+                    allowOverwrite,
+                    expected);
+
+                var res = await _compressor.CompressAsync(f.FilePath, targetPath, opts, null, ct).ConfigureAwait(false);
+                perFile[f.FilePath] = res;
+                if (res.Success && res.OutputPath is not null)
+                {
+                    outputs.Add(res.OutputPath);
+                    totalIn += res.InputBytes;
+                    totalOut += res.OutputBytes;
+                    totalPages += res.PagesProcessed;
+                }
+                Progress = (double)(i + 1) / files.Count;
+            }
+
+            if (outputs.Count == 0)
+                return (RecordResult(DocumentResult.Fail(DocumentErrorCode.Unknown, "Compression failed for all selected files.")), perFile);
+
+            var agg = DocumentResult.Ok(
+                outputPaths: outputs,
+                inputBytes: totalIn,
+                outputBytes: totalOut,
+                pagesProcessed: totalPages,
+                message: $"Compressed {outputs.Count} PDF file(s).");
+            return (RecordResult(agg), perFile);
         }
         finally
         {
@@ -642,7 +1431,11 @@ public sealed class PdfStudioViewModel : ObservableObject
                     var r1 = await _stampService.AddWatermarkAsync(first.FilePath, tempMid, watermark with { Password = watermark.Password ?? first.Password }, progress, ct).ConfigureAwait(false);
                     if (!r1.Success) return RecordResult(r1);
                     var r2 = await _stampService.AddPageNumbersAsync(r1.OutputPath ?? tempMid, outputPath, pageNumbers with { RecordJournal = _journalDir is not null, JournalDir = _journalDir }, progress, ct).ConfigureAwait(false);
-                    return RecordResult(r2);
+                    // Preserve original input file size (r1.InputBytes), NOT intermediate tempMid size (r2.InputBytes)!
+                    var fixedResult = r2.Success
+                        ? r2 with { InputBytes = r1.InputBytes }
+                        : r2;
+                    return RecordResult(fixedResult);
                 }
                 finally
                 {
@@ -680,7 +1473,10 @@ public sealed class PdfStudioViewModel : ObservableObject
         PdfSecurityAction action,
         string? userPassword = null,
         string? ownerPassword = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool permitPrint = true,
+        bool permitExtractContent = false,
+        bool permitModifyDocument = false)
     {
         ClearPrompt();
         if (LoadedFiles.Count == 0)
@@ -705,6 +1501,10 @@ public sealed class PdfStudioViewModel : ObservableObject
                 var opts = new PdfProtectOptions(
                     UserPassword: userPassword,
                     OwnerPassword: ownerPassword,
+                    PermitPrint: permitPrint,
+                    PermitExtractContent: permitExtractContent,
+                    PermitModifyDocument: permitModifyDocument,
+                    PermitAnnotations: permitModifyDocument,
                     ExistingPassword: first.Password,
                     RecordJournal: _journalDir is not null,
                     JournalDir: _journalDir);
@@ -790,13 +1590,43 @@ public sealed class PdfStudioViewModel : ObservableObject
                         first.FilePath, outputPathOrDir, first.Password, _journalDir is not null, _journalDir, ct).ConfigureAwait(false));
                 default:
                 {
+                    if (!DocumentSafety.TryPrepareOutputPath(outputPathOrDir, allowOverwrite: false, out var finalOut, out var errCode, out var errMsg))
+                        return RecordResult(DocumentResult.Fail(errCode, errMsg!));
+
                     var maxFreePages = _license.Status.IsPro ? (int?)null : 10;
                     var txt = await _extractor.ExtractTextAsync(first.FilePath, first.Password, maxFreePages, ct).ConfigureAwait(false);
                     if (!txt.Success)
                         return RecordResult(DocumentResult.Fail(txt.ErrorCode, txt.Message ?? "Text extraction failed."));
 
-                    await File.WriteAllTextAsync(outputPathOrDir, txt.Data ?? string.Empty, ct).ConfigureAwait(false);
-                    return RecordResult(DocumentResult.Ok(outputPath: outputPathOrDir, usedSnapshotCopy: txt.UsedSnapshotCopy));
+                    var tempOut = DocumentSafety.CreateTempPath(finalOut);
+                    try
+                    {
+                        await File.WriteAllTextAsync(tempOut, txt.Data ?? string.Empty, new System.Text.UTF8Encoding(false), ct).ConfigureAwait(false);
+                        var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, _journalDir is not null, _journalDir);
+                        tempOut = string.Empty;
+                        return RecordResult(DocumentResult.Ok(
+                            outputPath: finalOut,
+                            inputBytes: first.SizeBytes,
+                            outputBytes: DocumentSafety.SafeFileLength(finalOut),
+                            usedSnapshotCopy: txt.UsedSnapshotCopy,
+                            journalPath: journal));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return RecordResult(DocumentResult.Fail(DocumentErrorCode.Cancelled, "Text export cancelled."));
+                    }
+                    catch (IOException ex) when (DocumentSafety.IsDiskFull(ex))
+                    {
+                        return RecordResult(DocumentResult.Fail(DocumentErrorCode.DiskFull, "Insufficient disk space."));
+                    }
+                    catch (Exception ex)
+                    {
+                        return RecordResult(DocumentResult.Fail(DocumentErrorCode.Unknown, $"Failed to write text file: {ex.Message}"));
+                    }
+                    finally
+                    {
+                        DocumentSafety.CleanupTempFile(tempOut);
+                    }
                 }
             }
         }
@@ -830,6 +1660,82 @@ public sealed class PdfStudioViewModel : ObservableObject
                 StatusMessage = res.Message ?? "Repair failed.";
             }
             return res;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private readonly PdfDiffService _diffService = new();
+    private PdfDiffReport? _lastDiffReport;
+
+    public PdfDiffReport? LastDiffReport
+    {
+        get => _lastDiffReport;
+        private set => Set(ref _lastDiffReport, value);
+    }
+
+    public async Task<DocumentResult<PdfDiffReport>> ExecuteCompareAsync(
+        string leftPdfPath,
+        string rightPdfPath,
+        bool includeVisualDiff = true,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        if (string.IsNullOrWhiteSpace(leftPdfPath) || string.IsNullOrWhiteSpace(rightPdfPath))
+            return DocumentResult<PdfDiffReport>.Fail(DocumentErrorCode.FileNotFound, "Select two PDF files to compare.");
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var maxPages = _license.Status.IsPro ? (int?)null : _license.Limits.MaxPdfDiffPages;
+            var progress = new Progress<double>(p => Progress = p);
+            var res = await _diffService.CompareAsync(
+                leftPdfPath,
+                rightPdfPath,
+                includeVisualDiff: includeVisualDiff,
+                visualDpi: 96,
+                maxPages: maxPages,
+                leftPassword: FindPassword(leftPdfPath),
+                rightPassword: FindPassword(rightPdfPath),
+                progress: progress,
+                ct: ct).ConfigureAwait(false);
+
+            if (res.Success && res.Data is not null)
+            {
+                LastDiffReport = res.Data;
+                LastErrorCode = DocumentErrorCode.None;
+                StatusMessage = $"Compared {res.Data.ComparedPages} page(s): {res.Data.ChangedPageCount} changed.";
+            }
+            else
+            {
+                LastErrorCode = res.ErrorCode;
+                StatusMessage = res.Message ?? "Comparison failed.";
+            }
+            return res;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<DocumentResult> ExportDiffReportAsync(string outputPdfPath, CancellationToken ct = default)
+    {
+        ClearPrompt();
+        if (LastDiffReport is null)
+            return FailWith(DocumentErrorCode.Unknown, "Run a PDF comparison first.");
+
+        if (!_license.Allows(ProFeature.PdfDiffAndContentRename))
+            return DenyPro(ProFeature.PdfDiffAndContentRename, FeatureMessages.For(ProFeature.PdfDiffAndContentRename));
+
+        IsBusy = true;
+        try
+        {
+            var res = await _diffService.ExportDiffReportPdfAsync(LastDiffReport, outputPdfPath, ct).ConfigureAwait(false);
+            return RecordResult(res);
         }
         finally
         {

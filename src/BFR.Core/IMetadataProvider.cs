@@ -36,9 +36,13 @@ public static class MetadataRequirement
         return false;
     }
 
-    /// <summary>True nếu văn bản chứa token cần đọc metadata ({taken}, {media}, {width}, {height}, {camera}, tag nhạc).</summary>
+    /// <summary>True nếu văn bản chứa token cần đọc metadata ({taken}, {media}, {width}, {height}, {camera}, tag nhạc, hoặc {pdf.*}).</summary>
     public static bool HasMetadataToken(string? text) =>
-        HasTakenToken(text) || HasMediaToken(text) || HasExifDetailToken(text) || HasAudioTagToken(text);
+        HasTakenToken(text) || HasMediaToken(text) || HasExifDetailToken(text) || HasAudioTagToken(text) || HasPdfToken(text);
+
+    /// <summary>True nếu chứa token nội dung PDF ({pdf.title}, {pdf.author}, {pdf.pages}, {pdf.firstline}, {pdf.match:...}).</summary>
+    public static bool HasPdfToken(string? text) =>
+        !string.IsNullOrEmpty(text) && text.Contains("{pdf.", System.StringComparison.OrdinalIgnoreCase);
 
     /// <summary>True nếu chứa token thông số ảnh EXIF ({width}, {height}, {camera}).</summary>
     public static bool HasExifDetailToken(string? text)

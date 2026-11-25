@@ -57,7 +57,7 @@ try {
     $langCodes = @('vi', 'en', 'fr', 'zh-Hans')
     $applyLabel = @{ 'vi' = 'Áp dụng'; 'en' = 'Apply'; 'fr' = 'Appliquer'; 'zh-Hans' = '应用' }
     $script:lang = 'en'
-    $pages = @('Nav home', 'Nav rename', 'Nav tools', 'Nav shelf', 'Nav history', 'Nav presets', 'Nav watch folder', 'Nav settings')
+    $pages = @('Nav home', 'Nav tools', 'Nav shelf', 'Nav history', 'Nav presets', 'Nav watch folder', 'Nav settings')
     $warmupDumped = $false
     $actionLog = New-Object System.Collections.Generic.List[string]
     $failShots = 0
@@ -82,8 +82,19 @@ try {
         Add-Content (Join-Path $OutDir 'soak-failures.log') ($detail -join [Environment]::NewLine) -Encoding UTF8
     }
 
+    function Go-Rename {
+        if ($null -ne (Find-Visible $win 'Preview table')) { return }
+        Select-Nav $win 'Nav home'
+        Start-Sleep -Milliseconds 250
+        foreach ($lbl in @('Batch Rename', 'Đổi tên hàng loạt')) {
+            $card = Find-Visible $win $lbl
+            if ($null -ne $card) { $card.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return }
+        }
+        throw "Không tìm thấy thẻ Batch Rename trên Trang chủ"
+    }
+
     function Rename-Cycle {
-        Select-Nav $win 'Nav rename'
+        Go-Rename
         $apply = Find-Visible $win 'Apply renaming'
         if ($null -eq $apply -or -not $apply.Current.IsEnabled) { Capture-CycleFailure 'Áp dụng bị vô hiệu'; throw "Nút Áp dụng không dùng được. Trạng thái: $(Get-StatusTexts $win)" }
         $apply.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()

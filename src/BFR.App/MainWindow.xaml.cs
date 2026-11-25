@@ -60,11 +60,32 @@ public partial class MainWindow : FluentWindow
         _vm = new MainViewModel(_license, initialPayload, null, new LocStringProvider(), new WpfUiDispatcher());
         DataContext = _vm;
         _shelfModel = new ShelfModel(_license.License);
+        _shelfModel.Items.CollectionChanged += (_, _) => Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
+
+        Sidebar.NavigateRequested += key => NavigateTo(key);
+        Sidebar.FavoriteToolRequested += OpenFavoriteTool;
+        Sidebar.TierRequested += () => ShowUpgradeDialog(contextFeature: null);
+
+        Toolbar.ToggleSidebarRequested += ToggleSidebar;
+        Toolbar.BackRequested += NavigateBack;
+        Toolbar.ForwardRequested += NavigateForward;
+        Toolbar.SearchRequested += ShowCommandPalette;
+        Toolbar.SettingsRequested += () => NavigateTo("Settings");
+
+        Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
+        RefreshSidebarFavorites();
 
         _collectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _collectorTimer.Tick += (_, _) => OnCollectorTimeout();
 
         KeyDown += MainWindow_KeyDown;
+        Activated += (_, _) => HideFloatingOrbForForeground();
+        Deactivated += (_, _) => RestoreFloatingOrbIfEnabled();
+        StateChanged += (_, _) =>
+        {
+            if (WindowState == WindowState.Minimized) RestoreFloatingOrbIfEnabled();
+            else if (IsActive) HideFloatingOrbForForeground();
+        };
         Loaded += (_, _) =>
         {
             ThemeManager.RefreshBackdrop(this);
@@ -92,6 +113,7 @@ public partial class MainWindow : FluentWindow
         {
             ApplyShakeSetting();
             ApplyHotkeySetting();
+            ApplyFloatingOrbSetting();
             // Dev: BFR_GALLERY=2 mở thẳng Gallery khi khởi động (dùng cho chụp ảnh tự động).
             if (Environment.GetEnvironmentVariable("BFR_GALLERY") == "2")
             {
@@ -102,22 +124,26 @@ public partial class MainWindow : FluentWindow
         Closed += (_, _) =>
         {
             Loc.LanguageChanged -= OnLanguageChanged;
+            ThemeManager.ThemeChanged -= OnThemeChanged;
             _collectorTimer.Stop();
             _shakeHook?.Dispose();
             _hotkey?.Dispose();
             _radialHotkey?.Dispose();
             _radial?.Close();
+            _floatingOrb?.Close();
             foreach (var page in _pages.Values) page.Shutdown();
             _shakeHook = null;
             _hotkey = null;
             _radialHotkey = null;
             _radial = null;
+            _floatingOrb = null;
             _shelf?.Close();
         };
         ShelfButtonText.Text = Loc.T("ShelfButton");
         ShelfButton.ToolTip = Loc.T("ShelfTooltip");
 
         Loc.LanguageChanged += OnLanguageChanged;
+        ThemeManager.ThemeChanged += OnThemeChanged;
         _vm.ProLimitReached += (_, feature) => ShowUpgradeDialog(feature);
         _vm.PropertyChanged += OnViewModelPropertyChanged;
         Loaded += (_, _) => (Application.Current as App)?.ApplyBackgroundSetting();
@@ -145,6 +171,51 @@ public partial class MainWindow : FluentWindow
             var rebuilt = GetPage(_currentPage);
             rebuilt.Visibility = Visibility.Visible;
             rebuilt.OnShown();
+        }
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        _floatingOrb?.RefreshTheme();
+
+        // Dựng lại các trang tạo bằng code (trừ WatchFolderPage đang chạy nền) để áp dụng màu sáng/tối/nhấn mới ngay lập tức.
+        // Nếu đang đứng ở Settings, trì hoãn dựng lại sau khi sự kiện bấm/chọn hiện tại kết thúc để tránh ngắt chuỗi tương tác.
+        var isOnSettings = _currentPage == "Settings";
+        var toRebuild = _pages
+            .Where(kv => kv.Value is not WatchFolderPage { IsRunning: true }
+                         && (!isOnSettings || kv.Key != "Settings"))
+            .Select(kv => kv.Key)
+            .ToList();
+
+        foreach (var key in toRebuild)
+        {
+            if (_pages.Remove(key, out var page))
+            {
+                page.Shutdown();
+                PageHost.Children.Remove(page);
+            }
+        }
+
+        if (_currentPage != "Rename" && toRebuild.Contains(_currentPage))
+        {
+            var rebuilt = GetPage(_currentPage);
+            rebuilt.Visibility = Visibility.Visible;
+            rebuilt.OnShown();
+        }
+        else if (isOnSettings)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_currentPage != "Settings") return;
+                if (_pages.Remove("Settings", out var oldSettings))
+                {
+                    oldSettings.Shutdown();
+                    PageHost.Children.Remove(oldSettings);
+                }
+                var rebuilt = GetPage("Settings");
+                rebuilt.Visibility = Visibility.Visible;
+                rebuilt.OnShown();
+            }, DispatcherPriority.Background);
         }
     }
 
@@ -205,17 +276,9 @@ public partial class MainWindow : FluentWindow
     public void UpdateLicenseState()
     {
         var status = _license.Status;
-        TierBadgeText.Text = status.IsTrial ? Loc.T("TierTrial") : Loc.T(status.IsPro ? "TierPro" : "TierFree");
-        UpgradeButton.Visibility = status.IsPro ? Visibility.Collapsed : Visibility.Visible;
-        TierBadge.ToolTip = status.IsPro ? Loc.T("LicenseInfoTitle") : Loc.T("UpgradeHeader");
+        var badgeText = status.IsTrial ? Loc.T("TierTrial") : Loc.T(status.IsPro ? "TierPro" : "TierFree");
+        Sidebar.UpdateLicenseState(badgeText);
         _vm.RefreshLicenseState();
-    }
-
-    /// <summary>Bấm badge cấp: nếu đã là Pro thì mở màn hình thông tin license.</summary>
-    private void TierBadge_Click(object sender, RoutedEventArgs e)
-    {
-        // Đã là Pro: hộp thoại hiện thông tin license; Free/dùng thử: hộp thoại nâng cấp.
-        ShowUpgradeDialog(contextFeature: null);
     }
 
     public void ActivateAndForeground()
@@ -262,13 +325,13 @@ public partial class MainWindow : FluentWindow
 
     private void AddFiles_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Multiselect = true, Title = Loc.T("AddFiles") };
+        var dialog = new OpenFileDialog { Multiselect = true, Title = Loc.T("AddFilesButton") };
         if (dialog.ShowDialog() == true) _vm.AddPaths(dialog.FileNames);
     }
 
     private void AddFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = Loc.T("AddFolder") };
+        var dialog = new OpenFolderDialog { Title = Loc.T("AddFolderButton") };
         if (dialog.ShowDialog() == true) _vm.AddPaths(new[] { dialog.FolderName });
     }
 
@@ -288,8 +351,79 @@ public partial class MainWindow : FluentWindow
 
     private GlobalHotkey? _radialHotkey;
     private RadialMenuWindow? _radial;
+    private FloatingOrbWindow? _floatingOrb;
     private ActiveFileDetector? _fileDetector;
     private QuickActionCoordinator? _quickCoordinator;
+
+    /// <summary>Bật/tắt nút tròn nổi Desktop (Floating Orb) theo cài đặt hiện tại.</summary>
+    public void ApplyFloatingOrbSetting()
+    {
+        var show = SettingsStore.Load().ShowFloatingOrb;
+        if (show)
+        {
+            if (_floatingOrb is null)
+            {
+                _floatingOrb = new FloatingOrbWindow(
+                    openRadial: (x, y, dropped) => ShowRadial(x, y, dropped),
+                    openMainWindow: ActivateAndForeground,
+                    hideOrb: () =>
+                    {
+                        var s = SettingsStore.Load();
+                        s.ShowFloatingOrb = false;
+                        SettingsStore.Save(s);
+                        ApplyFloatingOrbSetting();
+                    });
+                _floatingOrb.Closed += (_, _) => _floatingOrb = null;
+                if (!(IsActive && WindowState != WindowState.Minimized))
+                {
+                    _floatingOrb.Show();
+                }
+            }
+            else
+            {
+                _floatingOrb.RefreshTheme();
+                if (IsActive && WindowState != WindowState.Minimized)
+                {
+                    if (_floatingOrb.IsVisible) _floatingOrb.Hide();
+                }
+                else if (!_floatingOrb.IsVisible)
+                {
+                    _floatingOrb.Show();
+                }
+            }
+        }
+        else if (_floatingOrb is not null)
+        {
+            var orb = _floatingOrb;
+            _floatingOrb = null;
+            try { orb.Close(); } catch { }
+        }
+    }
+
+    private void HideFloatingOrbForForeground()
+    {
+        if (_floatingOrb is not null && _floatingOrb.IsVisible)
+        {
+            _floatingOrb.Hide();
+        }
+    }
+
+    private void RestoreFloatingOrbIfEnabled()
+    {
+        if (_floatingOrb is not null && !_floatingOrb.IsVisible && SettingsStore.Load().ShowFloatingOrb)
+        {
+            _floatingOrb.Show();
+        }
+    }
+
+    /// <summary>Bật/tắt nhanh nút tròn nổi từ khay hệ thống.</summary>
+    public void ToggleFloatingOrb()
+    {
+        var s = SettingsStore.Load();
+        s.ShowFloatingOrb = !s.ShowFloatingOrb;
+        SettingsStore.Save(s);
+        ApplyFloatingOrbSetting();
+    }
 
     private ActiveFileDetector EnsureFileDetector() =>
         _fileDetector ??= new ActiveFileDetector(
@@ -504,7 +638,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), "Batch File Renamer", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -549,7 +683,7 @@ public partial class MainWindow : FluentWindow
         catch (System.ComponentModel.Win32Exception)
         {
             // Tổ hợp đang được ứng dụng khác dùng: báo để người dùng chọn tổ hợp khác.
-            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), "Batch File Renamer",
+            MessageBox.Show(Loc.F("HotkeyRegisterFailed", wanted.ToString()), Loc.T("WindowTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -828,7 +962,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(ex.Message, "Batch File Renamer", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(ex.Message, Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -1396,63 +1530,88 @@ public partial class MainWindow : FluentWindow
         return result == Wpf.Ui.Controls.ContentDialogResult.Primary;
     }
 
-    // ----------------------------------------------------------------- Điều hướng (v1.4)
+    // ----------------------------------------------------------------- Điều hướng (macOS Split-View Shell)
 
-    /// <summary>Thu gọn / mở rộng thanh bên: 220 px có nhãn ↔ 72 px chỉ icon (hoạt ảnh 200ms CubicEase).</summary>
-    private void NavCollapse_Click(object sender, RoutedEventArgs e)
+    private readonly Stack<string> _backStack = new();
+    private readonly Stack<string> _forwardStack = new();
+    private bool _sidebarCollapsed;
+
+    private void ToggleSidebar()
     {
-        var collapse = NavRail.Tag as string != "Collapsed";
-        NavRail.Tag = collapse ? "Collapsed" : "Expanded";
-        var targetWidth = collapse ? 72.0 : 220.0;
+        _sidebarCollapsed = !_sidebarCollapsed;
+        SidebarColumn.Width = new GridLength(_sidebarCollapsed ? 0 : 220);
+        Sidebar.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        NavRail.BeginAnimation(WidthProperty, null);
-        if (BfrTheme.ReduceMotion)
+    private void OpenFavoriteTool(string key)
+    {
+        if (key.StartsWith("page:", StringComparison.Ordinal))
         {
-            NavRail.Width = targetWidth;
+            NavigateTo(key["page:".Length..]);
             return;
         }
-
-        var fromWidth = NavRail.ActualWidth > 0 ? NavRail.ActualWidth : NavRail.Width;
-        var anim = new System.Windows.Media.Animation.DoubleAnimation(fromWidth, targetWidth, TimeSpan.FromMilliseconds(200))
-        {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-        };
-        anim.Completed += (_, _) =>
-        {
-            NavRail.BeginAnimation(WidthProperty, null);
-            NavRail.Width = targetWidth;
-        };
-        NavRail.BeginAnimation(WidthProperty, anim);
+        NavigateTo("Tools");
+        if (_pages.TryGetValue("Tools", out var p) && p is ToolsPage tp)
+            tp.OpenTool(key, Array.Empty<string>());
     }
 
-    private void Nav_Checked(object sender, RoutedEventArgs e)
+    public void RefreshSidebarFavorites()
     {
-        if (sender is RadioButton { Tag: string key }) ShowPage(key);
+        var saved = SettingsStore.Load().FavoriteTools ?? new List<string>();
+        var favSet = new HashSet<string>(saved, StringComparer.OrdinalIgnoreCase);
+        var catalog = ToolCatalog.Create();
+        var items = new List<(string Key, string Title, string Icon)>();
+
+        if (favSet.Contains("page:PdfStudio")) items.Add(("page:PdfStudio", Loc.T("NavPdfStudio"), "\uEA90"));
+        if (favSet.Contains("page:DocsOcr")) items.Add(("page:DocsOcr", Loc.T("NavDocsOcr"), "\uE8A5"));
+        if (favSet.Contains("page:Rename")) items.Add(("page:Rename", Loc.T("NavRename"), "\uE8AC"));
+        if (favSet.Contains("page:MediaClean")) items.Add(("page:MediaClean", Loc.T("NavMediaClean"), "\uEB9F"));
+
+        foreach (var t in catalog)
+        {
+            if (favSet.Contains(t.Key))
+                items.Add((t.Key, Loc.T(t.TitleKey), t.Icon));
+        }
+        var isVi = string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
+        Sidebar.UpdateFavorites(items, isVi);
     }
 
-    private RadioButton NavButton(string key) => key switch
+    private static string PageBreadcrumbTitle(string key) => key switch
     {
-        "Home" => NavHome,
-        "PdfStudio" => NavPdfStudio,
-        "DocsOcr" => NavDocsOcr,
-        "Tools" => NavTools,
-        "Shelf" => NavShelf,
-        "History" => NavHistory,
-        "Presets" => NavPresets,
-        "Watch" => NavWatch,
-        "Settings" => NavSettings,
-        _ => NavRename
+        "Home" => Loc.T("NavHome"),
+        "Tools" => Loc.T("NavTools"),
+        "Shelf" => Loc.T("NavShelf"),
+        "Watch" => Loc.T("NavWatch"),
+        "History" => Loc.T("NavHistory"),
+        "Presets" => Loc.T("NavPresets"),
+        "Settings" => Loc.T("NavSettings"),
+        "Rename" => Loc.T("NavRename"),
+        "PdfStudio" => Loc.T("NavPdfStudio"),
+        "DocsOcr" => Loc.T("NavDocsOcr"),
+        "MediaClean" => Loc.T("NavMediaClean"),
+        _ => Loc.T("NavHome")
     };
 
-    /// <summary>Chuyển sang một trang và đồng bộ rail điều hướng.</summary>
-    public void NavigateTo(string key)
+    private void NavigateBack()
     {
-        var button = NavButton(key);
-        if (button.IsChecked != true) button.IsChecked = true;   // kích hoạt Nav_Checked → ShowPage
-        else ShowPage(key);
+        if (_backStack.Count == 0) return;
+        var target = _backStack.Pop();
+        _forwardStack.Push(_currentPage);
+        ShowPage(target, recordHistory: false);
     }
 
-    private void ShowPage(string key)
+    private void NavigateForward()
+    {
+        if (_forwardStack.Count == 0) return;
+        var target = _forwardStack.Pop();
+        _backStack.Push(_currentPage);
+        ShowPage(target, recordHistory: false);
+    }
+
+    /// <summary>Chuyển sang một trang và đồng bộ Sidebar + Toolbar.</summary>
+    public void NavigateTo(string key) => ShowPage(key, recordHistory: true);
+
+    private void ShowPage(string key, bool recordHistory = true)
     {
         if (_navigating) return;
 
@@ -1460,15 +1619,30 @@ public partial class MainWindow : FluentWindow
         if (key == "Watch" && !EnsurePro(ProFeature.UnlimitedRecursion))
         {
             _navigating = true;
-            NavButton(_currentPage).IsChecked = true;
+            Sidebar.SetActivePage(_currentPage);
             _navigating = false;
             return;
         }
 
-        if (key == _currentPage) return;
+        var isVi = string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
+        if (key == _currentPage)
+        {
+            Sidebar.SetActivePage(key);
+            Toolbar.SetState(PageBreadcrumbTitle(key), _backStack.Count > 0, _forwardStack.Count > 0, isVi);
+            return;
+        }
 
         var leaving = _currentPage;
+        if (recordHistory && !string.IsNullOrEmpty(leaving))
+        {
+            _backStack.Push(leaving);
+            _forwardStack.Clear();
+        }
+
         _currentPage = key;
+        Sidebar.SetActivePage(key);
+        Sidebar.UpdateShelfCount(_shelfModel.Items.Count);
+        Toolbar.SetState(PageBreadcrumbTitle(key), _backStack.Count > 0, _forwardStack.Count > 0, isVi);
 
         if (leaving != "Rename" && _pages.TryGetValue(leaving, out var old))
         {
@@ -1564,9 +1738,20 @@ public partial class MainWindow : FluentWindow
                     ShowRadialAtCursor,
                     (target, mode, batch) => DispatchTargetAction(target, mode, batch));
                 home.SetWatchStateProvider(
-                    () => _pages.TryGetValue("Watch", out var wp) && wp is WatchFolderPage watchPage
-                        ? (watchPage.EnabledRuleCount, watchPage.IsRunning)
-                        : (0, false),
+                    () =>
+                    {
+                        if (_pages.TryGetValue("Watch", out var wp) && wp is WatchFolderPage watchPage)
+                            return (watchPage.EnabledRuleCount, watchPage.IsRunning);
+                        try
+                        {
+                            var rules = new BFR.Core.WatchFolder.WatchRuleStore(_fs, Path.Combine(AppData("watch"), "rules.json")).Load();
+                            return (rules.Count(r => r.Enabled), false);
+                        }
+                        catch
+                        {
+                            return (0, false);
+                        }
+                    },
                     () =>
                     {
                         if (!EnsurePro(ProFeature.UnlimitedRecursion)) return;
@@ -1588,6 +1773,14 @@ public partial class MainWindow : FluentWindow
                     AppData("journal"),
                     feature => ShowUpgradeDialog(feature),
                     OnContinueWithAction);
+                break;
+            case "MediaClean":
+                page = new MediaCleanPage(
+                    _fs,
+                    _license.License,
+                    new BFR.Media.WicImageProcessor(),
+                    feature => ShowUpgradeDialog(feature),
+                    batch => { NavigateTo("Rename"); EnqueuePaths(batch); });
                 break;
             case "Shelf":
                 page = new ShelfPage(_shelfModel, batch => { NavigateTo("Rename"); EnqueuePaths(batch); }, feature => ShowUpgradeDialog(feature));
@@ -1612,8 +1805,8 @@ public partial class MainWindow : FluentWindow
                 break;
             case "Tools":
                 page = new ToolsPage(_fs, _license.License, new HistoryStore(_fs, AppData("history.json")), AppData("journal"), AppVersion.Current,
-                    new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader()),
-                    new BFR.Media.WicImageProcessor(), feature => ShowUpgradeDialog(feature));
+                    new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader(), new BFR.Documents.Pdf.PdfMetadataProvider()),
+                    new BFR.Media.WicImageProcessor(), feature => ShowUpgradeDialog(feature), NavigateTo);
                 break;
             case "Watch":
                 page = new WatchFolderPage(new PresetStore(_fs, AppData("presets")), _license.License);
@@ -1634,20 +1827,22 @@ public partial class MainWindow : FluentWindow
         return page;
     }
 
-    /// <summary>Áp dụng ngay khi bật/tắt một cài đặt: chạy nền, lắc chuột, phím tắt toàn cục. Không dựng lại danh sách xem trước.</summary>
+    /// <summary>Áp dụng ngay khi bật/tắt một cài đặt: chạy nền, lắc chuột, phím tắt toàn cục, nút tròn nổi. Không dựng lại danh sách xem trước.</summary>
     private void ApplyLiveSettings()
     {
         (Application.Current as App)?.ApplyBackgroundSetting();
         ApplyShakeSetting();
         ApplyHotkeySetting();
+        ApplyFloatingOrbSetting();
     }
 
-    /// <summary>Áp dụng ngay các thay đổi trong Cài đặt khi người dùng rời trang (khay, hook, phím tắt, giấy phép).</summary>
+    /// <summary>Áp dụng ngay các thay đổi trong Cài đặt khi người dùng rời trang (khay, hook, phím tắt, nút tròn nổi, giấy phép).</summary>
     private void ApplySettingsChanges()
     {
         (Application.Current as App)?.ApplyBackgroundSetting();
         ApplyShakeSetting();
         ApplyHotkeySetting();
+        ApplyFloatingOrbSetting();
         UpdateLicenseState();
         _ = _vm.RebuildAsync();
     }
@@ -1777,7 +1972,8 @@ public partial class MainWindow : FluentWindow
         var dialog = new Wpf.Ui.Controls.ContentDialog(DialogHost)
         {
             Content = view,
-            IsFooterVisible = false
+            IsFooterVisible = false,
+            DialogMaxWidth = 720
         };
         view.CloseRequested += (_, _) => dialog.Hide();
 
@@ -1853,7 +2049,7 @@ public partial class MainWindow : FluentWindow
 
     private void Window_DragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (_currentPage == "Rename" && e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             DropOverlay.Visibility = Visibility.Visible;
         }
@@ -1861,6 +2057,11 @@ public partial class MainWindow : FluentWindow
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
+        if (_currentPage != "Rename")
+        {
+            DropOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
         var hasFiles = e.Data.GetDataPresent(DataFormats.FileDrop);
         e.Effects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
         if (hasFiles) DropOverlay.Visibility = Visibility.Visible;
@@ -1876,9 +2077,15 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private void Window_PreviewDrop(object sender, DragEventArgs e)
+    {
+        DropOverlay.Visibility = Visibility.Collapsed;
+    }
+
     private void Window_Drop(object sender, DragEventArgs e)
     {
         DropOverlay.Visibility = Visibility.Collapsed;
+        if (_currentPage != "Rename") return;
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
         {
             NavigateTo("Rename");
@@ -1896,7 +2103,7 @@ public partial class MainWindow : FluentWindow
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.O)
+            if (e.Key == Key.O && _currentPage == "Rename")
             {
                 AddFolder_Click(this, new RoutedEventArgs());
                 e.Handled = true;
@@ -1906,6 +2113,15 @@ public partial class MainWindow : FluentWindow
 
         if (Keyboard.Modifiers == ModifierKeys.Control)
         {
+            if (e.Key == Key.K)
+            {
+                ShowCommandPalette();
+                e.Handled = true;
+                return;
+            }
+
+            if (_currentPage != "Rename") return;
+
             switch (e.Key)
             {
                 case Key.O:
@@ -1932,8 +2148,11 @@ public partial class MainWindow : FluentWindow
                     }
                     break;
                 case Key.Z:
-                    Undo_Click(this, new RoutedEventArgs());
-                    e.Handled = true;
+                    if (Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase)
+                    {
+                        Undo_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
                     break;
                 case Key.S:
                     SavePreset_Click(this, new RoutedEventArgs());
@@ -1943,17 +2162,13 @@ public partial class MainWindow : FluentWindow
                     FocusSearch();
                     e.Handled = true;
                     break;
-                case Key.K:
-                    ShowCommandPalette();
-                    e.Handled = true;
-                    break;
                 case Key.Enter:
                     if (_vm.CanApply) Apply_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
             }
         }
-        else if (e.Key == Key.F5)
+        else if (e.Key == Key.F5 && _currentPage == "Rename")
         {
             _ = _vm.RebuildAsync();
             e.Handled = true;

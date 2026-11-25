@@ -22,6 +22,7 @@ public sealed class LicenseService
     public const int MaxFreePdfPages = 50;
     public const int MaxFreeImageToPdfCount = 20;
     public const int MaxFreeOcrPages = 3;
+    public const int MaxFreePdfDiffPages = 5;
 
     private readonly LicenseStore _store;
     private readonly Func<DateTime> _clock;
@@ -218,6 +219,7 @@ public sealed class LicenseService
             ProFeature.PdfSecurityAndStamp => limits.AllowPdfSecurityAndStamp,
             ProFeature.OfficeConversion => limits.AllowOfficeConversion,
             ProFeature.OfficeDeepClean => limits.AllowOfficeDeepClean,
+            ProFeature.PdfDiffAndContentRename => limits.AllowPdfContentTokens && limits.MaxPdfDiffPages == int.MaxValue,
             _ => true
         };
 
@@ -266,6 +268,9 @@ public sealed class LicenseService
 
     /// <summary>Số trang OCR tối đa mỗi lần.</summary>
     public int MaxOcrPages => Limits.MaxOcrPages;
+
+    /// <summary>Số trang PDF Diff tối đa mỗi lần (Free: 5, Pro: không giới hạn).</summary>
+    public int MaxPdfDiffPages => Limits.MaxPdfDiffPages;
 
     /// <summary>Kiểm tra số tệp PDF gộp có vượt giới hạn bản Free không.</summary>
     public GateResult CheckPdfMergeCount(int fileCount) =>
@@ -404,6 +409,7 @@ public static class FeatureMessages
         ProFeature.PdfSecurityAndStamp => "Khóa/mở khóa mật khẩu PDF, đóng dấu Watermark và đánh số trang là tính năng Pro.",
         ProFeature.OfficeConversion => "Chuyển đổi Office sang PDF đầy đủ và PDF sang Word/Markdown là tính năng Pro.",
         ProFeature.OfficeDeepClean => "Dọn sạch dữ liệu ẩn Office hàng loạt là tính năng Pro.",
+        ProFeature.PdfDiffAndContentRename => "Bản Free so sánh tối đa 5 trang PDF. Nâng cấp Pro để so sánh không giới hạn, xuất báo cáo PDF Diff và đổi tên theo nội dung PDF ({pdf.*}).",
         _ => "Tính năng này cần bản Pro."
     };
 }

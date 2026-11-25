@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
-    <sys:String x:Key="WindowTitle">Batch File Renamer</sys:String>
+    <sys:String x:Key="WindowTitle">FileFlow Studio</sys:String>
     <sys:String x:Key="PresetLabel">Préréglage :</sys:String>
     <sys:String x:Key="AddFiles">_Ajouter des fichiers</sys:String>
     <sys:String x:Key="AddFolder">Ajouter un _dossier</sys:String>
@@ -1225,4 +1225,84 @@
     <sys:String x:Key="OcrSearchablePdfButton">Exporter en PDF consultable</sys:String>
     <sys:String x:Key="OcrCopyText">Copier le texte</sys:String>
     <sys:String x:Key="DocsNoFileLoaded">Déposez un fichier DOCX, XLSX, PPTX, Markdown, CSV, PDF ou une image pour commencer.</sys:String>
+    <!-- FileFlow Studio v3.1 Floating Orb, Command-First Home & PDF Studio Upgrades -->
+    <sys:String x:Key="FloatingOrbTooltip">FileFlow Studio — Cliquer pour le menu radial · Glisser pour déplacer · Déposer des fichiers</sys:String>
+    <sys:String x:Key="OrbMenuOpenRadial">Ouvrir le menu radial</sys:String>
+    <sys:String x:Key="OrbMenuHide">Masquer le bouton flottant</sys:String>
+    <sys:String x:Key="TrayToggleOrb">Afficher / Masquer le bouton flottant</sys:String>
+    <sys:String x:Key="SettingsFloatingOrb">Afficher le bouton flottant sur le Bureau et toutes les applications</sys:String>
+    <sys:String x:Key="SettingsFloatingOrbHint">Bouton flottant toujours visible ; cliquez ou déposez des fichiers dessus pour ouvrir le menu radial.</sys:String>
+    <sys:String x:Key="HomeSearchPlaceholder">Rechercher un outil (ex. compresser PDF, scinder, OCR, renommer...)</sys:String>
+    <sys:String x:Key="HomeSubtitleV3">PDF Studio, Office &amp; OCR, outils image et renommage par lots — 100% hors ligne.</sys:String>
+    <sys:String x:Key="HomeDropCompactTitle">Déposez n'importe quel fichier ou dossier ici</sys:String>
+    <sys:String x:Key="HomeDropCompactHint">FileFlow Studio détecte vos fichiers et propose des actions immédiates</sys:String>
+    <sys:String x:Key="HomePickFilesBtn">Parcourir…</sys:String>
+    <sys:String x:Key="PdfStatusCompleted">Terminé.</sys:String>
+    <!-- v3.2 Free vs Pro Features (PDF Studio & Docs/OCR) -->
+    <sys:String x:Key="FeaturePdfUnlimitedPages">Organisation, scission et fusion PDF illimitées</sys:String>
+    <sys:String x:Key="FeatureLimitPdfPages">{0} pages · {1} fichiers</sys:String>
+    <sys:String x:Key="FeaturePdfSecurityAndStamp">Mot de passe PDF (AES-128), filigrane et numéros de page</sys:String>
+    <sys:String x:Key="FeatureOfflineOcr">OCR hors ligne illimité</sys:String>
+    <sys:String x:Key="FeatureLimitOcrPages">Jusqu'à {0} pages</sys:String>
+    <sys:String x:Key="FeatureOfficeConversion">PDF → Word/Markdown et XLSX → JSON</sys:String>
+    <sys:String x:Key="FeatureDocumentBatch">Traitement par lots des PDF et documents</sys:String>
+    <sys:String x:Key="FeatureOfficeDeepClean">Nettoyage par lots des métadonnées Office</sys:String>
+    <!-- v3.3 OCR Structured Layout & AI Deep OCR (Opt-in) -->
+    <sys:String x:Key="OcrEngineOffline">Hors ligne (Windows OCR)</sys:String>
+    <sys:String x:Key="OcrEngineAiDeep">AI Deep OCR</sys:String>
+    <sys:String x:Key="OcrStructuredLayout">Structure intelligente (Titres · Tableaux · Fusion de paragraphes)</sys:String>
+    <sys:String x:Key="OcrAiPrivacyNotice">Opt-in : Les fichiers ne sont envoyés qu'au serveur que vous configurez (localhost SGLang/Ollama ou votre propre API). La clé API est chiffrée localement via Windows DPAPI.</sys:String>
+    <sys:String x:Key="OcrAiPresetLabel">Préréglage</sys:String>
+    <sys:String x:Key="OcrAiPresetSglang">Unlimited-OCR-2 (SGLang)</sys:String>
+    <sys:String x:Key="OcrAiPresetOllama">Ollama Local</sys:String>
+    <sys:String x:Key="OcrAiPresetOpenAi">OpenAI / Gemini API</sys:String>
+    <sys:String x:Key="OcrAiBaseUrlLabel">Base URL</sys:String>
+    <sys:String x:Key="OcrAiModelLabel">Nom du modèle</sys:String>
+    <sys:String x:Key="OcrAiApiKeyLabel">Clé API (optionnelle)</sys:String>
+    <sys:String x:Key="OcrAiTestConnection">Tester la connexion</sys:String>
+    <sys:String x:Key="OcrAiTesting">Test en cours…</sys:String>
+    <sys:String x:Key="OcrAiRunButton">Lancer AI Deep OCR</sys:String>
+    <sys:String x:Key="OcrCropRegionsBadge">🖼 {0} figures/graphiques détectés — découpés automatiquement dans assets/ lors de l'enregistrement .md</sys:String>
+    <!-- v3.2 Phase 1: PDF Diff & PDF Content Rename Tokens -->
+    <sys:String x:Key="PdfModeCompare">Comparer PDF</sys:String>
+    <sys:String x:Key="PdfCompareRun">Comparer 2 PDF</sys:String>
+    <sys:String x:Key="FeaturePdfDiffAndContentRename">Comparaison PDF illimitée et renommage par contenu PDF ({pdf.*})</sys:String>
+    <sys:String x:Key="FeatureLimitPdfDiffPages">Jusqu'à {0} pages</sys:String>
+    <sys:String x:Key="TokenGroupPdf">PDF (Pro)</sys:String>
+    <sys:String x:Key="TokenDescPdfTitle">Titre des métadonnées du PDF</sys:String>
+    <sys:String x:Key="TokenDescPdfAuthor">Auteur des métadonnées du PDF</sys:String>
+    <sys:String x:Key="TokenDescPdfPages">Nombre total de pages du PDF</sys:String>
+    <sys:String x:Key="TokenDescPdfFirstLine">Première ligne de texte de la page 1</sys:String>
+    <sys:String x:Key="TokenDescPdfMatch">Extraire un identifiant/numéro par Regex du PDF</sys:String>
+    <!-- v3.2 Phase 2: Universal AI Markdown Converter (MarkItDown) -->
+    <sys:String x:Key="DocsTargetPdfTitle">PDF prêt à imprimer</sys:String>
+    <sys:String x:Key="DocsTargetAiMdTitle">Markdown prêt pour l'IA</sys:String>
+    <sys:String x:Key="DocsConvertToMdRun">Exporter en Markdown (.md)</sys:String>
+    <sys:String x:Key="DocsMdFrontmatter">Inclure l'en-tête YAML (source, auteur, sections)</sys:String>
+    <sys:String x:Key="DocsMdMergeBundle">Fusionner plusieurs fichiers en 1 pack Markdown (avec sommaire pour NotebookLM / RAG)</sys:String>
+    <sys:String x:Key="DocsMdPreviewBtn">Aperçu Markdown</sys:String>
+    <sys:String x:Key="DocsMdCopyForAi">Copier pour ChatGPT / Claude</sys:String>
+    <!-- v3.2 Phase 3: Media & Clean Studio -->
+    <sys:String x:Key="NavMediaClean">Médias &amp; Nettoyage</sys:String>
+    <sys:String x:Key="MediaTabDuplicates">Doublons &amp; Images similaires</sys:String>
+    <sys:String x:Key="MediaTabRemoveBg">Suppression fond IA</sys:String>
+    <sys:String x:Key="MediaTabTranscribe">Transcription Audio/Vidéo</sys:String>
+    <sys:String x:Key="MediaDupScanBtn">Analyser les doublons</sys:String>
+    <sys:String x:Key="MediaDupRecycleBtn">Envoyer la sélection à la Corbeille</sys:String>
+    <sys:String x:Key="MediaDupExactMode">Doublons exacts (SHA-256)</sys:String>
+    <sys:String x:Key="MediaDupSimilarMode">Images similaires (Perceptual dHash)</sys:String>
+    <!-- v3.2 Phase 4: Offline AI Background Remover -->
+    <sys:String x:Key="MediaBgRunBtn">Supprimer le fond (IA hors ligne)</sys:String>
+    <sys:String x:Key="MediaBgSelectImages">Choisir des images (ou glisser-déposer)…</sys:String>
+    <sys:String x:Key="MediaBgTransparent">Transparent (PNG)</sys:String>
+    <sys:String x:Key="MediaBgWhite">Fond blanc</sys:String>
+    <sys:String x:Key="MediaBgBlue">Fond bleu ID</sys:String>
+    <sys:String x:Key="MediaBgModelReady">✓ Modèle installé localement</sys:String>
+    <!-- v3.2 Phase 5: Offline Audio/Video Transcriber (Whisper.net) -->
+    <sys:String x:Key="MediaWhisperRunBtn">Transcrire hors ligne (Whisper)</sys:String>
+    <sys:String x:Key="MediaWhisperSelectFile">Choisir un fichier Audio / Vidéo…</sys:String>
+    <sys:String x:Key="MediaWhisperLangLabel">LANGUE AUDIO</sys:String>
+    <sys:String x:Key="MediaWhisperExportTxt">Enregistrer .txt</sys:String>
+    <sys:String x:Key="MediaWhisperExportSrt">Enregistrer sous-titres .srt</sys:String>
+    <sys:String x:Key="MediaWhisperExportVtt">Enregistrer .vtt</sys:String>
 </ResourceDictionary>

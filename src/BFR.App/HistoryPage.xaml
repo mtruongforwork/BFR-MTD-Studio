@@ -24,11 +24,12 @@
                        Margin="0,2,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
-        <!-- Bảng + trạng thái rỗng -->
-        <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{DynamicResource BfrRadiusTile}" Padding="12">
+        <!-- Bảng NSTableView style + trạng thái rỗng -->
+        <Border Grid.Row="1" Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrLine}" BorderThickness="1" CornerRadius="10" Padding="8">
             <Grid>
                 <DataGrid x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
                           CanUserAddRows="False" HeadersVisibility="Column"
+                          AlternatingRowBackground="#05FFFFFF" AlternationCount="2"
                           SelectionMode="Single"
                           SelectionChanged="HistoryGrid_SelectionChanged"
                           Style="{StaticResource PreviewDataGridStyle}"
@@ -42,7 +43,23 @@
                         <DataGridTextColumn Binding="{Binding Total}" Width="66" Header="{DynamicResource HistoryColTotal}" />
                         <DataGridTextColumn Binding="{Binding Succeeded}" Width="66" Header="{DynamicResource HistoryColOk}" />
                         <DataGridTextColumn Binding="{Binding Failed}" Width="66" Header="{DynamicResource HistoryColFailed}" />
-                        <DataGridTextColumn Binding="{Binding StatusText}" Width="110" Header="{DynamicResource HistoryColStatus}" />
+                        <DataGridTemplateColumn Width="120" Header="{DynamicResource HistoryColStatus}" SortMemberPath="StatusText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Pill" CornerRadius="999" Padding="9,3" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            Background="{DynamicResource BfrOkSoft}">
+                                        <TextBlock x:Name="PillText" Text="{Binding StatusText}" FontSize="11.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BfrOk}" />
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Failed}" Value="0">
+                                            <Setter TargetName="Pill" Property="Background" Value="{DynamicResource BfrOkSoft}" />
+                                            <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource BfrOk}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Binding="{Binding PresetText}" Width="*" Header="{DynamicResource HistoryColPreset}" />
                     </DataGrid.Columns>
                 </DataGrid>

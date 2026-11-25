@@ -36,6 +36,9 @@ public static class ThemeManager
     /// <summary>True nếu đang dùng nền tối (kể cả khi Current = System).</summary>
     public static bool IsDark { get; private set; }
 
+    /// <summary>Phát sau khi đổi theme sáng/tối, bảng màu nhấn hoặc hiệu ứng để các trang dựng bằng code cập nhật lại.</summary>
+    public static event EventHandler? ThemeChanged;
+
     /// <summary>Áp dụng theme cho toàn ứng dụng và các cửa sổ đang mở.</summary>
     public static void Apply(AppTheme theme)
     {
@@ -101,6 +104,8 @@ public static class ThemeManager
         {
             RefreshBackdrop(window);
         }
+
+        ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
     /// <summary>Nạp style dùng chung (Theme.xaml) đúng một lần.</summary>
@@ -137,6 +142,9 @@ public static class ThemeManager
     /// <summary>Bật Mica cho cửa sổ (Windows 11 22H2+). Win10 dùng nền đặc.</summary>
     public static void RefreshBackdrop(Window window)
     {
+        // Cửa sổ trong suốt tạo hình riêng (FloatingOrb, RadialMenu, QuickToast, CommandPalette) giữ nguyên nền Transparent.
+        if (window.AllowsTransparency) return;
+
         try
         {
             var handle = new WindowInteropHelper(window).Handle;

@@ -107,6 +107,53 @@ public sealed class TokenEngine
                 missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + name + "}");
                 return null;
             }
+            case "pdf.title" or "pdf.author" or "pdf.pages" or "pdf.firstline":
+            {
+                var metadata = ctx.MetadataFor(file);
+                if (metadata is not null && metadata.TryGetValue(name, out var pdfVal))
+                {
+                    var clean = OrganizeTemplate.SanitizeSegment(pdfVal);
+                    if (clean.Length > 0)
+                        return clean.Length > 80 ? clean[..80].TrimEnd() : clean;
+                }
+                missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + name + "}");
+                return null;
+            }
+            case "pdf.match":
+            {
+                if (string.IsNullOrWhiteSpace(arg))
+                {
+                    missing = CoreText.Get("CoreInvalidToken", "Token không hợp lệ: {0}", "{" + token + "}");
+                    return null;
+                }
+                var metadata = ctx.MetadataFor(file);
+                if (metadata is not null && metadata.TryGetValue("pdf.text", out var pdfText) && !string.IsNullOrEmpty(pdfText))
+                {
+                    try
+                    {
+                        var m = Regex.Match(pdfText, arg, RegexOptions.IgnoreCase, RegexLimits.Timeout);
+                        if (m.Success)
+                        {
+                            var rawMatch = m.Groups.Count > 1 && m.Groups[1].Success ? m.Groups[1].Value : m.Value;
+                            var clean = OrganizeTemplate.SanitizeSegment(rawMatch);
+                            if (clean.Length > 0)
+                                return clean.Length > 80 ? clean[..80].TrimEnd() : clean;
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        missing = CoreText.Get("CoreInvalidToken", "Token không hợp lệ: {0}", "{" + token + "}");
+                        return null;
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + token + "}");
+                        return null;
+                    }
+                }
+                missing = CoreText.Get("CoreMissingData", "Thiếu dữ liệu: {0}", "{" + token + "}");
+                return null;
+            }
             case "md5" or "sha256":
             {
                 int? length = null;

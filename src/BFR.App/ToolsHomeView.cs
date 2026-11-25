@@ -32,18 +32,20 @@ internal sealed class ToolsHomeView : UserControl
     private readonly List<ToolCardEntry> _entries = new();
     private readonly HashSet<string> _favorites;
     private readonly Action<string> _open;
+    private readonly Action<string>? _navigatePage;
     private readonly TextBlock _pending = new();
     private readonly Border _banner = new();
     private readonly TextBox _search = new();
     private readonly WrapPanel _categoryTabs = new() { Margin = new Thickness(0, 0, 0, 14) };
-    private readonly BentoPanel _bento = new() { RowHeight = 84, CollapseWidth = 760, Margin = new Thickness(0, 0, 0, 16) };
+    private readonly UniformGrid _grid = new() { Columns = 3, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-6, 0, -6, 16) };
     private readonly TextBlock _emptyFavorites = new();
 
     private string _activeCategory = TabAll;
 
-    public ToolsHomeView(IReadOnlyList<ITool> tools, Action<string> open, Action<IEnumerable<string>> drop)
+    public ToolsHomeView(IReadOnlyList<ITool> tools, Action<string> open, Action<IEnumerable<string>> drop, Action<string>? navigatePage = null)
     {
         _open = open;
+        _navigatePage = navigatePage;
         var saved = SettingsStore.Load().FavoriteTools ?? new List<string>();
         _favorites = new HashSet<string>(saved, StringComparer.OrdinalIgnoreCase);
 
@@ -58,6 +60,14 @@ internal sealed class ToolsHomeView : UserControl
             e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
         };
+
+        if (_navigatePage is not null)
+        {
+            _entries.Add(new ToolCardEntry("page:PdfStudio", "\uEA90", Loc.T("NavPdfStudio"), TryLoc("HomePdfStudioSub", "Tổ chức, nén, đóng dấu, bảo mật và chuyển đổi PDF"), ToolCategory.Pdf, false));
+            _entries.Add(new ToolCardEntry("page:DocsOcr", "\uE8A5", Loc.T("NavDocsOcr"), TryLoc("HomeDocsOcrSub", "Office sang PDF, OCR ngoại tuyến, dọn dữ liệu ẩn & bảng tính"), ToolCategory.Docs, false));
+            _entries.Add(new ToolCardEntry("page:Rename", "\uE8AC", Loc.T("NavRename"), TryLoc("HomeRenameSub", "Chuỗi quy tắc đổi tên hàng loạt, xem trước trực tiếp & hoàn tác"), ToolCategory.Organize, false));
+            _entries.Add(new ToolCardEntry("page:MediaClean", "\uEB9F", Loc.T("NavMediaClean"), TryLoc("HomeMediaSub", "Tách nền AI, phóng nét ảnh & tìm tệp trùng lặp"), ToolCategory.Images, false));
+        }
 
         foreach (var tool in tools)
         {
@@ -78,7 +88,7 @@ internal sealed class ToolsHomeView : UserControl
             ToolCategory.Security,
             false));
 
-        var root = new StackPanel { Margin = new Thickness(24, 18, 24, 24) };
+        var root = new StackPanel { Margin = new Thickness(24, 18, 24, 24), MaxWidth = 1360, HorizontalAlignment = HorizontalAlignment.Stretch };
 
         // Tiêu đề + ô tìm kiếm nhanh
         var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -123,7 +133,7 @@ internal sealed class ToolsHomeView : UserControl
         _emptyFavorites.Visibility = Visibility.Collapsed;
         root.Children.Add(_emptyFavorites);
 
-        root.Children.Add(_bento);
+        root.Children.Add(_grid);
         RenderTiles();
 
         Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -144,34 +154,13 @@ internal sealed class ToolsHomeView : UserControl
             (ToolCategory.Security.ToString(), TryLoc("ToolsCatSecurity", "Security"))
         };
 
-        var chipStyle = Application.Current.TryFindResource("BfrChipToggle") as Style;
-        foreach (var (id, label) in tabs)
+        var seg = new MacSegmentedControl(tabs, _activeCategory);
+        seg.SelectionChanged += id =>
         {
-            var tabId = id;
-            var pill = new ToggleButton
-            {
-                Content = label,
-                IsChecked = string.Equals(_activeCategory, tabId, StringComparison.OrdinalIgnoreCase),
-                Margin = new Thickness(0, 0, 8, 6),
-                Tag = tabId
-            };
-            if (chipStyle is not null) pill.Style = chipStyle;
-            pill.Click += (_, _) =>
-            {
-                _activeCategory = tabId;
-                SyncCategoryPills();
-                RenderTiles();
-            };
-            _categoryTabs.Children.Add(pill);
-        }
-    }
-
-    private void SyncCategoryPills()
-    {
-        foreach (var child in _categoryTabs.Children.OfType<ToggleButton>())
-        {
-            child.IsChecked = string.Equals(child.Tag as string, _activeCategory, StringComparison.OrdinalIgnoreCase);
-        }
+            _activeCategory = id;
+            RenderTiles();
+        };
+        _categoryTabs.Children.Add(seg);
     }
 
     private void ToggleFavorite(string toolKey)
@@ -183,6 +172,7 @@ internal sealed class ToolsHomeView : UserControl
         settings.FavoriteTools = _favorites.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         SettingsStore.Save(settings);
         RenderTiles();
+        (Window.GetWindow(this) as MainWindow)?.RefreshSidebarFavorites();
     }
 
     private UIElement BuildSearchBox()
@@ -236,7 +226,7 @@ internal sealed class ToolsHomeView : UserControl
 
     private void RenderTiles()
     {
-        _bento.Children.Clear();
+        _grid.Children.Clear();
         var query = _search.Text.Trim();
 
         IEnumerable<ToolCardEntry> filtered = _entries;
@@ -263,24 +253,16 @@ internal sealed class ToolsHomeView : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        var total = items.Count;
-        var remainder = total % 3;
-
-        for (var i = 0; i < total; i++)
+        foreach (var entry in items)
         {
-            var entry = items[i];
-            int colSpan = 4;
-            if (remainder == 2 && i >= total - 2) colSpan = 6;
-            else if (remainder == 1 && i == total - 1) colSpan = 12;
-
-            var tile = new GlassTile
+            var tile = new BentoCard
             {
                 IsInteractive = true,
-                CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
-                Padding = new Thickness(18, 14, 18, 14)
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(14, 12, 14, 12),
+                Margin = new Thickness(6),
+                MinHeight = 96
             };
-            BentoPanel.SetColSpan(tile, colSpan);
-            BentoPanel.SetRowSpan(tile, 2);
 
             var panel = new StackPanel();
             var head = new DockPanel { LastChildFill = true };
@@ -340,15 +322,24 @@ internal sealed class ToolsHomeView : UserControl
                 head.Children.Add(badge);
             }
 
-            var left = new StackPanel { Orientation = Orientation.Horizontal };
-            left.Children.Add(new TextBlock
+            var tone = entry.Category switch
             {
-                Text = entry.Icon,
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 20,
+                ToolCategory.Pdf => SquircleTone.PdfCoral,
+                ToolCategory.Docs => SquircleTone.DocsBlue,
+                ToolCategory.Security => SquircleTone.WarningAmber,
+                _ => SquircleTone.FilesPurple
+            };
+            var left = new StackPanel { Orientation = Orientation.Horizontal };
+            left.Children.Add(new SquircleIcon
+            {
+                Glyph = entry.Icon,
+                Tone = tone,
+                Width = 24,
+                Height = 24,
+                IconSize = 13,
+                CornerRadius = new CornerRadius(6),
                 Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (Brush)Application.Current.FindResource("BfrAccFg")
+                VerticalAlignment = VerticalAlignment.Center
             });
             left.Children.Add(new TextBlock
             {
@@ -373,9 +364,15 @@ internal sealed class ToolsHomeView : UserControl
             });
             tile.Content = panel;
 
-            tile.Invoked += (_, _) => _open(key);
+            tile.Invoked += (_, _) =>
+            {
+                if (key.StartsWith("page:", StringComparison.Ordinal) && _navigatePage is not null)
+                    _navigatePage(key["page:".Length..]);
+                else
+                    _open(key);
+            };
             System.Windows.Automation.AutomationProperties.SetName(tile, "Open " + entry.Title);
-            _bento.Children.Add(tile);
+            _grid.Children.Add(tile);
         }
     }
 

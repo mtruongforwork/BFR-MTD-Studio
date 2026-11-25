@@ -41,8 +41,16 @@ public sealed class LicenseStore
     {
         try
         {
-            if (!_fs.FileExists(_path)) return new LicenseRecord();
-            var raw = _fs.ReadAllText(_path);
+            var pathToRead = _path;
+            if (!_fs.FileExists(pathToRead))
+            {
+                // Khôi phục sau sự cố giữa hai bước Move trong Save(): license.json đã chuyển sang .bak nhưng .tmp chưa kịp thay vào.
+                var backup = _path + ".bak";
+                if (!_fs.FileExists(backup)) return new LicenseRecord();
+                pathToRead = backup;
+            }
+
+            var raw = _fs.ReadAllText(pathToRead);
             if (string.IsNullOrWhiteSpace(raw)) return new LicenseRecord();
 
             if (raw.StartsWith(DpapiHeader, StringComparison.Ordinal))
@@ -51,7 +59,13 @@ public sealed class LicenseStore
                 var cipher = Convert.FromBase64String(payload);
                 var plainBytes = DpapiUnprotect(cipher);
                 var json = Encoding.UTF8.GetString(plainBytes);
-                return JsonSerializer.Deserialize<LicenseRecord>(json, JsonOptions) ?? new LicenseRecord();
+                var record = JsonSerializer.Deserialize<LicenseRecord>(json, JsonOptions) ?? new LicenseRecord();
+                if (!string.Equals(pathToRead, _path, StringComparison.Ordinal))
+                {
+                    try { Save(record); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) { }
+                }
+                return record;
             }
 
             // Tệp plaintext cũ (v2.1 trở về trước): đọc và tự động migrate sang DPAPI.

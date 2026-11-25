@@ -173,10 +173,15 @@ public sealed class OpenXmlCleaner
         if (desc.ErrorCode == DocumentErrorCode.FileNotFound)
             return DocumentResult.Fail(DocumentErrorCode.FileNotFound, desc.ErrorMessage ?? "File not found.");
 
+        if (desc.ErrorCode == DocumentErrorCode.FileLockedByExternalApp)
+            return DocumentResult.Fail(DocumentErrorCode.FileLockedByExternalApp, desc.ErrorMessage ?? "File is locked by another application.");
+
+        string? snapshot = null;
         try
         {
-            var zipLength = Math.Max(1L, new FileInfo(path).Length);
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var readable = DocumentSafety.EnsureReadablePath(path, out snapshot, out _);
+            var zipLength = Math.Max(1L, new FileInfo(readable).Length);
+            using var fs = new FileStream(readable, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var zip = new ZipArchive(fs, ZipArchiveMode.Read, leaveOpen: false);
 
             if (zip.Entries.Count > MaxEntries)
@@ -264,6 +269,22 @@ public sealed class OpenXmlCleaner
         catch (OperationCanceledException)
         {
             return DocumentResult.Fail(DocumentErrorCode.Cancelled, "Validation cancelled.");
+        }
+        catch (IOException ex) when (DocumentSafety.IsSharingViolation(ex))
+        {
+            return DocumentResult.Fail(DocumentErrorCode.FileLockedByExternalApp, "File is exclusively locked by another application.");
+        }
+        catch (IOException ex)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.Unknown, $"Failed to read Office archive: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.ProtectedPath, $"Access denied reading Office archive: {ex.Message}");
+        }
+        finally
+        {
+            DocumentSafety.CleanupTempFile(snapshot);
         }
     }
 

@@ -42,9 +42,7 @@ public sealed class HybridOfficePdfBridge
 
         var kind = soffice is not null
             ? OfficePdfEngineKind.LibreOffice
-            : hasMsOffice
-                ? OfficePdfEngineKind.MicrosoftOffice
-                : OfficePdfEngineKind.PureDotNetFallback;
+            : OfficePdfEngineKind.PureDotNetFallback;
 
         _cachedStatus = new OfficeBridgeStatus(kind, soffice, soffice is not null, hasMsOffice);
         return _cachedStatus;
@@ -224,11 +222,17 @@ public sealed class HybridOfficePdfBridge
                 AssignProcessToJobObject(jobHandle, process.Handle);
             }
 
+            // Drain redirected stdout/stderr asynchronously to prevent >4KB pipe buffer deadlock
+            Task<string>? stdoutDrain = psi.RedirectStandardOutput ? process.StandardOutput.ReadToEndAsync() : null;
+            Task<string>? stderrDrain = psi.RedirectStandardError ? process.StandardError.ReadToEndAsync() : null;
+
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
             try
             {
                 process.WaitForExitAsync(linked.Token).GetAwaiter().GetResult();
+                try { stdoutDrain?.Wait(TimeSpan.FromSeconds(2)); } catch { }
+                try { stderrDrain?.Wait(TimeSpan.FromSeconds(2)); } catch { }
                 return process.ExitCode;
             }
             catch (OperationCanceledException)

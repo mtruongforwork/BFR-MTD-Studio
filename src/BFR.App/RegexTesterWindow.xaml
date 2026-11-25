@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="Regex tester"
-        Width="780" SizeToContent="Height"
+        Width="780" SizeToContent="Height" MaxHeight="640"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -101,34 +101,35 @@
                              IsReadOnly="True" Style="{StaticResource AppTextBoxStyle}"
                              FontFamily="{StaticResource AppFontMono}" />
 
-                    <ItemsControl ItemsSource="{Binding Matches}" Margin="0,10,0,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <TextBlock Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}"
-                                               FontFamily="{StaticResource AppFontMono}" Margin="0,0,12,0" />
-                                    <ItemsControl ItemsSource="{Binding Groups}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Foreground="{DynamicResource TextSecondary}" Margin="0,0,8,0">
-                                                    <Run Text="[" />
-                                                    <Run Text="{Binding Index, Mode=OneWay}" />
-                                                    <Run Text="]: " />
-                                                    <Run Text="{Binding Value, Mode=OneWay}" />
-                                                    <Run Text="]" />
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                        <ItemsControl ItemsSource="{Binding Matches}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}"
+                                                   FontFamily="{StaticResource AppFontMono}" Margin="0,0,12,0" />
+                                        <ItemsControl ItemsSource="{Binding Groups}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Foreground="{DynamicResource TextSecondary}" Margin="0,0,8,0">
+                                                        <Run Text="[" />
+                                                        <Run Text="{Binding Index, Mode=OneWay}" />
+                                                        <Run Text="]: " />
+                                                        <Run Text="{Binding Value, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </StackPanel>
             </Border>
 

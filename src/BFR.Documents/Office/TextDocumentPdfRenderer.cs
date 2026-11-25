@@ -54,7 +54,10 @@ public sealed class TextDocumentPdfRenderer
             ct.ThrowIfCancellationRequested();
             var readable = DocumentSafety.EnsureReadablePath(inputPath, out snapshot, out var usedSnapshot);
             var ext = Path.GetExtension(inputPath).ToLowerInvariant();
-            var blocks = ExtractRenderBlocks(readable, ext, ct);
+            var blocksRes = ExtractRenderBlocks(readable, ext, ct);
+            if (!blocksRes.Success)
+                return DocumentResult.Fail(blocksRes.ErrorCode, blocksRes.Message ?? "Failed to read document content.");
+            var blocks = blocksRes.Data!;
 
             using var doc = new PdfDocument();
             doc.Info.Title = Path.GetFileNameWithoutExtension(inputPath);
@@ -165,7 +168,7 @@ public sealed class TextDocumentPdfRenderer
         return page;
     }
 
-    private static List<RenderBlock> ExtractRenderBlocks(string path, string ext, CancellationToken ct)
+    private static DocumentResult<List<RenderBlock>> ExtractRenderBlocks(string path, string ext, CancellationToken ct)
     {
         var blocks = new List<RenderBlock>();
 
@@ -225,6 +228,8 @@ public sealed class TextDocumentPdfRenderer
         {
             var extractor = new OpenXmlExtractor();
             var res = extractor.ExtractText(path, ct);
+            if (!res.Success)
+                return DocumentResult<List<RenderBlock>>.Fail(res.ErrorCode, res.Message ?? "Failed to extract Office text.");
             var text = res.Data ?? string.Empty;
             foreach (var line in text.Split('\n'))
             {
@@ -233,6 +238,10 @@ public sealed class TextDocumentPdfRenderer
         }
         else if (ext is ".xlsx" or ".xlsm")
         {
+            var safety = OpenXmlCleaner.ValidateOpenXmlArchiveSafety(path, ct);
+            if (!safety.Success)
+                return DocumentResult<List<RenderBlock>>.Fail(safety.ErrorCode, safety.Message ?? "Unsafe or invalid spreadsheet archive.");
+
             using var wb = new XLWorkbook(path);
             foreach (var ws in wb.Worksheets)
             {
@@ -242,6 +251,7 @@ public sealed class TextDocumentPdfRenderer
                 var first = true;
                 foreach (var row in range.Rows())
                 {
+                    ct.ThrowIfCancellationRequested();
                     var vals = row.Cells().Select(c => c.GetFormattedString());
                     blocks.Add(new RenderBlock(first ? BlockKind.TableHeader : BlockKind.Code, string.Join("  |  ", vals)));
                     first = false;
@@ -262,7 +272,7 @@ public sealed class TextDocumentPdfRenderer
             blocks.Add(new RenderBlock(BlockKind.Paragraph, "(Empty document)"));
         }
 
-        return blocks;
+        return DocumentResult<List<RenderBlock>>.Ok(blocks);
     }
 
     private static string ExtractInlineText(ContainerInline? container)

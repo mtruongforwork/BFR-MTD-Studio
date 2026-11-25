@@ -93,7 +93,7 @@ public sealed class QuickActionCoordinator
         }
 
         // Kiểm tra Free vs Pro trước khi tạo Progress Toast.
-        if (TryCheckProGate(commandKey, action, paths, out var requiredFeature, out var gateMessage))
+        if (TryCheckProGate(item, commandKey, action, paths, out var requiredFeature, out var gateMessage))
         {
             ShowProLimitToast(gateMessage, requiredFeature);
             return;
@@ -580,9 +580,50 @@ public sealed class QuickActionCoordinator
                 return DocumentResult.Ok(outputPaths: outputs, journalPath: journal);
             }
 
+            case "metadata.strip-gps":
+            {
+                // Xoá GPS không mất chất lượng qua ExifGpsStripper/GpsStripPlanner và ghi journal để hỗ trợ Hoàn tác.
+                var fs = new RealFileSystem();
+                var fileItems = new List<FileItem>();
+                for (var i = 0; i < paths.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (fs.FileExists(paths[i])) fileItems.Add(FileScanner.FromFile(fs, paths[i], i));
+                }
+                if (fileItems.Count == 0)
+                    return DocumentResult.Fail(DocumentErrorCode.FileNotFound, Loc.T("ToastNoFilesSelected"));
+
+                var tempRoot = Path.Combine(PathGuard.BfrTempRoot, "gps-" + Guid.NewGuid().ToString("N")[..8]);
+                try
+                {
+                    var plan = GpsStripPlanner.Plan(fileItems, fs, tempRoot);
+                    if (plan.Operations.Count == 0)
+                    {
+                        var protectedItem = plan.Items.FirstOrDefault(i => i.Status == GpsStripStatus.Protected);
+                        if (protectedItem is not null)
+                            return DocumentResult.Fail(DocumentErrorCode.ProtectedPath, protectedItem.Message ?? Loc.T("EdgeDiskOrProtectedMsg"));
+                        var errorItem = plan.Items.FirstOrDefault(i => i.Status == GpsStripStatus.Error);
+                        if (errorItem is not null)
+                            return DocumentResult.Fail(DocumentErrorCode.Unknown, errorItem.Message ?? Loc.T("ToastFailed"));
+                        return DocumentResult.Ok(outputPaths: paths);
+                    }
+
+                    var exec = new OperationExecutor(fs, _journalDir).Execute(plan.Operations, AppVersion.Current, ct);
+                    if (exec.Failed > 0 && exec.Succeeded == 0)
+                        return DocumentResult.Fail(DocumentErrorCode.Unknown, exec.Errors.FirstOrDefault().Error ?? Loc.T("ToastFailed"));
+
+                    var stripped = plan.Items.Where(i => i.Status == GpsStripStatus.Ready).Select(i => i.File.FullPath).ToList();
+                    return DocumentResult.Ok(outputPaths: stripped, journalPath: exec.JournalPath);
+                }
+                finally
+                {
+                    try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
+            }
+
             case "images.compress":
             case "images.convert":
-            case "metadata.strip-gps":
             {
                 var wic = new WicImageProcessor();
                 var outputs = new List<string>();
@@ -657,6 +698,7 @@ public sealed class QuickActionCoordinator
                 var pdfSec = new PdfSecurityService();
                 var officeCleaner = new OpenXmlCleaner();
                 var outputs = new List<string>();
+                var failures = new List<(DocumentErrorCode Code, string Message)>();
                 foreach (var p in paths)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -665,18 +707,44 @@ public sealed class QuickActionCoordinator
                     {
                         var outPdf = Path.Combine(OutDir(p), $"{Path.GetFileNameWithoutExtension(p)}_clean.pdf");
                         var res = await pdfSec.StripMetadataAsync(p, outPdf, true, password, true, _journalDir, ct).ConfigureAwait(false);
-                        if (res.Success && res.OutputPath is not null) outputs.Add(res.OutputPath);
+                        if (res.Success && res.OutputPath is not null)
+                            outputs.Add(res.OutputPath);
+                        else
+                            failures.Add((res.ErrorCode, $"{Path.GetFileName(p)}: {res.Message ?? res.ErrorCode.ToString()}"));
                     }
                     else if (ext is ".docx" or ".xlsx" or ".pptx")
                     {
                         var outDoc = Path.Combine(OutDir(p), $"{Path.GetFileNameWithoutExtension(p)}_clean{ext}");
                         var res = await officeCleaner.CleanAsync(p, outDoc, new OpenXmlCleanOptions(RecordJournal: true, JournalDir: _journalDir), ct).ConfigureAwait(false);
-                        if (res.Success && res.OutputPath is not null) outputs.Add(res.OutputPath);
+                        if (res.Success && res.OutputPath is not null)
+                            outputs.Add(res.OutputPath);
+                        else
+                            failures.Add((res.ErrorCode, $"{Path.GetFileName(p)}: {res.Message ?? res.ErrorCode.ToString()}"));
+                    }
+                    else
+                    {
+                        failures.Add((DocumentErrorCode.UnsupportedFormat, $"{Path.GetFileName(p)}: unsupported format"));
                     }
                 }
-                return outputs.Count > 0
-                    ? DocumentResult.Ok(outputPaths: outputs)
-                    : DocumentResult.Fail(DocumentErrorCode.UnsupportedFormat, Loc.T("ToastFailed"));
+
+                if (outputs.Count == 0)
+                {
+                    var pwdFail = failures.FirstOrDefault(f => f.Code is DocumentErrorCode.PasswordRequired or DocumentErrorCode.OwnerPasswordRequired);
+                    if (pwdFail != default)
+                        return DocumentResult.Fail(pwdFail.Code, pwdFail.Message);
+                    return failures.Count > 0
+                        ? DocumentResult.Fail(failures[0].Code, failures[0].Message)
+                        : DocumentResult.Fail(DocumentErrorCode.UnsupportedFormat, Loc.T("ToastFailed"));
+                }
+
+                if (failures.Count > 0)
+                {
+                    return DocumentResult.Fail(
+                        failures[0].Code,
+                        $"{outputs.Count}/{paths.Count} cleaned; {failures.Count} failed ({failures[0].Message})");
+                }
+
+                return DocumentResult.Ok(outputPaths: outputs);
             }
 
             default:
@@ -689,6 +757,7 @@ public sealed class QuickActionCoordinator
     // ----------------------------------------------------------------- Pro Gate & Helpers
 
     private bool TryCheckProGate(
+        RadialItem item,
         string commandKey,
         RadialAction? action,
         IReadOnlyList<string> paths,
@@ -713,14 +782,21 @@ public sealed class QuickActionCoordinator
             return true;
         }
 
-        if (commandKey == "pdf.compress" && paths.Count > 1)
+        if (commandKey is "images.compress" or "images.convert" && paths.Count > _license.MaxImagesPerBatch)
+        {
+            feature = ProFeature.ImageUnlimited;
+            message = Loc.F("EdgeFreeLimitImages", _license.MaxImagesPerBatch, paths.Count);
+            return true;
+        }
+
+        if (commandKey is "pdf.compress" or "pdf.strip-meta" or "doc.to-pdf" or "privacy.clean-all" or "text.normalize-utf8" && paths.Count > 1)
         {
             feature = ProFeature.DocumentBatch;
             message = Loc.T("EdgeFreeLimitBatch");
             return true;
         }
 
-        if (action?.RequiresPro == true)
+        if (item.RequiresPro || action?.RequiresPro == true)
         {
             feature = commandKey.StartsWith("doc.", StringComparison.Ordinal) ? ProFeature.OfficeConversion : ProFeature.DocumentBatch;
             message = Loc.T("EdgeFreeLimitMsg");

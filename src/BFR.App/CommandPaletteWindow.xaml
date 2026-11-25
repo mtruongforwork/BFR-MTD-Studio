@@ -21,10 +21,10 @@
     </Window.Resources>
 
     <Border x:Name="RootCard"
-            Background="{DynamicResource SurfaceBackground}"
-            BorderBrush="{DynamicResource BfrGlassRim}"
+            Background="{DynamicResource BfrGlassFillStrong}"
+            BorderBrush="{DynamicResource BfrHoverRim}"
             BorderThickness="1"
-            CornerRadius="14"
+            CornerRadius="22"
             Margin="16">
         <Border.Effect>
             <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.42" Color="Black" />
@@ -47,9 +47,28 @@
                     <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
                                Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,10,0" />
 
-                    <TextBox x:Name="InputBox" Grid.Column="1" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource AppTextBoxStyle}"
-                             AutomationProperties.Name="Command palette search" />
+                    <Grid Grid.Column="1">
+                        <TextBox x:Name="InputBox" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource AppTextBoxStyle}"
+                                 AutomationProperties.Name="Command palette search" />
+                        <TextBlock Text="{DynamicResource CommandPaletteSearch}"
+                                   Foreground="{DynamicResource TextSecondary}"
+                                   Opacity="0.7"
+                                   Margin="12,0,12,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=InputBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -154,9 +173,9 @@
             </Grid>
 
             <!-- Chân -->
-            <Border Grid.Row="2" Margin="0,8,0,0" Padding="18,9" CornerRadius="0,0,13,13"
-                    Background="{DynamicResource BfrSurface2}"
-                    BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0">
+            <Border Grid.Row="2" Margin="0,8,0,0" Padding="18,10" CornerRadius="0,0,21,21"
+                    Background="{DynamicResource BfrSurface1}"
+                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,1,0,0">
                 <TextBlock Text="{Binding HintText}" FontSize="11.5" Foreground="{DynamicResource BfrFg3}" />
             </Border>
         </Grid>

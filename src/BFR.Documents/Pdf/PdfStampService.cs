@@ -30,7 +30,13 @@ public sealed record PdfWatermarkOptions(
     string ColorHex = "#808080",
     string? Password = null,
     bool RecordJournal = false,
-    string? JournalDir = null);
+    string? JournalDir = null,
+    string FontFamily = "Segoe UI",
+    WatermarkAnchor Anchor = WatermarkAnchor.Center,
+    int TileDensity = 3,
+    double ImageScaleRatio = 0.35,
+    StampPageScope PageScope = StampPageScope.All,
+    string? CustomPageRange = null);
 
 public sealed record PdfPageNumberOptions(
     string Format = "Page {page} of {total}",
@@ -40,7 +46,11 @@ public sealed record PdfPageNumberOptions(
     double MarginPoints = 24.0,
     string? Password = null,
     bool RecordJournal = false,
-    string? JournalDir = null);
+    string? JournalDir = null,
+    string ColorHex = "#333333",
+    string FontFamily = "Segoe UI",
+    StampPageScope PageScope = StampPageScope.All,
+    string? CustomPageRange = null);
 
 /// <summary>
 /// Offline PDF stamping service: text/image watermarks (opacity, angle, font size, tile/center)
@@ -91,7 +101,8 @@ public sealed class PdfStampService
             var alpha = (byte)Math.Clamp((int)Math.Round(options.Opacity * 255), 10, 255);
             var (r, g, b) = ParseHexColor(options.ColorHex);
             var brush = new XSolidBrush(XColor.FromArgb(alpha, r, g, b));
-            var font = new XFont("Segoe UI", Math.Clamp(options.FontSize, 8, 180), XFontStyle.Bold);
+            var fontName = string.IsNullOrWhiteSpace(options.FontFamily) ? "Segoe UI" : options.FontFamily;
+            var font = new XFont(fontName, Math.Clamp(options.FontSize, 8, 180), XFontStyle.Bold);
 
             XImage? wmImage = null;
             if (!string.IsNullOrWhiteSpace(options.ImagePath) && File.Exists(options.ImagePath))
@@ -101,30 +112,40 @@ public sealed class PdfStampService
 
             try
             {
+                var placements = PdfStampLayout.ComputeWatermarkPlacements(options.Layout, options.Anchor, options.AngleDegrees, options.TileDensity);
                 for (var i = 0; i < doc.PageCount; i++)
                 {
                     ct.ThrowIfCancellationRequested();
+                    if (!PdfStampLayout.ShouldApplyToPage(i + 1, doc.PageCount, options.PageScope, options.CustomPageRange))
+                    {
+                        progress?.Report((double)(i + 1) / doc.PageCount);
+                        continue;
+                    }
+
                     var page = doc.Pages[i];
                     using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
                     var w = page.Width.Point;
                     var h = page.Height.Point;
 
-                    if (wmImage is not null)
+                    foreach (var pl in placements)
                     {
-                        var imgW = Math.Min(w * 0.5, wmImage.PointWidth);
-                        var imgH = imgW * (wmImage.PointHeight / Math.Max(1, wmImage.PointWidth));
-                        DrawAtPoints(gfx, w, h, options.Layout, options.AngleDegrees, (cx, cy) =>
+                        var cx = pl.CenterXRatio * w;
+                        var cy = pl.CenterYRatio * h;
+                        var state = gfx.Save();
+                        gfx.TranslateTransform(cx, cy);
+                        gfx.RotateTransform(pl.AngleDegrees);
+                        if (wmImage is not null)
                         {
-                            gfx.DrawImage(wmImage, cx - imgW / 2, cy - imgH / 2, imgW, imgH);
-                        });
-                    }
-                    else if (!string.IsNullOrWhiteSpace(options.Text))
-                    {
-                        var size = gfx.MeasureString(options.Text, font);
-                        DrawAtPoints(gfx, w, h, options.Layout, options.AngleDegrees, (cx, cy) =>
+                            var imgW = Math.Clamp(w * options.ImageScaleRatio, 24, w * 0.85);
+                            var imgH = imgW * (wmImage.PointHeight / Math.Max(1, wmImage.PointWidth));
+                            gfx.DrawImage(wmImage, -imgW / 2, -imgH / 2, imgW, imgH);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(options.Text))
                         {
-                            gfx.DrawString(options.Text, font, brush, new XPoint(cx - size.Width / 2, cy + size.Height / 3));
-                        });
+                            var size = gfx.MeasureString(options.Text, font);
+                            gfx.DrawString(options.Text, font, brush, new XPoint(-size.Width / 2, size.Height / 3));
+                        }
+                        gfx.Restore(state);
                     }
 
                     progress?.Report((double)(i + 1) / doc.PageCount);
@@ -200,19 +221,25 @@ public sealed class PdfStampService
                 ? PdfReader.Open(readable, PdfDocumentOpenMode.Modify)
                 : PdfReader.Open(readable, options.Password, PdfDocumentOpenMode.Modify);
 
-            var font = new XFont("Segoe UI", Math.Clamp(options.FontSize, 6, 48), XFontStyle.Regular);
-            var brush = new XSolidBrush(XColor.FromArgb(220, 45, 45, 45));
+            var fontName = string.IsNullOrWhiteSpace(options.FontFamily) ? "Segoe UI" : options.FontFamily;
+            var font = new XFont(fontName, Math.Clamp(options.FontSize, 6, 48), XFontStyle.Regular);
+            var (r, g, b) = ParseHexColor(options.ColorHex);
+            var brush = new XSolidBrush(XColor.FromArgb(235, r, g, b));
             var total = doc.PageCount;
             var margin = Math.Max(8, options.MarginPoints);
 
             for (var i = 0; i < total; i++)
             {
                 ct.ThrowIfCancellationRequested();
+                if (!PdfStampLayout.ShouldApplyToPage(i + 1, total, options.PageScope, options.CustomPageRange))
+                {
+                    progress?.Report((double)(i + 1) / total);
+                    continue;
+                }
+
                 var page = doc.Pages[i];
-                var num = options.StartNumber + i;
-                var label = options.Format
-                    .Replace("{page}", num.ToString(), StringComparison.OrdinalIgnoreCase)
-                    .Replace("{total}", (options.StartNumber + total - 1).ToString(), StringComparison.OrdinalIgnoreCase);
+                var label = PdfStampLayout.FormatPageNumberText(options.Format, i + 1, total, options.StartNumber);
+                var placed = PdfStampLayout.ComputePageNumberPlacement(options.Position, page.Width.Point, page.Height.Point, margin, label);
 
                 using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
                 var rect = new XRect(margin, margin, Math.Max(10, page.Width.Point - margin * 2), Math.Max(10, page.Height.Point - margin * 2));
@@ -225,6 +252,7 @@ public sealed class PdfStampService
                     PageNumberPosition.TopRight => XStringFormats.TopRight,
                     _ => XStringFormats.BottomCenter
                 };
+                _ = placed;
 
                 gfx.DrawString(label, font, brush, rect, format);
                 progress?.Report((double)(i + 1) / total);

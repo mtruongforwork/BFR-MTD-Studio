@@ -51,6 +51,14 @@ public sealed class TokenPickerBar : StackPanel
         {
             new TokenDef("{md5:8}", "TokenDescMd5", "a1b2c3d4"),
             new TokenDef("{sha256:8}", "TokenDescSha256", "9f86d081")
+        }),
+        new("TokenGroupPdf", "PDF (Pro)", new[]
+        {
+            new TokenDef("{pdf.title}", "TokenDescPdfTitle", "Annual Report 2026"),
+            new TokenDef("{pdf.author}", "TokenDescPdfAuthor", "Finance Dept"),
+            new TokenDef("{pdf.pages}", "TokenDescPdfPages", "12"),
+            new TokenDef("{pdf.firstline}", "TokenDescPdfFirstLine", "INVOICE #2026-001"),
+            new TokenDef("{pdf.match:INV-\\d+}", "TokenDescPdfMatch", "INV-202601")
         })
     };
 

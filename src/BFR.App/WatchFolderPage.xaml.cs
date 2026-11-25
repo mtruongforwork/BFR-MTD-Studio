@@ -119,17 +119,37 @@ public class WatchFolderPage : PageBase
 
         _ruleList.ItemsSource = _rules;
         _ruleList.DisplayMemberPath = null;
+        _ruleList.MaxHeight = 260;
+        _ruleList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        _ruleList.Background = System.Windows.Media.Brushes.Transparent;
+        _ruleList.BorderThickness = new Thickness(0);
+        _ruleList.ItemsPanel = (ItemsPanelTemplate)System.Windows.Markup.XamlReader.Parse("""
+            <ItemsPanelTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+              <UniformGrid Columns="3" VerticalAlignment="Top" />
+            </ItemsPanelTemplate>
+            """);
         _ruleList.ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
-            <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-              <StackPanel Margin="0,2">
-                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
-                <TextBlock Text="{Binding Folder}" FontSize="11" Opacity="0.75" TextTrimming="CharacterEllipsis"
-                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
-              </StackPanel>
+            <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+              <Border Background="{DynamicResource BfrGlassFill}" BorderBrush="{DynamicResource BfrLine}"
+                      BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="5">
+                <StackPanel>
+                  <DockPanel Margin="0,0,0,6">
+                    <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                     VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Name}" FontFamily="{DynamicResource BfrFontHeading}" FontSize="14"
+                               Foreground="{DynamicResource BfrFg}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                  </DockPanel>
+                  <TextBlock Text="{Binding Folder}" FontSize="11.5" Foreground="{DynamicResource BfrFg2}"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </Border>
             </DataTemplate>
             """);
         _ruleList.SelectionChanged += (_, _) => LoadSelected();
+        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent, new RoutedEventHandler(CardToggle_Changed));
+        _ruleList.AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent, new RoutedEventHandler(CardToggle_Changed));
         AutomationProperties.SetName(_ruleList, "Watch rules");
 
         var editor = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -206,6 +226,18 @@ public class WatchFolderPage : PageBase
         if (_rules.Count > 0) _ruleList.SelectedIndex = 0;
         else UpdateEditorState();
         _stopButton.IsEnabled = false;
+    }
+
+    private void CardToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _store.Save(_rules);
+        if (sender is FrameworkElement { DataContext: WatchRule rule } && ReferenceEquals(rule, Selected))
+        {
+            _loading = true;
+            _enabled.IsChecked = rule.Enabled;
+            _loading = false;
+        }
     }
 
     private void ApplyStyles()

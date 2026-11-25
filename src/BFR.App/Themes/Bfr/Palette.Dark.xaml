@@ -2,18 +2,20 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Bảng màu tối. Màu (Color) tách khỏi cọ (Brush) để test tương phản đọc được trực tiếp giá trị màu. -->
 
-    <Color x:Key="BfrBgBaseColor">#FF0E0F13</Color>
-    <Color x:Key="BfrSurface1Color">#FF16181F</Color>
-    <Color x:Key="BfrSurface2Color">#FF1D2029</Color>
+    <Color x:Key="BfrBgBaseColor">#FF1E1E1E</Color>
+    <Color x:Key="BfrSurface1Color">#FF242424</Color>
+    <Color x:Key="BfrSurface2Color">#FF2A2A2A</Color>
+    <Color x:Key="BfrSidebarFillColor">#B8262626</Color>
+    <Color x:Key="BfrInspectorFillColor">#FF252525</Color>
     <Color x:Key="BfrGlassColor">#0FFFFFFF</Color>
-    <Color x:Key="BfrLineColor">#17FFFFFF</Color>
+    <Color x:Key="BfrLineColor">#14FFFFFF</Color>
     <Color x:Key="BfrFgColor">#FFF2F2F7</Color>
     <Color x:Key="BfrFg2Color">#FFA3A6B5</Color>
     <Color x:Key="BfrFg3Color">#FF8A8EA0</Color>
-    <Color x:Key="BfrOkColor">#FF3DDC97</Color>
+    <Color x:Key="BfrOkColor">#FF4EEAA5</Color>
     <Color x:Key="BfrWarnColor">#FFFFB74D</Color>
     <Color x:Key="BfrBadColor">#FFFF6B6B</Color>
-    <Color x:Key="BfrOkSoftColor">#243DDC97</Color>
+    <Color x:Key="BfrOkSoftColor">#1F4EEAA5</Color>
     <Color x:Key="BfrWarnSoftColor">#24FFB74D</Color>
     <Color x:Key="BfrBadSoftColor">#24FF6B6B</Color>
     <Color x:Key="BfrShadowColor">#FF000000</Color>
@@ -21,14 +23,16 @@
     <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrShadowOpacity">0.38</sys:Double>
     <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrGlowOpacity">0.22</sys:Double>
 
-    <Color x:Key="BfrGlassFillColor">#14FFFFFF</Color>
-    <Color x:Key="BfrGlassFillStrongColor">#A60F1117</Color>
-    <Color x:Key="BfrGlassSheenColor">#14FFFFFF</Color>
-    <Color x:Key="BfrGlassRimTopColor">#40FFFFFF</Color>
-    <Color x:Key="BfrGlassRimBottomColor">#08FFFFFF</Color>
+    <Color x:Key="BfrGlassFillColor">#0BFFFFFF</Color>
+    <Color x:Key="BfrGlassFillStrongColor">#E6262626</Color>
+    <Color x:Key="BfrGlassHoverFillColor">#14FFFFFF</Color>
+    <Color x:Key="BfrGlassSheenColor">#0FFFFFFF</Color>
+    <Color x:Key="BfrGlassRimTopColor">#12FFFFFF</Color>
+    <Color x:Key="BfrGlassRimBottomColor">#12FFFFFF</Color>
+    <Color x:Key="BfrHoverRimColor">#24FFFFFF</Color>
 
-    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBlobOpacity">0.55</sys:Double>
-    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBackdropTintOpacity">0.62</sys:Double>
+    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBlobOpacity">0</sys:Double>
+    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BfrBackdropTintOpacity">1.0</sys:Double>
     <SolidColorBrush x:Key="BfrBgBase" Color="{DynamicResource BfrBgBaseColor}" />
     <SolidColorBrush x:Key="BfrSurface1" Color="{DynamicResource BfrSurface1Color}" />
     <SolidColorBrush x:Key="BfrSurface2" Color="{DynamicResource BfrSurface2Color}" />
@@ -51,6 +55,10 @@
     <!-- Kính (glass) v2.1: nền trong mờ, lớp sáng phía trên, viền gradient 1 px. Dùng cho ô bento và thanh bên. -->
     <SolidColorBrush x:Key="BfrGlassFill" Color="{DynamicResource BfrGlassFillColor}" />
     <SolidColorBrush x:Key="BfrGlassFillStrong" Color="{DynamicResource BfrGlassFillStrongColor}" />
+    <SolidColorBrush x:Key="BfrGlassHoverFill" Color="{DynamicResource BfrGlassHoverFillColor}" />
+    <SolidColorBrush x:Key="BfrHoverRim" Color="{DynamicResource BfrHoverRimColor}" />
+    <SolidColorBrush x:Key="BfrSidebarFill" Color="{DynamicResource BfrSidebarFillColor}" />
+    <SolidColorBrush x:Key="BfrInspectorFill" Color="{DynamicResource BfrInspectorFillColor}" />
     <LinearGradientBrush x:Key="BfrGlassSheen" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="{DynamicResource BfrGlassSheenColor}" Offset="0" />
         <GradientStop Color="#00FFFFFF" Offset="0.55" />

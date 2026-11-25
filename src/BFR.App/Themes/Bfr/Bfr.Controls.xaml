@@ -106,8 +106,9 @@
 
     <Style x:Key="BfrButtonBase" TargetType="Button">
         <Setter Property="FontFamily" Value="{DynamicResource BfrFontBodySemi}" />
-        <Setter Property="FontSize" Value="{DynamicResource BfrSizeBody}" />
-        <Setter Property="Padding" Value="{DynamicResource BfrPadControl}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="12,4" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -120,12 +121,7 @@
         <Setter Property="Foreground" Value="{DynamicResource BfrOnAccent}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="20,12" />
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="{DynamicResource BfrAcc1Color}" Opacity="{DynamicResource BfrShadowOpacity}" />
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Padding" Value="14,5" />
     </Style>
     <Style x:Key="BfrSecondaryButton" TargetType="Button" BasedOn="{StaticResource BfrButtonBase}">
         <Setter Property="Background" Value="{DynamicResource BfrGlass}" />

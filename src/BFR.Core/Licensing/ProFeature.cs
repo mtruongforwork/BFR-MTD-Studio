@@ -94,5 +94,10 @@ public enum ProFeature
     OfficeConversion,
 
     /// <summary>Dọn sạch dữ liệu ẩn Office (Comments, Revisions) hàng loạt.</summary>
-    OfficeDeepClean
+    OfficeDeepClean,
+
+    // ----- v3.2: Pro Intelligence & Media -----
+
+    /// <summary>So sánh PDF không giới hạn trang, xuất báo cáo Diff PDF và đổi tên theo nội dung PDF ({pdf.*}).</summary>
+    PdfDiffAndContentRename
 }

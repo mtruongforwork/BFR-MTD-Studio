@@ -27,6 +27,7 @@ public sealed class ToolsPage : PageBase
     private readonly Action<ProFeature?> _requestUpgrade;
     private readonly IMetadataProvider? _metadata;
     private readonly IImageProcessor? _images;
+    private readonly Action<string>? _navigatePage;
 
     private readonly ListBox _list = new();
     private readonly Grid _host = new();
@@ -40,7 +41,8 @@ public sealed class ToolsPage : PageBase
 
     public ToolsPage(
         IFileSystem fs, LicenseService license, HistoryStore history, string journalDir, string version,
-        IMetadataProvider? metadata, IImageProcessor? images, Action<ProFeature?> requestUpgrade)
+        IMetadataProvider? metadata, IImageProcessor? images, Action<ProFeature?> requestUpgrade,
+        Action<string>? navigatePage = null)
     {
         _fs = fs;
         _license = license;
@@ -48,6 +50,7 @@ public sealed class ToolsPage : PageBase
         _metadata = metadata;
         _images = images;
         _requestUpgrade = requestUpgrade;
+        _navigatePage = navigatePage;
         _runner = new ToolRunner(fs, journalDir, history, version);
 
         System.Windows.Automation.AutomationProperties.SetName(this, "Tools page");
@@ -170,7 +173,7 @@ public sealed class ToolsPage : PageBase
             }
             else if (entry.Key == "home")
             {
-                _home = new ToolsHomeView(ToolCatalog.Create(), OpenTool, AddPending);
+                _home = new ToolsHomeView(ToolCatalog.Create(), OpenTool, AddPending, _navigatePage);
                 _home.SetPending(_pending.Count);
                 view = _home;
             }

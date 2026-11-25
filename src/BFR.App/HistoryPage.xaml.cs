@@ -115,6 +115,8 @@ public partial class HistoryPage : PageBase
         EmptyText.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         PreviewDrawer.Visibility = Visibility.Collapsed;
         PreviewPairsGrid.ItemsSource = null;
+        _lastPreviewTotal = 0;
+        _lastPreviewMissing = 0;
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => Refresh();
@@ -130,6 +132,8 @@ public partial class HistoryPage : PageBase
         _previewCts?.Cancel();
         _previewCts?.Dispose();
         _previewCts = null;
+        _lastPreviewTotal = 0;
+        _lastPreviewMissing = 0;
 
         if (HistoryGrid.SelectedItem is not HistoryRow row || string.IsNullOrWhiteSpace(row.Entry.JournalPath))
         {

@@ -23,6 +23,9 @@ public class PresetsPage : PageBase
     private readonly TextBlock _status;
     private readonly TextBox _search;
     private readonly TextBlock _empty;
+    private readonly Ui.Button _applyButton;
+    private readonly Ui.Button _shareButton;
+    private readonly Ui.Button _deleteButton;
     private List<Preset> _all = new();
 
     private readonly Func<Preset> _currentProvider;
@@ -64,20 +67,20 @@ public class PresetsPage : PageBase
 
         var saveButton = MakeButton(Loc.T("LibrarySave"), "SecondaryButtonStyle");
         saveButton.Click += (_, _) => SaveCurrent(_currentProvider());
-        var applyButton = MakeButton(Loc.T("LibraryApply"), "PrimaryButtonStyle");
-        applyButton.Click += (_, _) => ApplySelected();
-        var shareButton = MakeButton(Loc.T("SharePreset"), "SecondaryButtonStyle");
-        shareButton.Click += (_, _) => ShareSelected();
+        _applyButton = MakeButton(Loc.T("LibraryApply"), "PrimaryButtonStyle");
+        _applyButton.Click += (_, _) => ApplySelected();
+        _shareButton = MakeButton(Loc.T("SharePreset"), "SecondaryButtonStyle");
+        _shareButton.Click += (_, _) => ShareSelected();
         var importButton = MakeButton(Loc.T("ImportFromClipboard"), "SecondaryButtonStyle");
         importButton.Click += (_, _) => ImportFromClipboard();
-        var deleteButton = MakeButton(Loc.T("LibraryDelete"), "SecondaryButtonStyle");
-        deleteButton.Click += (_, _) => DeleteSelected();
+        _deleteButton = MakeButton(Loc.T("LibraryDelete"), "SecondaryButtonStyle");
+        _deleteButton.Click += (_, _) => DeleteSelected();
 
         buttons.Children.Add(saveButton);
-        buttons.Children.Add(applyButton);
-        buttons.Children.Add(shareButton);
+        buttons.Children.Add(_applyButton);
+        buttons.Children.Add(_shareButton);
         buttons.Children.Add(importButton);
-        buttons.Children.Add(deleteButton);
+        buttons.Children.Add(_deleteButton);
 
         // Ô tìm kiếm preset
         _search = new TextBox
@@ -95,27 +98,28 @@ public class PresetsPage : PageBase
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             ItemTemplate = (DataTemplate)System.Windows.Markup.XamlReader.Parse("""
                 <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-                  <Grid Margin="2,4">
+                  <Grid Margin="6,5">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
-                                 Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding DisplayName}" FontFamily="{DynamicResource BfrFontBodySemi}" FontSize="13"
+                                 Foreground="{DynamicResource BfrFg}" TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding DisplayDescription}" FontSize="11.5"
-                                 Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                 Foreground="{DynamicResource BfrFg2}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                     </StackPanel>
-                    <Border Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Padding="7,2" CornerRadius="6"
-                            Background="{DynamicResource ChipBackground}" BorderBrush="{DynamicResource ChipBorder}" BorderThickness="1">
+                    <Border Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Padding="8,2" CornerRadius="999"
+                            Background="{DynamicResource BfrGlass}" BorderBrush="{DynamicResource BfrLine}" BorderThickness="1">
                       <TextBlock Text="{Binding Rules.Count, StringFormat={}{0} rules}" FontSize="11"
-                                 Foreground="{DynamicResource TextSecondary}" />
+                                 Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource BfrFg2}" />
                     </Border>
                   </Grid>
                 </DataTemplate>
                 """)
         };
         _list.SelectionChanged += (_, _) => UpdateStatus();
+        _list.MouseDoubleClick += (_, _) => ApplySelected();
         AutomationProperties.SetName(_list, "Saved presets");
 
         _empty = new TextBlock
@@ -202,6 +206,11 @@ public class PresetsPage : PageBase
 
     private void UpdateStatus()
     {
+        var hasSelection = _list.SelectedItem is Preset;
+        _applyButton.IsEnabled = hasSelection;
+        _shareButton.IsEnabled = hasSelection;
+        _deleteButton.IsEnabled = hasSelection;
+
         // Dùng _all.Count đã cache trong bộ nhớ, không đọc đĩa lại mỗi lần đổi lựa chọn.
         var count = _all.Count;
         if (count == 0)

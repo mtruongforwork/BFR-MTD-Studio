@@ -99,6 +99,12 @@ public sealed record LicenseLimits
     /// <summary>Cho phép dọn sạch dữ liệu ẩn Office hàng loạt.</summary>
     public bool AllowOfficeDeepClean { get; init; }
 
+    /// <summary>Số trang PDF tối đa mỗi lần so sánh (Free: 5, Pro: không giới hạn).</summary>
+    public int MaxPdfDiffPages { get; init; }
+
+    /// <summary>Cho phép dùng token đọc nội dung PDF ({pdf.title}, {pdf.match:...}) khi đổi tên.</summary>
+    public bool AllowPdfContentTokens { get; init; }
+
     /// <summary>Giới hạn của bản miễn phí (PHẦN 3.6).</summary>
     public static LicenseLimits Free { get; } = new()
     {
@@ -131,7 +137,9 @@ public sealed record LicenseLimits
         AllowDocumentBatch = false,
         AllowPdfSecurityAndStamp = false,
         AllowOfficeConversion = false,
-        AllowOfficeDeepClean = false
+        AllowOfficeDeepClean = false,
+        MaxPdfDiffPages = LicenseService.MaxFreePdfDiffPages,
+        AllowPdfContentTokens = false
     };
 
     /// <summary>Giới hạn của bản Pro: không giới hạn.</summary>
@@ -166,7 +174,9 @@ public sealed record LicenseLimits
         AllowDocumentBatch = true,
         AllowPdfSecurityAndStamp = true,
         AllowOfficeConversion = true,
-        AllowOfficeDeepClean = true
+        AllowOfficeDeepClean = true,
+        MaxPdfDiffPages = int.MaxValue,
+        AllowPdfContentTokens = true
     };
 
     public static LicenseLimits For(LicenseTier tier) =>

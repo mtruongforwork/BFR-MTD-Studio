@@ -14,54 +14,10 @@
         FontSize="{StaticResource AppFontSizeBody}"
         TextOptions.TextFormattingMode="Ideal"
         UseLayoutRounding="True"
-        AllowDrop="True" DragEnter="Window_DragEnter" DragOver="Window_DragOver" DragLeave="Window_DragLeave" Drop="Window_Drop"
-        AutomationProperties.Name="Batch File Renamer Main Window">
+        AllowDrop="True" DragEnter="Window_DragEnter" DragOver="Window_DragOver" DragLeave="Window_DragLeave" PreviewDrop="Window_PreviewDrop" Drop="Window_Drop"
+        AutomationProperties.Name="FileFlow Studio Main Window">
 
     <Window.Resources>
-        <!-- Thanh bên kiểu macOS: mục = icon + nhãn nằm ngang, mục đang chọn là viên thuốc màu nhấn nhạt. Thu gọn (Tag=Collapsed) thì ẩn nhãn. -->
-        <Style x:Key="NavLabelStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Margin" Value="12,0,0,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, ElementName=NavRail}" Value="Collapsed">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="NavSidebarItemStyle" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{DynamicResource BfrFg2}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Margin" Value="8,1" />
-            <Setter Property="Padding" Value="14,9" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Bd" CornerRadius="12" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BfrGlass}" />
-                                <Setter Property="Foreground" Value="{DynamicResource BfrFg}" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BfrAccGradientSoft}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BfrLine}" />
-                                <Setter Property="Foreground" Value="{DynamicResource BfrAccFg}" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BfrAccFg}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <!-- Menu ngữ cảnh cho từng dòng trong bảng xem trước (v1.0.2) -->
         <ContextMenu x:Key="RowContextMenu" Style="{StaticResource AppContextMenuStyle}">
             <MenuItem Header="{DynamicResource CtxOpenFile}" Click="ContextMenu_OpenFile_Click" Style="{StaticResource AppMenuItemStyle}">
@@ -300,163 +256,32 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" /> <!-- Row 0: TitleBar (WPF-UI) -->
-            <RowDefinition Height="*" />    <!-- Row 1: rail điều hướng + vùng trang -->
-        </Grid.RowDefinitions>
+        <!-- Nền macOS #1E1E1E đặc sạch -->
+        <ctl:BackdropBlobs />
 
-        <!-- Đốm màu nhoè phía sau mọi thứ để kính có thứ lộ ra -->
-        <ctl:BackdropBlobs Grid.RowSpan="2" />
-
-        <!-- ================= 0. TitleBar (WPF-UI) ================= -->
-        <ui:TitleBar Grid.Row="0" ShowMaximize="True" ShowMinimize="True"
-                     CloseWindowByDoubleClickOnIcon="False">
-            <ui:TitleBar.Header>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <!-- Logo & tên ứng dụng -->
-                    <Border Width="24" Height="24" CornerRadius="6" Background="{DynamicResource Accent}"
-                            VerticalAlignment="Center">
-                        <TextBlock Text="&#xE8C5;" FontFamily="{StaticResource IconFont}" FontSize="13"
-                                   Foreground="{DynamicResource TextOnAccent}" HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock Text="{DynamicResource WindowTitle}" Margin="10,0,8,0" FontSize="13"
-                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
-                               VerticalAlignment="Center" />
-
-                    <!-- Badge cấp phép (Free / Pro) -->
-                    <Button x:Name="TierBadge" Style="{StaticResource SubtleButtonStyle}"
-                            Click="TierBadge_Click" Padding="8,2" Height="22" Margin="4,0,0,0"
-                            Background="{DynamicResource AccentSoft}"
-                            BorderBrush="{DynamicResource AccentBorder}" BorderThickness="1"
-                            AutomationProperties.Name="License tier">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
-                                        CornerRadius="11" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <TextBlock x:Name="TierBadgeText" Text="Free" FontWeight="SemiBold" FontSize="10.5"
-                                   Foreground="{DynamicResource Accent}" />
-                    </Button>
-
-                    <ui:Button x:Name="UpgradeButton" Appearance="Primary"
-                            Content="{DynamicResource Upgrade}" Click="Upgrade_Click"
-                            Padding="8,2" Height="22" FontSize="11" Margin="6,0,0,0"
-                            Background="{DynamicResource AccentFillColorDefaultBrush}"
-                            Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
-                            AutomationProperties.Name="Upgrade to Pro" />
-                </StackPanel>
-            </ui:TitleBar.Header>
-        </ui:TitleBar>
-
-        <!-- ================= Thân: rail điều hướng + vùng trang ================= -->
-        <Grid Grid.Row="1">
+        <!-- Split-View: Left Translucent Sidebar (220px) + Right (Unified Toolbar 52px + Content) -->
+        <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="SidebarColumn" Width="220" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Thanh bên kiểu macOS (kính đậm): nhãn + icon, thu gọn còn icon bằng nút ở đầu -->
-            <Border x:Name="NavRail" Grid.Column="0" Width="220" Tag="Expanded" Style="{StaticResource BfrGlassSidebar}">
-                <DockPanel Margin="0,10,0,12">
-                    <StackPanel DockPanel.Dock="Bottom">
-                        <RadioButton x:Name="NavSettings" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Settings"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavSettings}" AutomationProperties.Name="Nav settings">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavSettings}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                    </StackPanel>
-                    <Button DockPanel.Dock="Top" x:Name="NavCollapseToggle" Style="{StaticResource BfrGhostButton}" HorizontalAlignment="Left" Margin="12,0,0,8"
-                                  Click="NavCollapse_Click" AutomationProperties.Name="Toggle sidebar" ToolTip="{DynamicResource NavCollapseTip}">
-                        <TextBlock Text="&#xE700;" FontFamily="{StaticResource IconFont}" FontSize="15" />
-                    </Button>
-                    <StackPanel>
-                        <RadioButton x:Name="NavHome" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Home"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavHome}" AutomationProperties.Name="Nav home">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE80F;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavHome}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavPdfStudio" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="PdfStudio"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavPdfStudio}" AutomationProperties.Name="Nav PDF Studio">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xEA90;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavPdfStudio}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavDocsOcr" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="DocsOcr"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavDocsOcr}" AutomationProperties.Name="Nav Docs and OCR">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavDocsOcr}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavRename" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Rename" IsChecked="True"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavRename}" AutomationProperties.Name="Nav rename">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE70F;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavRename}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavTools" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Tools"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavTools}" AutomationProperties.Name="Nav tools">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE90F;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavTools}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <Rectangle Height="1" Margin="18,8" Fill="{DynamicResource BfrLine}" />
-                        <RadioButton x:Name="NavShelf" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Shelf"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavShelf}" AutomationProperties.Name="Nav shelf">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8A1;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavShelf}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavWatch" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Watch"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavWatch}" AutomationProperties.Name="Nav watch folder">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavWatch}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavHistory" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="History"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavHistory}" AutomationProperties.Name="Nav history">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE81C;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavHistory}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="NavPresets" Style="{StaticResource NavSidebarItemStyle}" GroupName="Nav" Tag="Presets"
-                                     Checked="Nav_Checked" ToolTip="{DynamicResource NavPresets}" AutomationProperties.Name="Nav presets">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8F1;" FontFamily="{StaticResource IconFont}" FontSize="17" Width="20" TextAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource NavPresets}" Style="{StaticResource NavLabelStyle}" />
-                            </StackPanel>
-                        </RadioButton>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <ctl:MacSidebar x:Name="Sidebar" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
-            <!-- Vùng trang: trang Đổi tên là phần nội dung cũ; các trang khác được tạo khi cần -->
-            <Grid x:Name="PageHost" Grid.Column="1">
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="52" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <ctl:MacToolbar x:Name="Toolbar" Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+
+                <!-- Vùng trang: trang Đổi tên là phần nội dung cũ; các trang khác được tạo khi cần -->
+                <Grid x:Name="PageHost" Grid.Row="1">
                 <Grid x:Name="RenamePage">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" /> <!-- CommandBar -->
-                        <RowDefinition Height="*" />    <!-- Rule Builder + bảng xem trước -->
-                        <RowDefinition Height="Auto" /> <!-- Thanh hành động đáy -->
+                        <RowDefinition Height="*" />    <!-- Stage Left + 300px Right Inspector -->
                     </Grid.RowDefinitions>
 
         <!-- ================= 1. Thanh công cụ (CommandBar) ================= -->
@@ -551,21 +376,21 @@
             </Grid>
         </Border>
 
-        <!-- ================= 2. Vùng làm việc chính ================= -->
-        <Grid Grid.Row="1" Margin="14,10,14,10">
+        <!-- ================= 2. Vùng làm việc macOS (Stage Left + 300px Right Inspector) ================= -->
+        <Grid Grid.Row="1" Margin="16,12,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="380" MinWidth="300" />
+                <ColumnDefinition Width="*" MinWidth="460" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" MinWidth="520" />
+                <ColumnDefinition Width="300" MinWidth="260" />
             </Grid.ColumnDefinitions>
 
-            <!-- Cột trái: Rule Builder -->
-            <Border Grid.Column="0" Background="{DynamicResource BfrGlassFill}"
-                    BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1"
-                    CornerRadius="{DynamicResource BfrRadiusTile}" Padding="12">
+            <!-- Cột phải: macOS Right Inspector (#252525 + 1px left divider) -->
+            <Border Grid.Column="2" Background="{DynamicResource BfrInspectorFill}"
+                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="1,1,0,0"
+                    CornerRadius="0" Padding="14">
                 <DockPanel>
                     <!-- Tiêu đề & Chọn Preset -->
-                    <Grid DockPanel.Dock="Top" Margin="4,2,4,10">
+                    <Grid DockPanel.Dock="Top" Margin="2,2,2,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -588,32 +413,88 @@
                                 AutomationProperties.Name="Preset menu" />
                     </Grid>
 
-                    <!-- Nút thêm quy tắc / lưu preset dưới đáy -->
-                    <Grid DockPanel.Dock="Bottom" Margin="4,10,4,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <ui:Button Grid.Column="0" Appearance="Secondary" Click="SavePreset_Click" Margin="0,0,6,0"
-                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                ToolTip="{DynamicResource SaveAsPresetButton}"
-                                AutomationProperties.Name="Save as preset button">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE74E;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource SaveAsPresetButton}" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" />
+                    <!-- Sticky Bottom Inspector Footer: Nút thêm quy tắc + Thanh tóm tắt + CTA chính -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="2,10,2,0">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:Button Grid.Column="0" Appearance="Secondary" Click="SavePreset_Click" Margin="0,0,6,0"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    ToolTip="{DynamicResource SaveAsPresetButton}"
+                                    AutomationProperties.Name="Save as preset button">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74E;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource SaveAsPresetButton}" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </ui:Button>
+                            <Button Grid.Column="1" Style="{StaticResource BfrPrimaryButton}" Click="AddRule_Click"
+                                    AutomationProperties.Name="Add rule button">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource AddRuleButton}" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <Border BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,8">
+                                    <ui:Button DockPanel.Dock="Right" Appearance="Secondary" Content="{DynamicResource Undo}" Click="Undo_Click"
+                                               IsEnabled="{Binding CanUndo}" Padding="10,4" FontSize="12"
+                                               AutomationProperties.Name="Undo last rename" />
+                                    <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
+                                               Typography.NumeralAlignment="Tabular"
+                                               Foreground="{DynamicResource BfrFg2}" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+
+                                <!-- Báo thành công / Huỷ -->
+                                <Border Margin="0,0,0,8" Style="{StaticResource BfrToast}" Padding="10,6"
+                                        Background="{DynamicResource SuccessSoft}" BorderBrush="{DynamicResource Success}"
+                                        Visibility="{Binding HasSuccessMessage, Converter={StaticResource BoolToVis}}"
+                                        AutomationProperties.Name="Success banner">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource Undo}" Click="Undo_Click" Padding="6,2" FontSize="11.5" />
+                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuHistory}" Click="History_Click" Padding="6,2" FontSize="11.5" />
+                                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuExportReport}" Click="ExportReport_Click" Padding="6,2" FontSize="11.5" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding SuccessMessage}" Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" />
+                                    </DockPanel>
+                                </Border>
+
+                                <ui:Button Appearance="Transparent" Content="{DynamicResource Cancel}"
+                                           Click="CancelWork_Click" Padding="8,4" Margin="0,0,0,6" HorizontalAlignment="Right"
+                                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+
+                                <Button x:Name="ApplyButton" Style="{StaticResource BfrPrimaryButton}" Click="Apply_Click"
+                                        IsEnabled="{Binding CanApply}" HorizontalAlignment="Stretch" Height="40"
+                                        AutomationProperties.Name="Apply renaming">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsBusy, Converter={StaticResource InverseBoolToVis}}">
+                                            <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding ApplyButtonText}" FontWeight="SemiBold" FontSize="13"
+                                                       Typography.NumeralAlignment="Tabular" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                                            <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="0,0,8,0"
+                                                             Foreground="{DynamicResource TextOnAccent}" />
+                                            <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="13"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
                             </StackPanel>
-                        </ui:Button>
-                        <Button Grid.Column="1" Style="{StaticResource BfrPrimaryButton}" Click="AddRule_Click"
-                                AutomationProperties.Name="Add rule button">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource AddRuleButton}" Margin="6,0,0,0" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Danh sách rỗng -->
-                    <Grid DockPanel.Dock="Top" Margin="4,6">
+                    <Grid DockPanel.Dock="Top" Margin="2,4">
                         <TextBlock Text="{DynamicResource RulesEmpty}" Style="{StaticResource CaptionTextStyle}"
                                    TextWrapping="Wrap"
                                    Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVis}}" />
@@ -628,12 +509,12 @@
             </Border>
 
             <!-- Thanh kéo phân chia độ rộng -->
-            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
+            <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch"
                           Background="Transparent" ResizeBehavior="PreviousAndNext"
                           AutomationProperties.Name="Resize rule panel" />
 
-            <!-- Cột phải: Bảng xem trước kết quả đổi tên -->
-            <Grid Grid.Column="2">
+            <!-- Cột trái: Stage / Bảng xem trước kết quả đổi tên -->
+            <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -844,6 +725,21 @@
                                                 <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
                                                 <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Locked">
+                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
+                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Protected">
+                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource ErrorSoft}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Error}" />
+                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Error}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="MissingData">
+                                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource WarningSoft}" />
+                                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{DynamicResource Warning}" />
+                                                <Setter TargetName="StatusLabel" Property="Foreground" Value="{DynamicResource Warning}" />
+                                            </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -937,77 +833,11 @@
             </Border>
             </Grid>
         </Grid>
-
-        <!-- ================= 3. Thanh hành động đáy (Footer Action Bar) ================= -->
-        <Border Grid.Row="2" Style="{StaticResource BfrFloatingBar}" Margin="14,4,14,14" Padding="16,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!-- Trạng thái gọn & thông báo thành công (đã bỏ dải đếm trùng lặp với KPI tiles) -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
-                               Foreground="{DynamicResource TextSecondary}" Margin="4,0,0,0" />
-
-                    <!-- Báo thành công kèm Hoàn tác / Lịch sử / Xuất báo cáo -->
-                    <Border Margin="6,0,0,0" Style="{StaticResource BfrToast}" Padding="12,4" MaxWidth="900"
-                            Background="{DynamicResource SuccessSoft}" BorderBrush="{DynamicResource Success}"
-                            Visibility="{Binding HasSuccessMessage, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.Name="Success banner">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                                       Foreground="{DynamicResource Success}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding SuccessMessage}" Foreground="{DynamicResource TextPrimary}"
-                                       VerticalAlignment="Center" Margin="8,0,10,0" />
-                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource Undo}" Click="Undo_Click" Padding="10,4" />
-                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuHistory}" Click="History_Click" Padding="10,4" />
-                            <Button Style="{StaticResource BfrGhostButton}" Content="{DynamicResource MenuExportReport}" Click="ExportReport_Click" Padding="10,4" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Nút Huỷ khi đang xử lý -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0"
-                                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                        <ui:Button Appearance="Transparent" Content="{DynamicResource Cancel}"
-                                Click="CancelWork_Click" Padding="8,3" />
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Nút Hoàn tác & Áp dụng (morph sang vòng xoay tiến trình kiểu Squoosh khi đang chạy) -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ui:Button Appearance="Secondary" Content="{DynamicResource Undo}" Click="Undo_Click"
-                            IsEnabled="{Binding CanUndo}" Margin="0,0,8,0" Padding="14,7"
-                            AutomationProperties.Name="Undo last rename" />
-
-                    <Button x:Name="ApplyButton" Style="{StaticResource BfrPrimaryButton}" Click="Apply_Click"
-                            IsEnabled="{Binding CanApply}" MinWidth="200" Height="36"
-                            AutomationProperties.Name="Apply renaming">
-                        <Grid>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                        Visibility="{Binding IsBusy, Converter={StaticResource InverseBoolToVis}}">
-                                <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
-                                           Margin="0,0,8,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding ApplyButtonText}" FontWeight="SemiBold" FontSize="13"
-                                           Typography.NumeralAlignment="Tabular" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="0,0,8,0"
-                                                 Foreground="{DynamicResource TextOnAccent}" />
-                                <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="13"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
                 </Grid>
             </Grid>
+            </Grid>
 
-            <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên cả rail và trang -->
+            <!-- Vùng hiển thị hộp thoại nổi (ContentDialog) phủ lên toàn cửa sổ -->
             <ui:ContentDialogHost x:Name="DialogHost" Grid.ColumnSpan="2" />
         </Grid>
 

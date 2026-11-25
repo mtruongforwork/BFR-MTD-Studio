@@ -77,7 +77,7 @@ public sealed class MainViewModel : ObservableObject
 
         _metadataTier = license.Status.Tier;
         _metadataProvider = license.Status.Tier == LicenseTier.Pro
-            ? new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader())
+            ? new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader(), new BFR.Documents.Pdf.PdfMetadataProvider())
             : null;
 
         Presets = new ObservableCollection<Preset>(BuiltInPresets.All);
@@ -209,7 +209,7 @@ public sealed class MainViewModel : ObservableObject
 
         _metadataTier = currentTier;
         _metadataProvider = currentTier == LicenseTier.Pro
-            ? new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader())
+            ? new CompositeMetadataProvider(new ExifMetadataReader(), new MediaMetadataReader(), new AudioTagReader(), new BFR.Documents.Pdf.PdfMetadataProvider())
             : null;
 
         Raise(nameof(HasMetadataProvider));

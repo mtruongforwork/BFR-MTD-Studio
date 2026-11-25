@@ -1,0 +1,101 @@
+<UserControl x:Class="BFR.App.Controls.MacToolbar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="52"
+             UseLayoutRounding="True">
+    <UserControl.Resources>
+        <Style x:Key="MacToolbarBtnStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource BfrFg2}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="6" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF" />
+                                <Setter Property="Foreground" Value="{DynamicResource BfrFg}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="Transparent" BorderBrush="{DynamicResource BfrLine}" BorderThickness="0,0,0,1"
+            Padding="14,0,16,0" MouseLeftButtonDown="Toolbar_MouseLeftButtonDown">
+        <DockPanel>
+            <!-- Right: Spotlight Search (220x28px) + Settings Gear -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="SearchTrigger" Width="220" Height="28" Cursor="Hand" Margin="0,0,8,0"
+                        Click="Search_Click" FocusVisualStyle="{x:Null}" AutomationProperties.Name="Spotlight Search">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" CornerRadius="6" Background="#0DFFFFFF"
+                                    BorderBrush="{DynamicResource BfrLine}" BorderThickness="1" Padding="9,0">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Right" Background="#14FFFFFF" CornerRadius="4" Padding="5,1"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="⌘K" FontSize="10.5" FontFamily="{DynamicResource BfrFontMono}"
+                                                   Foreground="{DynamicResource BfrFg3}" />
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                   Foreground="{DynamicResource BfrFg3}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                        <TextBlock x:Name="SearchLabel" Text="Tìm công cụ..." FontSize="12"
+                                                   Foreground="{DynamicResource BfrFg3}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#16FFFFFF" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BfrHoverRim}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Button Style="{StaticResource MacToolbarBtnStyle}" Click="Settings_Click"
+                        ToolTip="Cài đặt (⌘,)" AutomationProperties.Name="Toolbar settings">
+                    <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="14" />
+                </Button>
+            </StackPanel>
+
+            <!-- Left: Sidebar Toggle + Back/Forward Chevrons + Current View Title -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource MacToolbarBtnStyle}" Click="ToggleSidebar_Click" Margin="0,0,8,0"
+                        ToolTip="Thu gọn / mở rộng thanh bên" AutomationProperties.Name="Toggle sidebar">
+                    <TextBlock Text="&#xE700;" FontFamily="{StaticResource IconFont}" FontSize="13.5" />
+                </Button>
+
+                <Button x:Name="BackBtn" Style="{StaticResource MacToolbarBtnStyle}" Click="Back_Click" IsEnabled="False"
+                        ToolTip="Quay lại" AutomationProperties.Name="Navigate back">
+                    <TextBlock Text="&#xE76B;" FontFamily="{StaticResource IconFont}" FontSize="11.5" />
+                </Button>
+                <Button x:Name="ForwardBtn" Style="{StaticResource MacToolbarBtnStyle}" Click="Forward_Click" IsEnabled="False"
+                        Margin="0,0,10,0" ToolTip="Tiến tới" AutomationProperties.Name="Navigate forward">
+                    <TextBlock Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11.5" />
+                </Button>
+
+                <TextBlock x:Name="TitleText" Text="Trang chủ" FontSize="15"
+                           FontFamily="{DynamicResource BfrFontHeading}" Foreground="{DynamicResource BfrFg}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</UserControl>

@@ -156,6 +156,71 @@ public sealed class OpenXmlExtractor
         }
     }
 
+    public Task<DocumentResult> WriteTextToDocxAsync(
+        string text,
+        string outputPath,
+        bool recordJournal = false,
+        string? journalDir = null,
+        CancellationToken ct = default) =>
+        Task.Run(() => WriteTextToDocx(text, outputPath, recordJournal, journalDir, ct), ct);
+
+    public DocumentResult WriteTextToDocx(
+        string text,
+        string outputPath,
+        bool recordJournal = false,
+        string? journalDir = null,
+        CancellationToken ct = default)
+    {
+        if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var code, out var msg))
+            return DocumentResult.Fail(code, msg!);
+
+        var tempOut = DocumentSafety.CreateTempPath(finalOut);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            using (var wordDoc = WordprocessingDocument.Create(tempOut, WordprocessingDocumentType.Document))
+            {
+                var mainPart = wordDoc.AddMainDocumentPart();
+                mainPart.Document = new Document(new Body());
+                var body = mainPart.Document.Body!;
+
+                var normalized = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+                foreach (var line in normalized.Split('\n'))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var run = new Run(new Text(line) { Space = SpaceProcessingModeValues.Preserve });
+                    body.AppendChild(new Paragraph(run));
+                }
+
+                mainPart.Document.Save();
+            }
+
+            var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, recordJournal, journalDir);
+            tempOut = string.Empty;
+
+            return DocumentResult.Ok(
+                outputPath: finalOut,
+                outputBytes: DocumentSafety.SafeFileLength(finalOut),
+                journalPath: journal);
+        }
+        catch (OperationCanceledException)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.Cancelled, "DOCX export cancelled.");
+        }
+        catch (IOException ex) when (DocumentSafety.IsDiskFull(ex))
+        {
+            return DocumentResult.Fail(DocumentErrorCode.DiskFull, "Insufficient disk space.");
+        }
+        catch (Exception ex)
+        {
+            return DocumentResult.Fail(DocumentErrorCode.Unknown, $"Failed to export DOCX: {ex.Message}");
+        }
+        finally
+        {
+            DocumentSafety.CleanupTempFile(tempOut);
+        }
+    }
+
     public DocumentResult MergeDocx(
         IReadOnlyList<string> inputDocxPaths,
         string outputPath,

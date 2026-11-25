@@ -41,13 +41,15 @@ public partial class App : Application
             try
             {
                 _tray = new TrayIcon(
-                    "Batch File Renamer",
+                    "FileFlow Studio",
                     Loc.T("TrayOpen"),
                     Loc.T("TrayShelf"),
                     Loc.T("TrayExit"),
                     open: () => _mainWindow?.ActivateAndForeground(),
                     shelf: () => _mainWindow?.OpenShelf(),
-                    exit: ExitApplication);
+                    exit: ExitApplication,
+                    orbText: Application.Current?.TryFindResource("TrayToggleOrb") as string ?? "Hiện / Ẩn nút tròn nổi",
+                    toggleOrb: () => _mainWindow?.ToggleFloatingOrb());
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
             }
             catch

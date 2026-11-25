@@ -188,6 +188,15 @@ public class SettingsPage : PageBase
         shelf.Children.Add(hotkeyBox);
         shelf.Children.Add(Caption(Loc.T("SettingsHotkeyHint")));
 
+        // Nút tròn nổi Desktop (Floating Orb): luôn hiện trên Desktop & mọi ứng dụng.
+        var orbToggle = Toggle(
+            Application.Current?.TryFindResource("SettingsFloatingOrb") as string ?? "Hiện nút tròn nổi trên Desktop & mọi ứng dụng",
+            _settings.ShowFloatingOrb,
+            on => _settings.ShowFloatingOrb = on);
+        orbToggle.Margin = new Thickness(0, 12, 0, 0);
+        shelf.Children.Add(orbToggle);
+        shelf.Children.Add(Caption(Application.Current?.TryFindResource("SettingsFloatingOrbHint") as string ?? "Nút tròn kiểu AssistiveTouch luôn nổi; bấm hoặc kéo-thả tệp vào để bung Menu tròn 8 chức năng."));
+
         // Menu tròn các công cụ: phím tắt toàn cục riêng, mặc định tắt.
         var radialToggle = Toggle(Loc.T("SettingsRadial"), _settings.RadialHotkeyEnabled, on => _settings.RadialHotkeyEnabled = on);
         radialToggle.Margin = new Thickness(0, 12, 0, 0);
@@ -505,13 +514,14 @@ public class SettingsPage : PageBase
 
         public TileColumns()
         {
-            Root = new Grid { Margin = new Thickness(28, 4, 28, 16), MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Stretch };
+            _left.Margin = new Thickness(0);
+            Root = new Grid { Margin = new Thickness(24, 8, 24, 24), MaxWidth = 640, HorizontalAlignment = HorizontalAlignment.Center };
             Root.ColumnDefinitions.Add(new ColumnDefinition());
             Root.ColumnDefinitions.Add(_rightCol);
             Grid.SetColumn(_right, 1);
             Root.Children.Add(_left);
             Root.Children.Add(_right);
-            Root.SizeChanged += (_, e) => UpdateLayout(e.NewSize.Width < 740);
+            UpdateLayout(single: true);
         }
 
         public Grid Root { get; }
@@ -540,7 +550,8 @@ public class SettingsPage : PageBase
             else
             {
                 _rightCol.Width = new GridLength(1, GridUnitType.Star);
-                _left.Margin = new Thickness(0, 0, 6, 0);
+                _left.Margin = new Thickness(0, 0, 8, 0);
+                _right.Margin = new Thickness(8, 0, 0, 0);
                 _right.Visibility = Visibility.Visible;
                 for (var i = 0; i < _tiles.Count; i++)
                     (i % 2 == 0 ? _left : _right).Children.Add(_tiles[i]);
@@ -552,13 +563,12 @@ public class SettingsPage : PageBase
     private static StackPanel Card(TileColumns parent, string title)
     {
         var inner = new StackPanel();
-        parent.Add(new BFR.App.Controls.GlassTile
+        parent.Add(new BFR.App.Controls.BentoCard
         {
             Header = title,
             Content = inner,
-            Margin = new Thickness(0, 0, 0, 12),
-            Padding = new Thickness(18, 16, 18, 16),
-            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
+            Margin = new Thickness(0, 0, 0, 16),
+            Padding = new Thickness(20, 18, 20, 18),
             HorizontalAlignment = HorizontalAlignment.Stretch
         });
         return inner;

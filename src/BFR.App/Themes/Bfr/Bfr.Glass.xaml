@@ -28,19 +28,12 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ctl:GlassTile">
                     <Grid x:Name="Root">
-                        <!-- Bóng: chỉ phần ngoài ô (GlassTile cắt phần trong) -->
-                        <Border x:Name="PART_Shadow" CornerRadius="{TemplateBinding CornerRadius}" Background="#FF000000" IsHitTestVisible="False"
-                                Visibility="{DynamicResource BfrGlassEffectsVisibility}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Color="{DynamicResource BfrShadowColor}" Opacity="{DynamicResource BfrShadowOpacity}" />
-                            </Border.Effect>
-                        </Border>
-                        <Border Background="{DynamicResource BfrGlassFill}" CornerRadius="{TemplateBinding CornerRadius}" />
+                        <Border x:Name="PART_Bg" Background="{DynamicResource BfrGlassFill}" CornerRadius="{TemplateBinding CornerRadius}" />
                         <Border Background="{DynamicResource BfrGlassSheen}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-                        <!-- Viền phát sáng 1px kiểu Raycast -->
+                        <!-- Viền phát sáng 1px chuẩn macOS -->
                         <Border x:Name="PART_Rim" BorderBrush="{DynamicResource BfrGlassRim}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
                         <!-- Lớp sáng viền khi hover hoặc active -->
-                        <Border x:Name="PART_HoverRim" BorderBrush="{DynamicResource BfrAccFg}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+                        <Border x:Name="PART_HoverRim" BorderBrush="{DynamicResource BfrHoverRim}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
                         <!-- Vòng focus bàn phím 2px cho trợ năng -->
                         <Border x:Name="PART_FocusRing" BorderBrush="{DynamicResource BfrAccFg}" BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}" Visibility="Collapsed" IsHitTestVisible="False" />
                         <DockPanel Margin="{TemplateBinding Padding}">
@@ -64,6 +57,7 @@
                             <Setter TargetName="PART_FocusRing" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="PART_HoverRim" Property="BorderBrush" Value="{DynamicResource BfrAccFg}" />
                             <Setter TargetName="PART_HoverRim" Property="Opacity" Value="0.85" />
                             <Setter TargetName="PART_HoverRim" Property="BorderThickness" Value="1.5" />
                         </Trigger>
@@ -73,7 +67,8 @@
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsActive" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="PART_HoverRim" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="PART_Bg" Property="Background" Value="{DynamicResource BfrGlassHoverFill}" />
+                            <Setter TargetName="PART_HoverRim" Property="Opacity" Value="1" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -129,6 +124,8 @@
             </MultiTrigger>
         </Style.Triggers>
     </Style>
+
+    <Style TargetType="ctl:BentoCard" BasedOn="{StaticResource {x:Type ctl:GlassTile}}" />
 
     <!-- Thanh kính (ô tìm kiếm, thanh công cụ): nền đậm hơn ô thường -->
     <Style x:Key="BfrGlassPanel" TargetType="Border">

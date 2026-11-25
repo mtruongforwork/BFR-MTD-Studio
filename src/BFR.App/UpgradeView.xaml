@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:local="clr-namespace:BFR.App"
-        Width="640"
+        MinWidth="560" MaxWidth="640"
         FontFamily="{StaticResource AppFont}"
         FontSize="{StaticResource AppFontSizeBody}"
         UseLayoutRounding="True"

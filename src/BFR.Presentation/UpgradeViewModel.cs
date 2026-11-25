@@ -272,6 +272,13 @@ public sealed class UpgradeViewModel : ObservableObject
         ProFeature.AnalyzeExport => "FeatureAnalyzeExport",
         ProFeature.Workflow => "FeatureWorkflow",
         ProFeature.QuarantineRetention => "FeatureQuarantineRetention",
+        ProFeature.DocumentBatch => "FeatureDocumentBatch",
+        ProFeature.PdfUnlimitedPages => "FeaturePdfUnlimitedPages",
+        ProFeature.OfflineOcr => "FeatureOfflineOcr",
+        ProFeature.PdfSecurityAndStamp => "FeaturePdfSecurityAndStamp",
+        ProFeature.OfficeConversion => "FeatureOfficeConversion",
+        ProFeature.OfficeDeepClean => "FeatureOfficeDeepClean",
+        ProFeature.PdfDiffAndContentRename => "FeaturePdfDiffAndContentRename",
         _ => "FeatureUnlimitedRules"
     };
 
@@ -282,6 +289,42 @@ public sealed class UpgradeViewModel : ObservableObject
 
         return new List<UpgradeFeatureRow>
         {
+            new(
+                s.T("FeaturePdfUnlimitedPages"),
+                s.F("FeatureLimitPdfPages", free.MaxPdfPages, free.MaxPdfMergeFiles),
+                s.T("FeatureUnlimited"),
+                free.MaxPdfPages == int.MaxValue,
+                true),
+            new(
+                s.T("FeaturePdfDiffAndContentRename"),
+                s.F("FeatureLimitPdfDiffPages", free.MaxPdfDiffPages),
+                s.T("FeatureUnlimited"),
+                free.MaxPdfDiffPages == int.MaxValue,
+                true),
+            new(
+                s.T("FeaturePdfSecurityAndStamp"),
+                s.T("FeatureNotIncluded"),
+                s.T("FeatureIncluded"),
+                free.AllowPdfSecurityAndStamp,
+                true),
+            new(
+                s.T("FeatureOfflineOcr"),
+                s.F("FeatureLimitOcrPages", free.MaxOcrPages),
+                s.T("FeatureUnlimited"),
+                free.MaxOcrPages == int.MaxValue,
+                true),
+            new(
+                s.T("FeatureOfficeConversion"),
+                s.T("FeatureNotIncluded"),
+                s.T("FeatureIncluded"),
+                free.AllowOfficeConversion,
+                true),
+            new(
+                s.T("FeatureDocumentBatch"),
+                s.T("FeatureNotIncluded"),
+                s.T("FeatureIncluded"),
+                free.AllowDocumentBatch,
+                true),
             new(
                 s.T("FeatureUnlimitedRules"),
                 s.F("FeatureLimitRules", free.MaxRules),

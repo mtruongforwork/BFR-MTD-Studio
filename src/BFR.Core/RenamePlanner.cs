@@ -64,8 +64,10 @@ public sealed class RenamePlanner
 
     private static string MakeTempName(string from)
     {
+        var dir = System.IO.Path.GetDirectoryName(from);
         var ext = System.IO.Path.GetExtension(from);
         var stem = System.IO.Path.GetFileNameWithoutExtension(from);
-        return $"{stem}.bfr-{Guid.NewGuid():N}.tmp{ext}";
+        var fileName = $"{stem}.bfr-{Guid.NewGuid():N}.tmp{ext}";
+        return string.IsNullOrEmpty(dir) ? fileName : System.IO.Path.Combine(dir, fileName);
     }
 }

@@ -31,8 +31,12 @@
 
     <SolidColorBrush x:Key="BfrGlassFill" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="BfrGlassFillStrong" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="BfrGlassHoverFill" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="BfrGlassSheen" Color="Transparent" />
     <SolidColorBrush x:Key="BfrGlassRim" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="BfrHoverRim" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="BfrSidebarFill" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="BfrInspectorFill" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
 
     <sys:Double x:Key="BfrBlobOpacity">0</sys:Double>
     <sys:Double x:Key="BfrBackdropTintOpacity">0</sys:Double>

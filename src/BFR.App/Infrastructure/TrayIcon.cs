@@ -18,7 +18,7 @@ public sealed class TrayIcon : IDisposable
     private const uint MF_STRING = 0, MF_SEPARATOR = 0x800;
     private const uint TPM_RIGHTBUTTON = 2, TPM_RETURNCMD = 0x100, TPM_BOTTOMALIGN = 0x20;
 
-    private const int CmdOpen = 1, CmdShelf = 2, CmdExit = 3;
+    private const int CmdOpen = 1, CmdShelf = 2, CmdOrb = 3, CmdExit = 4;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NOTIFYICONDATA
@@ -48,22 +48,28 @@ public sealed class TrayIcon : IDisposable
     private readonly HwndSource _window;
     private readonly string _tooltip;
     private readonly Action _open, _shelf, _exit;
+    private readonly Action? _toggleOrb;
     private readonly string _openText, _shelfText, _exitText;
+    private readonly string? _orbText;
     private readonly uint _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
     private nint _icon;
     private bool _added;
 
     public TrayIcon(string tooltip, string openText, string shelfText, string exitText,
-        Action open, Action shelf, Action exit)
+        Action open, Action shelf, Action exit, string? orbText = null, Action? toggleOrb = null)
     {
         _tooltip = tooltip;
         _openText = openText; _shelfText = shelfText; _exitText = exitText;
-        _open = open; _shelf = shelf; _exit = exit;
+        _orbText = orbText;
+        _open = open; _shelf = shelf; _exit = exit; _toggleOrb = toggleOrb;
 
-        // Cửa sổ ẩn chỉ để nhận thông điệp từ biểu tượng khay (message-only window).
+        // Cửa sổ ẩn cấp cao nhất (0x0, WS_POPUP) — KHÔNG dùng HWND_MESSAGE (-3) vì cửa sổ message-only
+        // không bao giờ nhận thông điệp broadcast như "TaskbarCreated" khi Explorer khởi động lại.
+        const int WS_POPUP = unchecked((int)0x80000000);
         _window = new HwndSource(new HwndSourceParameters("BFR.TrayHost")
         {
-            ParentWindow = new nint(-3),   // HWND_MESSAGE
+            ParentWindow = nint.Zero,
+            WindowStyle = WS_POPUP,
             Width = 0, Height = 0
         });
         _window.AddHook(WndProc);
@@ -115,6 +121,8 @@ public sealed class TrayIcon : IDisposable
         {
             AppendMenu(menu, MF_STRING, CmdOpen, _openText);
             AppendMenu(menu, MF_STRING, CmdShelf, _shelfText);
+            if (!string.IsNullOrEmpty(_orbText) && _toggleOrb is not null)
+                AppendMenu(menu, MF_STRING, CmdOrb, _orbText);
             AppendMenu(menu, MF_SEPARATOR, 0, null);
             AppendMenu(menu, MF_STRING, CmdExit, _exitText);
 
@@ -127,6 +135,7 @@ public sealed class TrayIcon : IDisposable
             {
                 case CmdOpen: _open(); break;
                 case CmdShelf: _shelf(); break;
+                case CmdOrb: _toggleOrb?.Invoke(); break;
                 case CmdExit:
                     var dispatcher = System.Windows.Application.Current?.Dispatcher;
                     if (dispatcher is not null) _ = dispatcher.BeginInvoke(_exit);

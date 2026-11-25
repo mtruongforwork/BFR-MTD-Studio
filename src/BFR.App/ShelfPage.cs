@@ -55,17 +55,29 @@ public sealed class ShelfPage : PageBase
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         header.Children.Add(new TextBlock
         {
             Text = Loc.T("NavShelf"),
             FontSize = (double)Application.Current.FindResource("AppFontSizeTitle"),
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Application.Current.FindResource("TextPrimary")
+            Foreground = (Brush)Application.Current.FindResource("TextPrimary"),
+            VerticalAlignment = VerticalAlignment.Center
         });
-        _count.Foreground = (Brush)Application.Current.FindResource("TextSecondary");
-        _count.Margin = new Thickness(0, 4, 0, 0);
-        header.Children.Add(_count);
+        _count.Foreground = (Brush)Application.Current.FindResource("BfrFg2");
+        _count.FontSize = 11.5;
+        System.Windows.Documents.Typography.SetNumeralAlignment(_count, FontNumeralAlignment.Tabular);
+        header.Children.Add(new Border
+        {
+            Background = (Brush)Application.Current.FindResource("BfrGlass"),
+            BorderBrush = (Brush)Application.Current.FindResource("BfrLine"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(999),
+            Padding = new Thickness(9, 2, 9, 2),
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = _count
+        });
         Grid.SetRow(header, 0);
         root.Children.Add(header);
 
@@ -94,13 +106,10 @@ public sealed class ShelfPage : PageBase
         var zone = new Grid();
         zone.Children.Add(_list);
         zone.Children.Add(_hint);
-        var card = new Border
+        var card = new BFR.App.Controls.BentoCard
         {
-            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
-            BorderThickness = new Thickness(1),
-            BorderBrush = (Brush)Application.Current.FindResource("BfrGlassRim"),
-            Background = (Brush)Application.Current.FindResource("BfrGlassFill"),
-            Child = zone
+            Padding = new Thickness(16),
+            Content = zone
         };
         Grid.SetRow(card, 1);
         root.Children.Add(card);
@@ -119,18 +128,33 @@ public sealed class ShelfPage : PageBase
         };
         System.Windows.Automation.AutomationProperties.SetName(_renameButton, "Shelf rename all");
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        var footer = new Border
+        {
+            Height = 48,
+            BorderBrush = (Brush)Application.Current.FindResource("BfrLine"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Margin = new Thickness(0, 12, 0, 0),
+            Padding = new Thickness(0, 10, 0, 0)
+        };
+        var buttons = new DockPanel { LastChildFill = false };
+        DockPanel.SetDock(_clear, Dock.Left);
+        DockPanel.SetDock(_renameButton, Dock.Right);
         buttons.Children.Add(_clear);
         buttons.Children.Add(_renameButton);
-        Grid.SetRow(buttons, 2);
-        root.Children.Add(buttons);
+        footer.Child = buttons;
+        Grid.SetRow(footer, 2);
+        root.Children.Add(footer);
 
         Content = root;
-        _model.Items.CollectionChanged += (_, _) => Refresh();
+        _model.Items.CollectionChanged += OnItemsChanged;
         Refresh();
     }
 
+    private void OnItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => Refresh();
+
     public override void OnShown() => Refresh();
+
+    public override void Shutdown() => _model.Items.CollectionChanged -= OnItemsChanged;
 
     private void AddPaths(IEnumerable<string> paths)
     {
@@ -182,8 +206,8 @@ public sealed class ShelfPage : PageBase
             return new Row(name.Length > 0 ? name : p, Path.GetDirectoryName(p.TrimEnd('\\', '/')) ?? string.Empty, p, isDir ? "" : "");
         }).ToList();
 
-        var limit = _model.Limit == int.MaxValue ? "∞" : _model.Limit.ToString();
-        _count.Text = $"{_model.Count} / {limit}";
+        var isVi = string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
+        _count.Text = isVi ? $"{_model.Count} tệp" : $"{_model.Count} files";
         _hint.Visibility = _model.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
         _renameButton.IsEnabled = !_model.IsEmpty;
         _clear.IsEnabled = !_model.IsEmpty;

@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
-    <sys:String x:Key="WindowTitle">Batch File Renamer</sys:String>
+    <sys:String x:Key="WindowTitle">FileFlow Studio</sys:String>
     <sys:String x:Key="PresetLabel">预设：</sys:String>
     <sys:String x:Key="AddFiles">添加文件(_F)</sys:String>
     <sys:String x:Key="AddFolder">添加文件夹(_D)</sys:String>
@@ -1225,4 +1225,84 @@
     <sys:String x:Key="OcrSearchablePdfButton">导出可搜索 PDF</sys:String>
     <sys:String x:Key="OcrCopyText">复制文本</sys:String>
     <sys:String x:Key="DocsNoFileLoaded">拖放 DOCX、XLSX、PPTX、Markdown、CSV、PDF 或图片文件即可开始。</sys:String>
+    <!-- FileFlow Studio v3.1 Floating Orb, Command-First Home & PDF Studio Upgrades -->
+    <sys:String x:Key="FloatingOrbTooltip">FileFlow Studio — 点击打开圆形菜单 · 拖动移动 · 拖放文件到此处</sys:String>
+    <sys:String x:Key="OrbMenuOpenRadial">打开圆形菜单</sys:String>
+    <sys:String x:Key="OrbMenuHide">隐藏悬浮球</sys:String>
+    <sys:String x:Key="TrayToggleOrb">显示 / 隐藏悬浮球</sys:String>
+    <sys:String x:Key="SettingsFloatingOrb">在桌面和所有应用上方显示悬浮球</sys:String>
+    <sys:String x:Key="SettingsFloatingOrbHint">始终置顶的悬浮球；点击或拖放文件到球上即可展开 8 功能圆形菜单。</sys:String>
+    <sys:String x:Key="HomeSearchPlaceholder">快速搜索工具（如：压缩 PDF、拆分、OCR、重命名...）</sys:String>
+    <sys:String x:Key="HomeSubtitleV3">PDF Studio、文档与 OCR、图片工具与批量重命名 — 100% 离线运行。</sys:String>
+    <sys:String x:Key="HomeDropCompactTitle">将任意文件或文件夹拖放到此处</sys:String>
+    <sys:String x:Key="HomeDropCompactHint">FileFlow Studio 会自动识别文件类型并推荐快捷操作</sys:String>
+    <sys:String x:Key="HomePickFilesBtn">选择文件…</sys:String>
+    <sys:String x:Key="PdfStatusCompleted">已完成。</sys:String>
+    <!-- v3.2 Free vs Pro Features (PDF Studio & Docs/OCR) -->
+    <sys:String x:Key="FeaturePdfUnlimitedPages">无限制 PDF 整理、拆分与合并</sys:String>
+    <sys:String x:Key="FeatureLimitPdfPages">{0} 页 · {1} 文件</sys:String>
+    <sys:String x:Key="FeaturePdfSecurityAndStamp">PDF 加密 (AES-128)、水印与页码</sys:String>
+    <sys:String x:Key="FeatureOfflineOcr">离线 OCR 无页数限制</sys:String>
+    <sys:String x:Key="FeatureLimitOcrPages">最多 {0} 页</sys:String>
+    <sys:String x:Key="FeatureOfficeConversion">PDF 转 Word/Markdown 与 XLSX 转 JSON</sys:String>
+    <sys:String x:Key="FeatureDocumentBatch">批量处理 PDF 与文档</sys:String>
+    <sys:String x:Key="FeatureOfficeDeepClean">批量清理 Office 隐私元数据</sys:String>
+    <!-- v3.3 OCR Structured Layout & AI Deep OCR (Opt-in) -->
+    <sys:String x:Key="OcrEngineOffline">离线 (Windows OCR)</sys:String>
+    <sys:String x:Key="OcrEngineAiDeep">AI Deep OCR</sys:String>
+    <sys:String x:Key="OcrStructuredLayout">智能排版结构（标题 · 表格 · 跨页续段）</sys:String>
+    <sys:String x:Key="OcrAiPrivacyNotice">可选功能：文件仅发送到您自行配置的服务器（本地 SGLang/Ollama 或私有 API）。API Key 使用 Windows DPAPI 本地加密存储。</sys:String>
+    <sys:String x:Key="OcrAiPresetLabel">预设</sys:String>
+    <sys:String x:Key="OcrAiPresetSglang">Unlimited-OCR-2 (SGLang)</sys:String>
+    <sys:String x:Key="OcrAiPresetOllama">Ollama Local</sys:String>
+    <sys:String x:Key="OcrAiPresetOpenAi">OpenAI / Gemini API</sys:String>
+    <sys:String x:Key="OcrAiBaseUrlLabel">Base URL</sys:String>
+    <sys:String x:Key="OcrAiModelLabel">模型名称</sys:String>
+    <sys:String x:Key="OcrAiApiKeyLabel">API Key（可选）</sys:String>
+    <sys:String x:Key="OcrAiTestConnection">测试连接</sys:String>
+    <sys:String x:Key="OcrAiTesting">正在测试…</sys:String>
+    <sys:String x:Key="OcrAiRunButton">运行 AI Deep OCR</sys:String>
+    <sys:String x:Key="OcrCropRegionsBadge">🖼 检测到 {0} 个图片/图表 — 保存 .md 时将自动裁剪至 assets/</sys:String>
+    <!-- v3.2 Phase 1: PDF Diff & PDF Content Rename Tokens -->
+    <sys:String x:Key="PdfModeCompare">对比 PDF</sys:String>
+    <sys:String x:Key="PdfCompareRun">对比 2 个 PDF</sys:String>
+    <sys:String x:Key="FeaturePdfDiffAndContentRename">无页数限制 PDF 对比与按 PDF 内容重命名 ({pdf.*})</sys:String>
+    <sys:String x:Key="FeatureLimitPdfDiffPages">最多 {0} 页</sys:String>
+    <sys:String x:Key="TokenGroupPdf">PDF (Pro)</sys:String>
+    <sys:String x:Key="TokenDescPdfTitle">PDF 文档元数据标题</sys:String>
+    <sys:String x:Key="TokenDescPdfAuthor">PDF 文档元数据作者</sys:String>
+    <sys:String x:Key="TokenDescPdfPages">PDF 总页数</sys:String>
+    <sys:String x:Key="TokenDescPdfFirstLine">PDF 第 1 页首行正文</sys:String>
+    <sys:String x:Key="TokenDescPdfMatch">使用正则从 PDF 正文提取编号/发票号</sys:String>
+    <!-- v3.2 Phase 2: Universal AI Markdown Converter (MarkItDown) -->
+    <sys:String x:Key="DocsTargetPdfTitle">打印级 PDF</sys:String>
+    <sys:String x:Key="DocsTargetAiMdTitle">AI 结构化 Markdown</sys:String>
+    <sys:String x:Key="DocsConvertToMdRun">导出 Markdown (.md)</sys:String>
+    <sys:String x:Key="DocsMdFrontmatter">包含 YAML Frontmatter（来源、作者、章节数）</sys:String>
+    <sys:String x:Key="DocsMdMergeBundle">合并多个文件为单个 Markdown 合集（含目录，适合 NotebookLM / RAG）</sys:String>
+    <sys:String x:Key="DocsMdPreviewBtn">预览 Markdown</sys:String>
+    <sys:String x:Key="DocsMdCopyForAi">复制给 ChatGPT / Claude</sys:String>
+    <!-- v3.2 Phase 3: Media & Clean Studio -->
+    <sys:String x:Key="NavMediaClean">媒体与清理</sys:String>
+    <sys:String x:Key="MediaTabDuplicates">重复文件与相似图片</sys:String>
+    <sys:String x:Key="MediaTabRemoveBg">AI 离线抠图</sys:String>
+    <sys:String x:Key="MediaTabTranscribe">音视频离线转文字</sys:String>
+    <sys:String x:Key="MediaDupScanBtn">扫描重复文件</sys:String>
+    <sys:String x:Key="MediaDupRecycleBtn">将所选移入回收站</sys:String>
+    <sys:String x:Key="MediaDupExactMode">完全相同文件 (SHA-256)</sys:String>
+    <sys:String x:Key="MediaDupSimilarMode">视觉相似图片 (Perceptual dHash)</sys:String>
+    <!-- v3.2 Phase 4: Offline AI Background Remover -->
+    <sys:String x:Key="MediaBgRunBtn">离线 AI 抠图去背景</sys:String>
+    <sys:String x:Key="MediaBgSelectImages">选择图片（或拖放到此处）…</sys:String>
+    <sys:String x:Key="MediaBgTransparent">透明背景 (PNG)</sys:String>
+    <sys:String x:Key="MediaBgWhite">纯白背景</sys:String>
+    <sys:String x:Key="MediaBgBlue">证件蓝底</sys:String>
+    <sys:String x:Key="MediaBgModelReady">✓ 模型已下载就绪</sys:String>
+    <!-- v3.2 Phase 5: Offline Audio/Video Transcriber (Whisper.net) -->
+    <sys:String x:Key="MediaWhisperRunBtn">离线语音转文字 (Whisper)</sys:String>
+    <sys:String x:Key="MediaWhisperSelectFile">选择音频 / 视频文件（或拖放）…</sys:String>
+    <sys:String x:Key="MediaWhisperLangLabel">音频语言</sys:String>
+    <sys:String x:Key="MediaWhisperExportTxt">保存 .txt</sys:String>
+    <sys:String x:Key="MediaWhisperExportSrt">保存 .srt 字幕</sys:String>
+    <sys:String x:Key="MediaWhisperExportVtt">保存 .vtt</sys:String>
 </ResourceDictionary>

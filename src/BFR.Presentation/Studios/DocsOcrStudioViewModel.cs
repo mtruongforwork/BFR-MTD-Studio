@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BFR.Core.Licensing;
 using BFR.Documents.Abstractions;
+using BFR.Documents.Markdown;
 using BFR.Documents.Ocr;
 using BFR.Documents.Office;
 using BFR.Documents.Pdf;
@@ -29,6 +30,12 @@ public enum SpreadsheetTargetFormat
     Xlsx
 }
 
+public enum OcrEngineMode
+{
+    OfflineWindows,
+    AiDeepOcr
+}
+
 /// <summary>
 /// ViewModel for the Docs &amp; OCR Studio workbench:
 /// 1. ConvertToPdf (Hybrid Office/LibreOffice + pure-.NET fallback)
@@ -45,7 +52,9 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
     private readonly SpreadsheetConverter _spreadsheet;
     private readonly WindowsOcrService _ocrService;
     private readonly PdfExtractor _pdfExtractor;
+    private readonly UniversalMarkdownConverter _markdownConverter = new();
     private readonly string? _journalDir;
+    private MarkdownConversionResult? _lastMarkdownResult;
 
     private DocsOcrMode _mode = DocsOcrMode.ConvertToPdf;
     private bool _isBusy;
@@ -57,6 +66,10 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
     private OpenXmlCleanReport? _lastCleanReport;
     private string _extractedText = string.Empty;
     private string _selectedLanguageTag = "en-US";
+    private OcrEngineMode _ocrEngine = OcrEngineMode.OfflineWindows;
+    private bool _useStructuredLayout = true;
+    private IReadOnlyList<OcrCropRegion> _lastCropRegions = Array.Empty<OcrCropRegion>();
+    private IReadOnlyList<byte[]> _lastRenderedPagePngs = Array.Empty<byte[]>();
     private ProFeature? _upgradeRequiredFeature;
     private string? _upgradePromptMessage;
     private IReadOnlyList<string> _lastOutputPaths = Array.Empty<string>();
@@ -157,6 +170,30 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
 
     public bool IsSelectedLanguageSupported => WindowsOcrService.IsLanguageSupported(SelectedLanguageTag);
 
+    public OcrEngineMode OcrEngine
+    {
+        get => _ocrEngine;
+        set => Set(ref _ocrEngine, value);
+    }
+
+    public bool UseStructuredLayout
+    {
+        get => _useStructuredLayout;
+        set => Set(ref _useStructuredLayout, value);
+    }
+
+    public IReadOnlyList<OcrCropRegion> LastCropRegions
+    {
+        get => _lastCropRegions;
+        private set => Set(ref _lastCropRegions, value);
+    }
+
+    public IReadOnlyList<byte[]> LastRenderedPagePngs
+    {
+        get => _lastRenderedPagePngs;
+        private set => Set(ref _lastRenderedPagePngs, value);
+    }
+
     public ProFeature? UpgradeRequiredFeature
     {
         get => _upgradeRequiredFeature;
@@ -207,12 +244,138 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
         InspectedMetadata = null;
         LastCleanReport = null;
         ExtractedText = string.Empty;
+        LastCropRegions = Array.Empty<OcrCropRegion>();
+        LastRenderedPagePngs = Array.Empty<byte[]>();
         UsedFallbackEngine = false;
         UpgradeRequiredFeature = null;
         UpgradePromptMessage = null;
         LastOutputPaths = Array.Empty<string>();
         StatusMessage = string.Empty;
         LastErrorCode = DocumentErrorCode.None;
+    }
+
+    public MarkdownConversionResult? LastMarkdownResult
+    {
+        get => _lastMarkdownResult;
+        private set => Set(ref _lastMarkdownResult, value);
+    }
+
+    public async Task<DocumentResult<MarkdownConversionResult>> ExecuteConvertToMarkdownPreviewAsync(
+        bool includeFrontmatter = true,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        if (InputFiles.Count == 0)
+            return DocumentResult<MarkdownConversionResult>.Fail(DocumentErrorCode.FileNotFound, "No input document selected.");
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var opts = new MarkdownConversionOptions(IncludeYamlFrontmatter: includeFrontmatter);
+            var res = await _markdownConverter.ConvertAsync(InputFiles[0], opts, ct).ConfigureAwait(false);
+            if (res.Success && res.Data is not null)
+            {
+                LastMarkdownResult = res.Data;
+                LastErrorCode = DocumentErrorCode.None;
+                StatusMessage = $"Converted to Markdown (~{res.Data.EstimatedTokens:N0} tokens).";
+            }
+            else
+            {
+                LastErrorCode = res.ErrorCode;
+                StatusMessage = res.Message ?? "Markdown conversion failed.";
+            }
+            return res;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<DocumentResult<MarkdownConversionResult>> ExecuteConvertToMarkdownFileAsync(
+        string outputMarkdownPath,
+        bool includeFrontmatter = true,
+        bool mergeBatchIntoBundle = false,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        if (InputFiles.Count == 0)
+            return DocumentResult<MarkdownConversionResult>.Fail(DocumentErrorCode.FileNotFound, "No input document selected.");
+
+        if ((InputFiles.Count > 1 || mergeBatchIntoBundle) && !_license.Allows(ProFeature.DocumentBatch))
+        {
+            var msg = FeatureMessages.For(ProFeature.DocumentBatch);
+            UpgradeRequiredFeature = ProFeature.DocumentBatch;
+            UpgradePromptMessage = msg;
+            LastErrorCode = DocumentErrorCode.FreeTierLimitReached;
+            StatusMessage = msg;
+            return DocumentResult<MarkdownConversionResult>.Fail(DocumentErrorCode.FreeTierLimitReached, msg);
+        }
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var opts = new MarkdownConversionOptions(IncludeYamlFrontmatter: includeFrontmatter);
+            var progress = new Progress<double>(p => Progress = p);
+            DocumentResult<MarkdownConversionResult> res;
+
+            if (InputFiles.Count > 1 && mergeBatchIntoBundle)
+            {
+                res = await _markdownConverter.ConvertBatchBundleAsync(InputFiles.ToList(), outputMarkdownPath, opts, progress, ct).ConfigureAwait(false);
+            }
+            else if (InputFiles.Count > 1)
+            {
+                // Save each file into the selected folder (outputMarkdownPath treated as directory)
+                var outDir = Directory.Exists(outputMarkdownPath) ? outputMarkdownPath : Path.GetDirectoryName(outputMarkdownPath) ?? ".";
+                var outputs = new List<string>();
+                MarkdownConversionResult? lastData = null;
+                for (var i = 0; i < InputFiles.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var target = Path.Combine(outDir, Path.GetFileNameWithoutExtension(InputFiles[i]) + ".md");
+                    var itemRes = await _markdownConverter.ConvertToFileAsync(InputFiles[i], target, opts, ct).ConfigureAwait(false);
+                    if (itemRes.Success && itemRes.OutputPath is not null)
+                    {
+                        outputs.Add(itemRes.OutputPath);
+                        lastData = itemRes.Data;
+                    }
+                    Progress = (double)(i + 1) / InputFiles.Count;
+                }
+
+                if (outputs.Count == 0)
+                    res = DocumentResult<MarkdownConversionResult>.Fail(DocumentErrorCode.UnsupportedFormat, "Failed to convert selected documents.");
+                else
+                {
+                    LastOutputPaths = outputs;
+                    res = DocumentResult<MarkdownConversionResult>.Ok(lastData!, outputPath: outputs[0]);
+                }
+            }
+            else
+            {
+                res = await _markdownConverter.ConvertToFileAsync(InputFiles[0], outputMarkdownPath, opts, ct).ConfigureAwait(false);
+            }
+
+            if (res.Success && res.Data is not null)
+            {
+                LastMarkdownResult = res.Data;
+                LastErrorCode = DocumentErrorCode.None;
+                if (res.OutputPath is not null && LastOutputPaths.Count == 0)
+                    LastOutputPaths = new[] { res.OutputPath };
+                StatusMessage = $"Exported Markdown (~{res.Data.EstimatedTokens:N0} tokens).";
+            }
+            else
+            {
+                LastErrorCode = res.ErrorCode;
+                StatusMessage = res.Message ?? "Markdown export failed.";
+            }
+            return res;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task<DocumentResult> ExecuteConvertToPdfAsync(
@@ -363,7 +526,7 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
                 SpreadsheetTargetFormat.Json => await _spreadsheet.XlsxToJsonAsync(
                     input, outputPath, sheetName, _journalDir is not null, _journalDir, ct).ConfigureAwait(false),
                 SpreadsheetTargetFormat.Xlsx => await _spreadsheet.CsvToXlsxAsync(
-                    input, outputPath, sheetName ?? "Sheet1", _journalDir is not null, _journalDir, ct).ConfigureAwait(false),
+                    input, outputPath, SpreadsheetConverter.SanitizeSheetName(sheetName), _journalDir is not null, _journalDir, ct).ConfigureAwait(false),
                 _ => DocumentResult.Fail(DocumentErrorCode.UnsupportedFormat, "Unsupported spreadsheet target.")
             };
 
@@ -414,21 +577,27 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
                     _journalDir is not null,
                     _journalDir,
                     progress,
-                    ct).ConfigureAwait(false);
+                    ct: ct,
+                    structuredLayout: UseStructuredLayout).ConfigureAwait(false);
             }
             else
             {
-                res = await _ocrService.RecognizeImageAsync(input, SelectedLanguageTag, ct).ConfigureAwait(false);
-                if (res.Success && !string.IsNullOrWhiteSpace(outputPath))
-                {
-                    await File.WriteAllTextAsync(outputPath, res.Data?.FullText ?? string.Empty, ct).ConfigureAwait(false);
-                    res = res with { OutputPath = outputPath };
-                }
+                res = await _ocrService.RecognizeImageAsync(
+                    input,
+                    SelectedLanguageTag,
+                    outputPath,
+                    outputFormat,
+                    _journalDir is not null,
+                    _journalDir,
+                    ct: ct,
+                    structuredLayout: UseStructuredLayout).ConfigureAwait(false);
             }
 
             if (res.Success)
             {
                 ExtractedText = res.Data?.FullText ?? string.Empty;
+                LastCropRegions = Array.Empty<OcrCropRegion>();
+                LastRenderedPagePngs = Array.Empty<byte[]>();
                 LastErrorCode = DocumentErrorCode.None;
                 StatusMessage = $"OCR completed ({res.Data?.Pages.Count ?? 0} pages).";
                 if (res.OutputPath is not null)
@@ -448,8 +617,67 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
         }
     }
 
+    public async Task<DocumentResult<AiOcrRunResult>> RunAiOcrAsync(
+        AiOcrConfig config,
+        CancellationToken ct = default)
+    {
+        ClearPrompt();
+        if (InputFiles.Count == 0)
+        {
+            LastErrorCode = DocumentErrorCode.FileNotFound;
+            StatusMessage = "No PDF or image file selected.";
+            return DocumentResult<AiOcrRunResult>.Fail(DocumentErrorCode.FileNotFound, StatusMessage);
+        }
+
+        if (!_license.Allows(ProFeature.OfflineOcr))
+        {
+            var msg = FeatureMessages.For(ProFeature.OfflineOcr);
+            UpgradeRequiredFeature = ProFeature.OfflineOcr;
+            UpgradePromptMessage = msg;
+            LastErrorCode = DocumentErrorCode.FreeTierLimitReached;
+            StatusMessage = msg;
+            return DocumentResult<AiOcrRunResult>.Fail(DocumentErrorCode.FreeTierLimitReached, msg);
+        }
+
+        IsBusy = true;
+        Progress = 0;
+        try
+        {
+            var progress = new Progress<double>(p => Progress = p);
+            var res = await new AiVisionOcrClient()
+                .RunAsync(InputFiles[0], config, UseStructuredLayout, progress, ct)
+                .ConfigureAwait(false);
+
+            if (res.Success && res.Data is not null)
+            {
+                ExtractedText = res.Data.Markdown;
+                LastCropRegions = res.Data.CropRegions ?? Array.Empty<OcrCropRegion>();
+                LastRenderedPagePngs = res.Data.RenderedPagePngs ?? Array.Empty<byte[]>();
+                LastErrorCode = DocumentErrorCode.None;
+                StatusMessage = $"AI Deep OCR completed ({res.Data.PagesProcessed} pages).";
+            }
+            else
+            {
+                LastErrorCode = res.ErrorCode;
+                StatusMessage = res.Message ?? "AI Deep OCR failed.";
+            }
+
+            return res;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public Task<(bool Ok, string Message)> TestAiOcrConnectionAsync(
+        AiOcrConfig config,
+        CancellationToken ct = default) =>
+        new AiVisionOcrClient().TestConnectionAsync(config, ct);
+
     public async Task<DocumentResult> ExportExtractedTextAsync(string outputPath, CancellationToken ct = default)
     {
+        ClearPrompt();
         if (string.IsNullOrEmpty(ExtractedText))
             return FailWith(DocumentErrorCode.Unknown, "No extracted OCR text to export.");
 
@@ -459,16 +687,56 @@ public sealed class DocsOcrStudioViewModel : ObservableObject
             if (!_license.Allows(ProFeature.OfficeConversion))
                 return DenyPro(ProFeature.OfficeConversion, FeatureMessages.For(ProFeature.OfficeConversion));
 
-            if (InputFiles.Count > 0 && Path.GetExtension(InputFiles[0]).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                var docxRes = await _pdfExtractor.ExportToDocxAsync(
-                    InputFiles[0], outputPath, null, _journalDir is not null, _journalDir, ct).ConfigureAwait(false);
-                return RecordResult(docxRes);
-            }
+            var docxRes = await new OpenXmlExtractor().WriteTextToDocxAsync(
+                ExtractedText, outputPath, _journalDir is not null, _journalDir, ct).ConfigureAwait(false);
+            return RecordResult(docxRes);
         }
 
-        await File.WriteAllTextAsync(outputPath, ExtractedText, ct).ConfigureAwait(false);
-        return RecordResult(DocumentResult.Ok(outputPath: outputPath));
+        if (!DocumentSafety.TryPrepareOutputPath(outputPath, allowOverwrite: false, out var finalOut, out var errCode, out var errMsg))
+            return FailWith(errCode, errMsg!);
+
+        var tempOut = DocumentSafety.CreateTempPath(finalOut);
+        try
+        {
+            await File.WriteAllTextAsync(tempOut, ExtractedText, new System.Text.UTF8Encoding(false), ct).ConfigureAwait(false);
+            var journal = DocumentSafety.CommitTempFile(tempOut, finalOut, _journalDir is not null, _journalDir);
+            tempOut = string.Empty;
+
+            if (ext == ".md" && LastCropRegions.Count > 0 && LastRenderedPagePngs.Count > 0)
+            {
+                var outputDir = Path.GetDirectoryName(finalOut);
+                if (!string.IsNullOrEmpty(outputDir))
+                {
+                    var assetsDir = Path.Combine(outputDir, "assets");
+                    await UnlimitedOcrParser.CropRegionsToAssetsAsync(
+                        LastRenderedPagePngs,
+                        LastCropRegions,
+                        assetsDir,
+                        ct).ConfigureAwait(false);
+                }
+            }
+
+            return RecordResult(DocumentResult.Ok(
+                outputPath: finalOut,
+                outputBytes: DocumentSafety.SafeFileLength(finalOut),
+                journalPath: journal));
+        }
+        catch (OperationCanceledException)
+        {
+            return FailWith(DocumentErrorCode.Cancelled, "Export cancelled.");
+        }
+        catch (IOException ex) when (DocumentSafety.IsDiskFull(ex))
+        {
+            return FailWith(DocumentErrorCode.DiskFull, "Insufficient disk space.");
+        }
+        catch (Exception ex)
+        {
+            return FailWith(DocumentErrorCode.Unknown, $"Failed to export text: {ex.Message}");
+        }
+        finally
+        {
+            DocumentSafety.CleanupTempFile(tempOut);
+        }
     }
 
     private void ClearPrompt()

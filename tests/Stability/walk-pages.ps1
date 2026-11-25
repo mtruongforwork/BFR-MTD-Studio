@@ -162,7 +162,12 @@ function Run-Walk([string]$run) {
     function Select-Nav([string]$name) {
         $nav = Find-Name $script:win $name
         if ($null -eq $nav) { throw "Không thấy mục '$name'" }
-        $nav.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $sel = $null
+        if ($nav.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern, [ref]$sel)) {
+            $sel.Select()
+        } else {
+            $nav.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        }
     }
 
     function Invoke-Named([string]$name) {
@@ -172,16 +177,16 @@ function Run-Walk([string]$run) {
     }
 
     try {
-        $ok = Wait-For { $script:win = $AE::RootElement.FindFirst($TS::Children, (Prop-Cond $AE::NameProperty 'Batch File Renamer Main Window')); $null -ne $script:win -and $script:win.Current.ProcessId -eq $proc.Id } 40000
+        $ok = Wait-For { $script:win = $AE::RootElement.FindFirst($TS::Children, (Prop-Cond $AE::NameProperty 'FileFlow Studio Main Window')); $null -ne $script:win -and $script:win.Current.ProcessId -eq $proc.Id } 40000
         if (-not $ok) { throw "Không thấy cửa sổ chính trong 40 giây" }
         Start-Sleep -Seconds 2   # để Loaded/NavigateTo("Home") kịp chạy
 
-        [void](Step 'home' { Select-Nav 'Nav home' } { $null -ne (Find-Visible $script:win 'Drop files or folders here') })
-        [void](Step 'rename' { Select-Nav 'Nav rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
+        [void](Step 'home' { Select-Nav 'Nav home' } { $null -ne (Find-Visible $script:win 'Batch Rename') })
+        [void](Step 'rename' { Select-Nav 'Nav home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Tools: trang chủ rồi từng công cụ (ô "Open ..." có InvokePattern), quay lại bằng nút Back.
         [void](Step 'tools-home' { Select-Nav 'Nav tools' } { $null -ne (Find-Visible $script:win 'Tools page') -and @(Find-NamePrefix $script:win 'Open ').Count -ge 5 })
-        $tiles = @(Find-NamePrefix $script:win 'Open ' | ForEach-Object { $_.Current.Name } | Sort-Object -Unique)
+        $tiles = @(Find-NamePrefix $script:win 'Open ' | ForEach-Object { $_.Current.Name } | Where-Object { $_ -notmatch '^Open (PDF Studio|Docs|Rename|Batch Rename|Media)' } | Sort-Object -Unique)
         if ($tiles.Count -lt 5) { $failures.Add("[$run/tools] chỉ thấy $($tiles.Count) ô công cụ") }
         foreach ($tile in $tiles) {
             $slug = 'tool-' + ($tile.Substring(5).ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
@@ -196,11 +201,7 @@ function Run-Walk([string]$run) {
         [void](Step 'presets'  { Select-Nav 'Nav presets' }      { $null -ne (Find-Visible $script:win 'Preset library window') })
         [void](Step 'watch'    { Select-Nav 'Nav watch folder' } { $null -ne (Find-Visible $script:win 'Watch folder window') })
         [void](Step 'settings' { Select-Nav 'Nav settings' }     { $null -ne (Find-Visible $script:win 'Settings window') })
-        [void](Step 'back-to-rename' { Select-Nav 'Nav rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
-
-        # Thu gọn / mở rộng thanh bên (kiểm tra nút và nhãn ẩn/hiện không làm app lỗi).
-        [void](Step 'sidebar-collapse' { Invoke-Named 'Toggle sidebar' } { $true })
-        [void](Step 'sidebar-expand'   { Invoke-Named 'Toggle sidebar' } { $true })
+        [void](Step 'back-to-rename' { Select-Nav 'Nav home'; Start-Sleep -Milliseconds 250; Invoke-Named 'Batch Rename' } { $null -ne (Find-Visible $script:win 'Preview table') })
 
         # Dọn dẹp cuối lượt: để watchdog có thời gian ghi nếu có treo ngầm.
         Start-Sleep -Seconds 7

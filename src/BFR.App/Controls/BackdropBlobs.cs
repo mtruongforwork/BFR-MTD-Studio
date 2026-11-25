@@ -49,16 +49,10 @@ public sealed class BackdropBlobs : Grid
         _blobHost.Children.Clear();
         if (BfrTheme.IsHighContrast) return;
 
-        // Lớp phủ nền: giảm độ chói (sáng) / độ xám đục của Mica (tối); độ đậm theo token để mỗi theme tự chỉnh.
+        // Nền macOS đặc sạch (#1E1E1E trong Dark / #F5F5F7 trong Light), không dùng đốm sáng loang lổ.
         var tint = new Rectangle { IsHitTestVisible = false };
         tint.SetResourceReference(Shape.FillProperty, "BfrBgBase");
-        tint.SetResourceReference(OpacityProperty, "BfrBackdropTintOpacity");
         Children.Add(tint);
-        Children.Add(_blobHost);
-
-        AddBlob(720, HorizontalAlignment.Left, VerticalAlignment.Top, new Thickness(-240, -260, 0, 0), "BfrGlow1Color", 0.72);
-        AddBlob(820, HorizontalAlignment.Right, VerticalAlignment.Bottom, new Thickness(0, 0, -280, -320), "BfrGlow2Color", 0.64);
-        AddBlob(520, HorizontalAlignment.Right, VerticalAlignment.Top, new Thickness(0, 20, 40, 0), "BfrAcc1Color", 0.44);
     }
 
     private void AddBlob(double size, HorizontalAlignment h, VerticalAlignment v, Thickness margin, string colorKey, double opacity)

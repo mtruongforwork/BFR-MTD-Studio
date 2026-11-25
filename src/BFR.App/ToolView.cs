@@ -131,52 +131,33 @@ internal sealed class ToolView : UserControl
 
     private UIElement BuildLayout()
     {
-        var root = new DockPanel { Margin = new Thickness(24, 18, 24, 14), LastChildFill = true };
+        var workspace = new BFR.App.Controls.ToolWorkspaceLayout();
 
-        // Tiêu đề
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        header.Children.Add(new TextBlock
+        // Stage Header (Left Top): Title + Stepper
+        var stageHeader = new StackPanel();
+        var titleRow = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+        titleRow.Children.Add(new TextBlock
         {
             Text = Loc.T(_tool.TitleKey),
-            FontSize = (double)Application.Current.FindResource("AppFontSizeTitle"),
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Res("TextPrimary")
+            FontFamily = (FontFamily)Application.Current.FindResource("BfrFontHeading"),
+            FontSize = 18,
+            Foreground = Res("BfrFg")
         });
-        header.Children.Add(new TextBlock
+        stageHeader.Children.Add(titleRow);
+        stageHeader.Children.Add(new TextBlock
         {
             Text = Loc.T(_tool.DescriptionKey),
             Style = AppStyle("CaptionTextStyle"),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0)
+            Margin = new Thickness(0, 0, 0, 8)
         });
-        DockPanel.SetDock(header, Dock.Top);
-        root.Children.Add(header);
+        stageHeader.Children.Add(BuildStepper());
+        workspace.StageHeader = stageHeader;
 
-        // Thanh bước: Chọn tệp → Tuỳ chọn → Xem trước → Áp dụng (công cụ chỉ đọc không có bước cuối).
-        var stepper = BuildStepper();
-        DockPanel.SetDock(stepper, Dock.Top);
-        root.Children.Add(stepper);
+        // Stage Body (Left): Summary + Messages + Treemap + Filter Chip + Results List
+        var stageBody = new DockPanel { LastChildFill = true };
 
-        // Thanh hành động (dưới cùng)
-        var actions = BuildActions();
-        DockPanel.SetDock(actions, Dock.Bottom);
-        root.Children.Add(actions);
-
-        // Phần trên: đầu vào + tuỳ chọn (cuộn được khi nhiều)
-        var top = new StackPanel();
-        top.Children.Add(BuildInput());
-        top.Children.Add(BuildOptions());
-        var topScroll = new ScrollViewer
-        {
-            Content = top,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = _tool.ReadOnly ? 300 : 360
-        };
-        DockPanel.SetDock(topScroll, Dock.Top);
-        root.Children.Add(topScroll);
-
-        // Tóm tắt + cảnh báo
-        var info = new StackPanel { Margin = new Thickness(0, 10, 0, 6) };
+        var info = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
         _summary.Foreground = Res("TextPrimary");
         info.Children.Add(_summary);
         _messages.ItemTemplate = (DataTemplate)XamlReader.Parse("""
@@ -186,14 +167,13 @@ internal sealed class ToolView : UserControl
             """);
         info.Children.Add(_messages);
         DockPanel.SetDock(info, Dock.Top);
-        root.Children.Add(info);
+        stageBody.Children.Add(info);
 
         _treemap.ItemClicked += OnTreemapItemClicked;
         _treemap.ContextMenuFactory = BuildTreemapContextMenu;
         DockPanel.SetDock(_treemap, Dock.Top);
-        root.Children.Add(_treemap);
+        stageBody.Children.Add(_treemap);
 
-        // Chip lọc đang hoạt động khi bấm vào ô Treemap
         var chipRow = new StackPanel { Orientation = Orientation.Horizontal };
         _filterChipText.Foreground = Res("BfrAccFg");
         _filterChipText.FontWeight = FontWeights.SemiBold;
@@ -219,9 +199,8 @@ internal sealed class ToolView : UserControl
         _filterChipBar.Padding = new Thickness(10, 3, 6, 3);
         _filterChipBar.Child = chipRow;
         DockPanel.SetDock(_filterChipBar, Dock.Top);
-        root.Children.Add(_filterChipBar);
+        stageBody.Children.Add(_filterChipBar);
 
-        // Danh sách kết quả
         _results.Style = AppStyle("AppListBoxStyle");
         _results.ItemTemplate = (DataTemplate)XamlReader.Parse(RowTemplateXaml);
         _results.HorizontalContentAlignment = HorizontalAlignment.Stretch;
@@ -242,9 +221,19 @@ internal sealed class ToolView : UserControl
         var resultGrid = new Grid();
         resultGrid.Children.Add(_results);
         resultGrid.Children.Add(_empty);
-        root.Children.Add(resultGrid);
+        stageBody.Children.Add(resultGrid);
+        workspace.StageContent = stageBody;
 
-        return root;
+        // Inspector Body (Right): Input + Options
+        var inspectorBody = new StackPanel();
+        inspectorBody.Children.Add(BuildInput());
+        inspectorBody.Children.Add(BuildOptions());
+        workspace.InspectorContent = inspectorBody;
+
+        // Inspector Sticky Footer (Right Bottom): Actions
+        workspace.InspectorFooter = BuildActions();
+
+        return workspace;
     }
 
     private static void AutomationHelper(DependencyObject element, string name) =>

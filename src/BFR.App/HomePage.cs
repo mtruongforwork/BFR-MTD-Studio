@@ -4,42 +4,50 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using BFR.App.Controls;
 using BFR.Core;
 using BFR.Core.WatchFolder;
 using BFR.Presentation.Tools;
+using Microsoft.Win32;
 
 /// <summary>
-/// Trang chủ Smart Hub v3.0 kiểu Bento:
-/// - Vùng thả tệp thông minh nhận MỌI loại tệp → phân tích tức thì và hiển thị các nút hành động ngữ cảnh
-///   (Gộp PDF, Nén PDF, Chuyển sang PDF, Xóa Metadata ẩn, OCR, Đổi tên...).
-/// - Dải ★ Công cụ yêu thích (đồng bộ với SettingsStore.FavoriteTools).
-/// - 2 thẻ sống cho Watch Folder và Lịch sử gần đây (+ Hoàn tác 1 chạm).
+/// Trang chủ macOS Sequoia/Sonoma HIG:
+/// - Compact Hero Dropzone Banner (padding 16x20, nút 30px Chọn tệp..., Live status pill Watch &amp; Undo).
+/// - Lưới 3 nhóm công cụ (PDF Studio · Tài liệu &amp; OCR · Đổi tên &amp; Quản lý tệp) với thẻ 10px, icon squircle 24x24.
 /// </summary>
 internal sealed class HomePage : PageBase
 {
+    private sealed record QuickToolCard(
+        string Category,
+        string Icon,
+        SquircleTone Tone,
+        string Title,
+        string Description,
+        string[]? FormatTags,
+        Action OnClick);
+
     private readonly Action<string> _navigate;
     private readonly Action<IReadOnlyList<string>> _dropFiles;
     private readonly Action<string> _openTool;
     private readonly Action _openRadial;
     private readonly Action<string, string?, IReadOnlyList<string>>? _dispatchAction;
 
-    private ContentControl? _drop;
+    private Border? _dropBanner;
     private TemMascot? _mascot;
     private Border _smartBar = null!;
     private TextBlock _smartSummary = null!;
     private WrapPanel _smartPills = null!;
-    private WrapPanel _favoritesPanel = null!;
-    private StackPanel _watchBody = null!;
-    private StackPanel _historyBody = null!;
+    private TextBlock _statusPillText = null!;
+    private Ellipse _statusPillDot = null!;
     private Func<(int RuleCount, bool IsRunning)>? _watchStateProvider;
     private Action? _toggleWatch;
     private IReadOnlyList<string> _droppedBatch = Array.Empty<string>();
+    private List<QuickToolCard> _allCards = new();
 
     public HomePage(
         Action<string> navigate,
@@ -53,14 +61,18 @@ internal sealed class HomePage : PageBase
         _openTool = openTool;
         _openRadial = openRadial;
         _dispatchAction = dispatchAction;
-        Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = Build() };
+        _allCards = BuildToolCards();
+        Content = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = Build()
+        };
         RefreshLiveWidgets();
     }
 
-    /// <summary>Linh vật Tem trên trang chủ (để MainWindow đồng bộ biểu cảm nếu cần).</summary>
     public TemMascot? Mascot => _mascot;
 
-    /// <summary>Gắn nguồn trạng thái chạy trực tiếp và hành động bật/tắt nhanh của Watch Folder.</summary>
     public void SetWatchStateProvider(Func<(int RuleCount, bool IsRunning)> provider, Action? toggleWatch = null)
     {
         _watchStateProvider = provider;
@@ -71,7 +83,6 @@ internal sealed class HomePage : PageBase
     public override void OnShown() => RefreshLiveWidgets();
 
     private static Style S(string key) => (Style)Application.Current.FindResource(key);
-
     private static Brush Res(string key) => (Brush)Application.Current.FindResource(key);
 
     private static string TryLoc(string key, string fallback)
@@ -80,34 +91,192 @@ internal sealed class HomePage : PageBase
         return string.IsNullOrEmpty(value) ? fallback : value;
     }
 
+    private bool IsVi => string.Equals(Loc.Current, "vi", StringComparison.OrdinalIgnoreCase);
+
+    private List<QuickToolCard> BuildToolCards()
+    {
+        var vi = IsVi;
+        var catPdf = "PDF Studio";
+        var catDocs = vi ? "Tài liệu & OCR" : "Documents & OCR";
+        var catFiles = vi ? "Đổi tên & Quản lý tệp" : "Rename & File Tools";
+
+        void GoPdf(string mode)
+        {
+            if (_dispatchAction is not null) _dispatchAction("pdf-studio", mode, Array.Empty<string>());
+            else _navigate("PdfStudio");
+        }
+
+        void GoDocs(string mode)
+        {
+            if (_dispatchAction is not null) _dispatchAction("docs-ocr", mode, Array.Empty<string>());
+            else _navigate("DocsOcr");
+        }
+
+        return new List<QuickToolCard>
+        {
+            // PDF Studio
+            new(catPdf, "\uE8F1", SquircleTone.PdfCoral,
+                vi ? "Tổ chức & Cắt ghép PDF" : "Organize & Split PDF",
+                vi ? "Gộp nhiều PDF, trích xuất trang, tách file, xoay & xoá trang" : "Merge PDFs, extract pages, split, rotate & delete",
+                new[] { "PDF", "MERGE", "SPLIT" },
+                () => GoPdf("organize")),
+            new(catPdf, "\uE8AB", SquircleTone.PdfCoral,
+                vi ? "Chuyển đổi PDF" : "Convert PDF",
+                vi ? "Xuất trang PDF sang ảnh PNG/JPG hoặc Word, Markdown, TXT" : "Export PDF to PNG/JPG images or Word, Markdown, TXT",
+                new[] { "PDF", "DOCX", "PNG" },
+                () => GoPdf("convert")),
+            new(catPdf, "\uE73F", SquircleTone.PdfCoral,
+                vi ? "Nén PDF thông minh" : "Smart Compress PDF",
+                vi ? "Tự đo DPI gốc và đề xuất mức nén tối ưu dung lượng" : "Measures source DPI and suggests optimal compression",
+                null,
+                () => GoPdf("compress")),
+            new(catPdf, "\uE70F", SquircleTone.PdfCoral,
+                vi ? "Đóng dấu & Số trang" : "Watermark & Page Numbers",
+                vi ? "Chèn watermark chữ/logo, lặp lưới & đánh số trang" : "Add text/image watermarks, tiling & page numbers",
+                null,
+                () => GoPdf("stamp")),
+            new(catPdf, "\uE72E", SquircleTone.PdfCoral,
+                vi ? "Bảo mật PDF" : "PDF Security",
+                vi ? "Mật khẩu AES-128, phân quyền, mở khoá & xoá metadata" : "AES-128 password, permissions, unlock & metadata strip",
+                null,
+                () => GoPdf("security")),
+
+            // Docs & OCR
+            new(catDocs, "\uE8A5", SquircleTone.DocsBlue,
+                vi ? "Office / Văn bản sang PDF" : "Office & Text to PDF",
+                vi ? "Chuyển DOCX, XLSX, PPTX, Markdown, CSV sang PDF offline" : "Convert DOCX, XLSX, PPTX, Markdown, CSV to PDF offline",
+                new[] { "DOCX", "XLSX", "MD" },
+                () => GoDocs("convert")),
+            new(catDocs, "\uE8C1", SquircleTone.DocsBlue,
+                vi ? "OCR Ngoại tuyến" : "Offline OCR",
+                vi ? "Nhận diện văn bản từ PDF scan và hình ảnh bằng OCR hệ thống" : "Extract text from scanned PDFs and images offline",
+                null,
+                () => GoDocs("ocr")),
+            new(catDocs, "\uEA18", SquircleTone.DocsBlue,
+                vi ? "Dọn dữ liệu ẩn Office" : "Office Privacy Cleaner",
+                vi ? "Xoá tên tác giả, bình luận ẩn và lịch sử sửa trong Word/Excel" : "Strip author, hidden comments & tracked revisions",
+                null,
+                () => GoDocs("privacy")),
+            new(catDocs, "\uE80A", SquircleTone.DocsBlue,
+                vi ? "Chuyển đổi Bảng tính" : "Spreadsheet Converter",
+                vi ? "Chuyển đổi nhanh giữa Excel (.xlsx), CSV và JSON" : "Convert between Excel (.xlsx), CSV and JSON",
+                new[] { "XLSX", "CSV", "JSON" },
+                () => GoDocs("spreadsheet")),
+
+            // Rename & File Tools
+            new(catFiles, "\uE8AC", SquircleTone.FilesPurple,
+                vi ? "Đổi tên hàng loạt" : "Batch Rename",
+                vi ? "Chuỗi quy tắc linh hoạt, xem trước trực tiếp, hoàn tác mọi lúc" : "Rule chains, live preview, instant undo",
+                null,
+                () => _navigate("Rename")),
+            new(catFiles, "\uE8CB", SquircleTone.FilesPurple,
+                Loc.T("ToolOrganizeTitle"),
+                vi ? "Tự động gom tệp vào thư mục con theo loại, ngày hoặc kích thước" : "Auto-sort files into subfolders by type, date, or size",
+                null,
+                () => _openTool("organize")),
+            new(catFiles, "\uEB9F", SquircleTone.FilesPurple,
+                Loc.T("ToolImagesTitle"),
+                vi ? "Nén, đổi kích thước, chuyển JPG/PNG/WEBP và xoá EXIF" : "Compress, resize, convert JPG/PNG/WEBP & strip EXIF",
+                null,
+                () => _openTool("images")),
+            new(catFiles, "\uE8C8", SquircleTone.FilesPurple,
+                Loc.T("ToolDuplicatesTitle"),
+                vi ? "Tìm và dọn các tệp trùng lặp giống hệt nhau để giải phóng ổ đĩa" : "Find and clean identical duplicate files to free space",
+                null,
+                () => _openTool("duplicates"))
+        };
+    }
+
     private UIElement Build()
     {
-        var root = new StackPanel { Margin = new Thickness(32, 24, 32, 24), MaxWidth = 1400, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var root = new StackPanel
+        {
+            Margin = new Thickness(24, 18, 24, 24),
+            MaxWidth = 1160,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
 
-        var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
-        _mascot = new TemMascot { Width = 64, Height = 67, Margin = new Thickness(0, 0, 16, 0) };
-        header.Children.Add(_mascot);
-        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(new TextBlock { Text = Loc.T("HomeTitle"), Style = S("BfrTitleText") });
-        titles.Children.Add(new TextBlock { Text = Loc.T("HomeSubtitle"), Style = S("BfrBodyText"), Foreground = Res("BfrFg2"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
-        header.Children.Add(titles);
+        // ================= 1. Compact macOS Hero Drop-Zone Banner (padding 16x20) =================
+        var bannerInner = new StackPanel();
+        var heroDock = new DockPanel { LastChildFill = true };
 
-        var radial = new Button { Content = Loc.T("HomeRadial"), Style = S("BfrSecondaryButton"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(28, 0, 0, 0) };
-        radial.Click += (_, _) => _openRadial();
-        System.Windows.Automation.AutomationProperties.SetName(radial, Loc.T("HomeRadial"));
-        header.Children.Add(radial);
-        root.Children.Add(header);
+        // Right: Live status pill + 30px Primary CTA
+        var rightActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-        var grid = new BentoPanel { RowHeight = 80, CollapseWidth = 820 };
+        _statusPillDot = new Ellipse
+        {
+            Width = 7,
+            Height = 7,
+            Fill = Res("BfrFg3"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0)
+        };
+        _statusPillText = new TextBlock
+        {
+            FontSize = 11.5,
+            Foreground = Res("BfrFg2"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        System.Windows.Documents.Typography.SetNumeralAlignment(_statusPillText, FontNumeralAlignment.Tabular);
 
-        // Ô lớn: Smart File Dropzone nhận mọi loại tệp.
-        var hero = new GlassTile { Padding = new Thickness(16) };
-        BentoPanel.SetColSpan(hero, 8);
-        BentoPanel.SetRowSpan(hero, 4);
+        var pillRow = new StackPanel { Orientation = Orientation.Horizontal };
+        pillRow.Children.Add(_statusPillDot);
+        pillRow.Children.Add(_statusPillText);
 
-        var heroStack = new DockPanel { LastChildFill = true };
+        var statusPill = new Border
+        {
+            Background = Res("BfrGlassFill"),
+            BorderBrush = Res("BfrLine"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(999),
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            Child = pillRow
+        };
+        statusPill.MouseLeftButtonUp += (_, _) => _navigate("History");
+        rightActions.Children.Add(statusPill);
 
-        // Thanh hành động ngữ cảnh hiện ngay khi thả tệp vào Smart Dropzone
+        var browseBtn = new Button
+        {
+            Content = TryLoc("HomePickFilesBtn", IsVi ? "Chọn tệp…" : "Choose files…"),
+            Style = S("BfrPrimaryButton"),
+            Height = 30,
+            Padding = new Thickness(14, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        browseBtn.Click += (_, _) => BrowseSmartFiles();
+        rightActions.Children.Add(browseBtn);
+        DockPanel.SetDock(rightActions, Dock.Right);
+        heroDock.Children.Add(rightActions);
+
+        // Left: Mascot + Title + Subtitle
+        _mascot = new TemMascot { Width = 40, Height = 42, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(_mascot, Dock.Left);
+        heroDock.Children.Add(_mascot);
+
+        var heroTitles = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+        heroTitles.Children.Add(new TextBlock
+        {
+            Text = IsVi ? "Hôm nay mình làm gì nhỉ?" : Loc.T("HomeTitle"),
+            FontFamily = (FontFamily)Application.Current.FindResource("BfrFontHeading"),
+            FontSize = 16,
+            Foreground = Res("BfrFg"),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        heroTitles.Children.Add(new TextBlock
+        {
+            Text = IsVi ? "Kéo thả tệp vào đây hoặc chọn công cụ bên dưới — 100% offline" : "Drop files here or pick a tool below — 100% offline",
+            FontSize = 12,
+            Foreground = Res("BfrFg2"),
+            Margin = new Thickness(0, 2, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        heroDock.Children.Add(heroTitles);
+        bannerInner.Children.Add(heroDock);
+
+        // Smart action bar (appears after dropping/picking files)
         _smartSummary = new TextBlock
         {
             Style = S("BfrBodyText"),
@@ -119,14 +288,13 @@ internal sealed class HomePage : PageBase
         _smartPills = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         var clearSmartBtn = new Button
         {
-            Content = TryLoc("HomeSmartDropClear", "Clear"),
+            Content = TryLoc("HomeSmartDropClear", IsVi ? "Xoá" : "Clear"),
             Style = S("BfrGhostButton"),
             Padding = new Thickness(8, 2, 8, 2),
             FontSize = 11.5,
             VerticalAlignment = VerticalAlignment.Center
         };
         clearSmartBtn.Click += (_, _) => ClearDroppedBatch();
-
         var smartHeader = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(clearSmartBtn, Dock.Right);
         smartHeader.Children.Add(clearSmartBtn);
@@ -138,99 +306,204 @@ internal sealed class HomePage : PageBase
 
         _smartBar = new Border
         {
-            Background = Res("BfrGlassFillStrong"),
+            Background = Res("BfrSurface2"),
             BorderBrush = Res("BfrAccFg"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(14, 10, 14, 10),
-            Margin = new Thickness(0, 10, 0, 0),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin = new Thickness(0, 12, 0, 0),
             Visibility = Visibility.Collapsed,
             Child = smartInner
         };
-        DockPanel.SetDock(_smartBar, Dock.Bottom);
-        heroStack.Children.Add(_smartBar);
+        bannerInner.Children.Add(_smartBar);
 
-        var dropContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        dropContent.Children.Add(new TextBlock { Text = Loc.T("HomeDropTitle"), Style = S("BfrHeadingText"), HorizontalAlignment = HorizontalAlignment.Center });
-        dropContent.Children.Add(new TextBlock { Text = Loc.T("HomeDropHint"), Style = S("BfrBodyText"), Foreground = Res("BfrFg2"), Margin = new Thickness(0, 4, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
-
-        var heroButtons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        var goPdf = new Button { Content = TryLoc("NavPdfStudio", "PDF Studio"), Style = S("BfrPrimaryButton"), Margin = new Thickness(0, 0, 8, 6) };
-        goPdf.Click += (_, _) => _navigate("PdfStudio");
-        var goDocs = new Button { Content = TryLoc("NavDocsOcr", "Docs & OCR"), Style = S("BfrSecondaryButton"), Margin = new Thickness(0, 0, 8, 6) };
-        goDocs.Click += (_, _) => _navigate("DocsOcr");
-        var goRename = new Button { Content = Loc.T("HomeDropButton"), Style = S("BfrSecondaryButton"), Margin = new Thickness(0, 0, 0, 6) };
-        goRename.Click += (_, _) => _navigate("Rename");
-        heroButtons.Children.Add(goPdf);
-        heroButtons.Children.Add(goDocs);
-        heroButtons.Children.Add(goRename);
-        dropContent.Children.Add(heroButtons);
-
-        _drop = new ContentControl { Style = S("BfrDropZone"), MinHeight = 160, Content = dropContent, Focusable = false, IsTabStop = false, VerticalAlignment = VerticalAlignment.Stretch };
-        System.Windows.Automation.AutomationProperties.SetName(_drop, Loc.T("HomeDropTitle"));
-        _drop.DragEnter += (_, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) _drop.Tag = "drag"; };
-        _drop.DragLeave += (_, _) => _drop.Tag = null;
-        _drop.DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
-        _drop.Drop += (_, e) =>
+        _dropBanner = new Border
         {
-            _drop.Tag = null;
-            if (e.Data.GetData(DataFormats.FileDrop) is string[] dropped && dropped.Length > 0)
+            Background = Res("BfrGlassFill"),
+            BorderBrush = Res("BfrLine"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(20, 16, 20, 16),
+            Margin = new Thickness(0, 0, 0, 22),
+            AllowDrop = true,
+            Child = bannerInner
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_dropBanner, "Drop files");
+        _dropBanner.DragEnter += (_, e) =>
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                OnSmartFilesDropped(dropped);
+                _dropBanner.BorderBrush = Res("BfrAccFg");
+                _dropBanner.Background = Res("BfrAccGradientSoft");
             }
+        };
+        _dropBanner.DragLeave += (_, _) =>
+        {
+            _dropBanner.BorderBrush = Res("BfrLine");
+            _dropBanner.Background = Res("BfrGlassFill");
+        };
+        _dropBanner.DragOver += (_, e) =>
+        {
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
         };
-        heroStack.Children.Add(_drop);
-        hero.Content = heroStack;
-        grid.Children.Add(hero);
-
-        // Dải ★ Công cụ yêu thích + truy cập nhanh.
-        var tools = new GlassTile { Header = TryLoc("HomeFavoritesTitle", "★ Favorite Tools"), Icon = "\uE735", Padding = new Thickness(18, 16, 18, 14) };
-        BentoPanel.SetColSpan(tools, 4);
-        BentoPanel.SetRowSpan(tools, 4);
-        var toolsDock = new DockPanel { LastChildFill = true };
-        var more = new Button { Content = Loc.T("HomeToolsAll"), Style = S("BfrGhostButton"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
-        more.Click += (_, _) => _navigate("Tools");
-        DockPanel.SetDock(more, Dock.Bottom);
-        toolsDock.Children.Add(more);
-
-        _favoritesPanel = new WrapPanel { Orientation = Orientation.Horizontal };
-        toolsDock.Children.Add(_favoritesPanel);
-        tools.Content = toolsDock;
-        grid.Children.Add(tools);
-
-        // Thẻ sống: Theo dõi thư mục.
-        _watchBody = new StackPanel();
-        var watchTile = new GlassTile
+        _dropBanner.Drop += (_, e) =>
         {
-            Header = Loc.T("HomeWatchTitle"),
-            Icon = "\uE7B3",
-            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
-            Padding = new Thickness(18, 14, 18, 14),
-            Content = _watchBody
+            _dropBanner.BorderBrush = Res("BfrLine");
+            _dropBanner.Background = Res("BfrGlassFill");
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] dropped && dropped.Length > 0)
+                OnSmartFilesDropped(dropped);
+            e.Handled = true;
         };
-        BentoPanel.SetColSpan(watchTile, 6);
-        BentoPanel.SetRowSpan(watchTile, 3);
-        System.Windows.Automation.AutomationProperties.SetName(watchTile, Loc.T("HomeWatchTitle"));
-        grid.Children.Add(watchTile);
+        root.Children.Add(_dropBanner);
 
-        // Thẻ sống: Lịch sử gần đây + Hoàn tác 1 chạm.
-        _historyBody = new StackPanel();
-        var historyTile = new GlassTile
-        {
-            Header = Loc.T("HomeHistoryTitle"),
-            Icon = "\uE81C",
-            CornerRadius = (CornerRadius)Application.Current.FindResource("BfrRadiusTileSm"),
-            Padding = new Thickness(18, 14, 18, 14),
-            Content = _historyBody
-        };
-        BentoPanel.SetColSpan(historyTile, 6);
-        BentoPanel.SetRowSpan(historyTile, 3);
-        System.Windows.Automation.AutomationProperties.SetName(historyTile, Loc.T("HomeHistoryTitle"));
-        grid.Children.Add(historyTile);
+        // ================= 2. Categorized Tool Grid =================
+        var pdfCards = _allCards.Where(c => c.Category == "PDF Studio").ToList();
+        root.Children.Add(BuildSectionHeader("PDF Studio"));
+        root.Children.Add(BuildUniformGrid(pdfCards, columns: 3, bottomMargin: 20));
 
-        root.Children.Add(grid);
+        var docsTitle = IsVi ? "Tài liệu & OCR" : "Documents & OCR";
+        var docsCards = _allCards.Where(c => c.Category == docsTitle).ToList();
+        root.Children.Add(BuildSectionHeader(docsTitle));
+        root.Children.Add(BuildUniformGrid(docsCards, columns: 2, bottomMargin: 20));
+
+        var filesTitle = IsVi ? "Đổi tên & Quản lý tệp" : "Rename & File Tools";
+        var filesCards = _allCards.Where(c => c.Category == filesTitle).ToList();
+        root.Children.Add(BuildSectionHeader(filesTitle, showAllLink: true));
+        root.Children.Add(BuildUniformGrid(filesCards, columns: 2, bottomMargin: 8));
+
         return root;
+    }
+
+    private UIElement BuildSectionHeader(string title, bool showAllLink = false)
+    {
+        var dock = new DockPanel { Margin = new Thickness(2, 0, 2, 10) };
+        if (showAllLink)
+        {
+            var allBtn = new Button
+            {
+                Content = Loc.T("HomeToolsAll") + " →",
+                Style = S("BfrGhostButton"),
+                Padding = new Thickness(6, 2, 6, 2),
+                FontSize = 12
+            };
+            allBtn.Click += (_, _) => _navigate("Tools");
+            DockPanel.SetDock(allBtn, Dock.Right);
+            dock.Children.Add(allBtn);
+        }
+
+        dock.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontFamily = (FontFamily)Application.Current.FindResource("BfrFontBodySemi"),
+            FontSize = 13,
+            Foreground = Res("BfrFg2"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return dock;
+    }
+
+    private static UIElement BuildUniformGrid(IReadOnlyList<QuickToolCard> cards, int columns, double bottomMargin)
+    {
+        var grid = new System.Windows.Controls.Primitives.UniformGrid
+        {
+            Columns = columns,
+            Margin = new Thickness(-5, 0, -5, bottomMargin)
+        };
+        foreach (var card in cards)
+            grid.Children.Add(BuildMacToolCard(card));
+        return grid;
+    }
+
+    private static UIElement BuildMacToolCard(QuickToolCard card)
+    {
+        var inner = new DockPanel { LastChildFill = true };
+
+        var icon = new SquircleIcon
+        {
+            Glyph = card.Icon,
+            Tone = card.Tone,
+            Width = 24,
+            Height = 24,
+            IconSize = 13,
+            CornerRadius = new CornerRadius(6),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 1, 10, 0)
+        };
+        DockPanel.SetDock(icon, Dock.Left);
+        inner.Children.Add(icon);
+
+        var textCol = new StackPanel();
+        var titleRow = new DockPanel();
+        if (card.FormatTags is { Length: > 0 })
+        {
+            var tags = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            foreach (var tag in card.FormatTags)
+            {
+                tags.Children.Add(new Border
+                {
+                    Background = Res("BfrGlass"),
+                    BorderBrush = Res("BfrLine"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(5, 1, 5, 1),
+                    Margin = new Thickness(4, 0, 0, 0),
+                    Child = new TextBlock
+                    {
+                        Text = tag,
+                        FontSize = 9.5,
+                        FontFamily = (FontFamily)Application.Current.FindResource("BfrFontMono"),
+                        Foreground = Res("BfrFg3")
+                    }
+                });
+            }
+            DockPanel.SetDock(tags, Dock.Right);
+            titleRow.Children.Add(tags);
+        }
+
+        titleRow.Children.Add(new TextBlock
+        {
+            Text = card.Title,
+            FontFamily = (FontFamily)Application.Current.FindResource("BfrFontBodyMedium"),
+            FontSize = 13,
+            Foreground = Res("BfrFg"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        textCol.Children.Add(titleRow);
+
+        textCol.Children.Add(new TextBlock
+        {
+            Text = card.Description,
+            FontSize = 11.5,
+            Foreground = Res("BfrFg2"),
+            TextWrapping = TextWrapping.Wrap,
+            MaxHeight = 34,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 3, 0, 0),
+            LineHeight = 16
+        });
+
+        inner.Children.Add(textCol);
+
+        var tile = new BentoCard
+        {
+            IsInteractive = true,
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14, 12, 14, 12),
+            Margin = new Thickness(5),
+            Content = inner
+        };
+        tile.Invoked += (_, _) => card.OnClick();
+        System.Windows.Automation.AutomationProperties.SetName(tile, card.Title);
+        return tile;
+    }
+
+    private void BrowseSmartFiles()
+    {
+        var dlg = new OpenFileDialog { Multiselect = true, Filter = "All files (*.*)|*.*" };
+        if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
+            OnSmartFilesDropped(dlg.FileNames);
     }
 
     private void OnSmartFilesDropped(string[] dropped)
@@ -238,7 +511,6 @@ internal sealed class HomePage : PageBase
         var files = dropped.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (files.Count == 0) return;
 
-        // Nếu không có bộ điều phối v3.0, giữ hành vi cũ gửi thẳng sang Rename.
         if (_dispatchAction is null)
         {
             _dropFiles(files);
@@ -248,8 +520,7 @@ internal sealed class HomePage : PageBase
         _droppedBatch = files;
         var ctx = RadialContextInfo.Classify(files);
         var summaryArg = string.IsNullOrEmpty(ctx.Subtitle) ? ctx.DisplayTitle : $"{ctx.DisplayTitle} ({ctx.Subtitle})";
-        _smartSummary.Text = string.Format(TryLoc("HomeSmartDropDetected", "Detected {0} — choose an instant action:"), summaryArg);
-
+        _smartSummary.Text = string.Format(TryLoc("HomeSmartDropDetected", "Phát hiện {0} — chọn thao tác tức thì:"), summaryArg);
         _smartPills.Children.Clear();
 
         void AddPill(string label, string targetPage, string? mode, bool primary = false)
@@ -258,7 +529,8 @@ internal sealed class HomePage : PageBase
             {
                 Content = label,
                 Style = S(primary ? "BfrPrimaryButton" : "BfrSecondaryButton"),
-                Padding = new Thickness(12, 6, 12, 6),
+                Height = 26,
+                Padding = new Thickness(10, 0, 10, 0),
                 Margin = new Thickness(0, 0, 6, 6),
                 FontSize = 12
             };
@@ -275,42 +547,39 @@ internal sealed class HomePage : PageBase
         switch (ctx.Kind)
         {
             case RadialContextKind.SinglePdf:
-                AddPill(TryLoc("HomeQuickSplitPdf", "Split / Organize"), "pdf-studio", "organize", primary: true);
-                AddPill(TryLoc("HomeQuickCompressPdf", "Compress PDF"), "pdf-studio", "compress");
-                AddPill(TryLoc("HomeQuickOcr", "OCR Extract Text"), "docs-ocr", "ocr");
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(TryLoc("HomeQuickSplitPdf", "Tách / Sắp xếp PDF"), "pdf-studio", "organize", primary: true);
+                AddPill(TryLoc("HomeQuickCompressPdf", "Nén PDF"), "pdf-studio", "compress");
+                AddPill(TryLoc("PdfModeSecurity", "Bảo mật"), "pdf-studio", "security");
+                AddPill(TryLoc("PdfModeConvert", "Chuyển đổi"), "pdf-studio", "convert");
+                AddPill(TryLoc("HomeQuickOcr", "Chạy OCR"), "docs-ocr", "ocr");
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
-
             case RadialContextKind.MultiplePdf:
-                AddPill(string.Format(TryLoc("HomeQuickMergePdf", "Merge {0} PDFs"), files.Count), "pdf-studio", "organize", primary: true);
-                AddPill(TryLoc("HomeQuickCompressPdf", "Compress PDF"), "pdf-studio", "compress");
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(string.Format(TryLoc("HomeQuickMergePdf", "Gộp {0} PDF"), files.Count), "pdf-studio", "organize", primary: true);
+                AddPill(TryLoc("HomeQuickCompressPdf", "Nén PDF"), "pdf-studio", "compress");
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
-
             case RadialContextKind.OfficeDoc:
-                AddPill(TryLoc("HomeQuickConvertPdf", "Convert to PDF"), "docs-ocr", "convert", primary: true);
-                AddPill(TryLoc("HomeQuickCleanOffice", "Clean Metadata"), "docs-ocr", "privacy");
+                AddPill(TryLoc("HomeQuickConvertPdf", "Chuyển sang PDF"), "docs-ocr", "convert", primary: true);
+                AddPill(TryLoc("HomeQuickCleanOffice", "Xoá dữ liệu ẩn"), "docs-ocr", "privacy");
                 if (ctx.HasXlsx) AddPill(TryLoc("HomeQuickSpreadsheet", "XLSX ↔ CSV/JSON"), "docs-ocr", "spreadsheet");
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
-
             case RadialContextKind.Images:
-                AddPill(TryLoc("HomeQuickImagesToPdf", "Images → PDF"), "pdf-studio", "organize", primary: true);
-                AddPill(TryLoc("HomeQuickOcr", "OCR Extract Text"), "docs-ocr", "ocr");
+                AddPill(TryLoc("HomeQuickImagesToPdf", "Ảnh sang PDF"), "pdf-studio", "organize", primary: true);
+                AddPill(TryLoc("HomeQuickOcr", "Chạy OCR"), "docs-ocr", "ocr");
                 AddPill(Loc.T("ToolImagesTitle"), "tool:images", null);
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
-
             case RadialContextKind.TextData:
-                AddPill(TryLoc("HomeQuickConvertPdf", "Convert to PDF"), "docs-ocr", "convert", primary: true);
+                AddPill(TryLoc("HomeQuickConvertPdf", "Chuyển sang PDF"), "docs-ocr", "convert", primary: true);
                 AddPill(TryLoc("HomeQuickSpreadsheet", "XLSX ↔ CSV/JSON"), "docs-ocr", "spreadsheet");
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
-
             default:
-                AddPill(string.Format(TryLoc("HomeQuickMergePdf", "Merge {0} PDFs"), files.Count), "pdf-studio", "organize", primary: true);
-                AddPill(TryLoc("HomeQuickConvertPdf", "Convert to PDF"), "docs-ocr", "convert");
-                AddPill(TryLoc("HomeQuickRename", "Batch Rename"), "rename", null);
+                AddPill(string.Format(TryLoc("HomeQuickMergePdf", "Gộp {0} tệp"), files.Count), "pdf-studio", "organize", primary: true);
+                AddPill(TryLoc("HomeQuickConvertPdf", "Chuyển sang PDF"), "docs-ocr", "convert");
+                AddPill(TryLoc("HomeQuickRename", "Đổi tên hàng loạt"), "rename", null);
                 break;
         }
 
@@ -324,79 +593,11 @@ internal sealed class HomePage : PageBase
         _smartBar.Visibility = Visibility.Collapsed;
     }
 
-    /// <summary>Làm mới dữ liệu sống trên thẻ Yêu thích, Watch folders và thẻ History.</summary>
     public void RefreshLiveWidgets()
     {
-        RefreshFavoritesTile();
-        RefreshWatchTile();
-        RefreshHistoryTile();
-    }
-
-    private void RefreshFavoritesTile()
-    {
-        if (_favoritesPanel is null) return;
-        _favoritesPanel.Children.Clear();
-
-        var favKeys = SettingsStore.Load().FavoriteTools ?? new List<string>();
-        var catalog = ToolCatalog.Create().ToDictionary(t => t.Key, StringComparer.OrdinalIgnoreCase);
-
-        if (favKeys.Count > 0)
-        {
-            foreach (var key in favKeys.Take(6))
-            {
-                if (!catalog.TryGetValue(key, out var tool)) continue;
-                var toolKey = tool.Key;
-                AddFavoriteButton(tool.Icon, TryLoc(tool.TitleKey, tool.Key), () => _openTool(toolKey));
-            }
-        }
-
-        // Nếu chưa gắn sao công cụ nào, hiển thị các lối tắt Hub mặc định.
-        if (_favoritesPanel.Children.Count == 0)
-        {
-            AddFavoriteButton("\uEA90", TryLoc("NavPdfStudio", "PDF Studio"), () => _navigate("PdfStudio"));
-            AddFavoriteButton("\uE8A5", TryLoc("NavDocsOcr", "Docs & OCR"), () => _navigate("DocsOcr"));
-            AddFavoriteButton("\uE8CB", Loc.T("ToolOrganizeTitle"), () => _openTool("organize"));
-            AddFavoriteButton("\uEB9F", Loc.T("ToolImagesTitle"), () => _openTool("images"));
-            AddFavoriteButton("\uE8C8", Loc.T("ToolDuplicatesTitle"), () => _openTool("duplicates"));
-        }
-    }
-
-    private void AddFavoriteButton(string icon, string label, Action onClick)
-    {
-        var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        sp.Children.Add(new TextBlock
-        {
-            Text = icon,
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-            FontSize = 13.5,
-            Foreground = Res("BfrAccFg"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 7, 0)
-        });
-        sp.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontSize = 12.5,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        var button = new Button
-        {
-            Content = sp,
-            Style = S("BfrSecondaryButton"),
-            Padding = new Thickness(11, 7, 11, 7),
-            Margin = new Thickness(0, 0, 6, 6)
-        };
-        button.Click += (_, _) => onClick();
-        _favoritesPanel.Children.Add(button);
-    }
-
-    private void RefreshWatchTile()
-    {
-        if (_watchBody is null) return;
-        _watchBody.Children.Clear();
-
-        int ruleCount;
-        bool isRunning;
+        if (_statusPillText is null) return;
+        int ruleCount = 0;
+        bool isRunning = false;
         if (_watchStateProvider is not null)
         {
             (ruleCount, isRunning) = _watchStateProvider();
@@ -406,142 +607,14 @@ internal sealed class HomePage : PageBase
             var appData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BatchFileRenamer");
             var store = new WatchRuleStore(new RealFileSystem(), System.IO.Path.Combine(appData, "watch", "rules.json"));
             ruleCount = store.Load().Count(r => r.Enabled);
-            isRunning = false;
         }
-
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 8) };
-        statusRow.Children.Add(new Ellipse
-        {
-            Width = 8,
-            Height = 8,
-            Fill = Res(isRunning ? "BfrOk" : "BfrFg3"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
-        });
-        var stateLabel = isRunning
-            ? TryLoc("HomeWatchRunning", "Running")
-            : TryLoc("HomeWatchPaused", "Paused");
-        var summaryText = ruleCount > 0
-            ? string.Format(TryLoc("HomeWatchSummary", "{0} active rule(s) · {1}"), ruleCount, stateLabel)
-            : Loc.T("HomeWatchHint");
-        statusRow.Children.Add(new TextBlock
-        {
-            Text = summaryText,
-            Style = S("BfrBodyText"),
-            Foreground = Res("BfrFg2"),
-            TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        _watchBody.Children.Add(statusRow);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        var openBtn = new Button
-        {
-            Content = TryLoc("HomeWatchOpen", "Open Watch Folder"),
-            Style = S("BfrSecondaryButton"),
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        openBtn.Click += (_, _) => _navigate("Watch");
-        actions.Children.Add(openBtn);
-
-        if (ruleCount > 0 && _toggleWatch is not null)
-        {
-            var toggleBtn = new Button
-            {
-                Content = isRunning ? Loc.T("WatchStop") : Loc.T("WatchStart"),
-                Style = S(isRunning ? "BfrGhostButton" : "BfrPrimaryButton")
-            };
-            toggleBtn.Click += (_, _) =>
-            {
-                _toggleWatch();
-                RefreshWatchTile();
-            };
-            actions.Children.Add(toggleBtn);
-        }
-
-        _watchBody.Children.Add(actions);
-    }
-
-    private void RefreshHistoryTile()
-    {
-        if (_historyBody is null) return;
-        _historyBody.Children.Clear();
 
         var fs = new RealFileSystem();
-        var store = new HistoryStore(fs);
-        var recent = store.LoadAll().Take(3).ToList();
+        var historyCount = new HistoryStore(fs).LoadAll().Count;
 
-        if (recent.Count == 0)
-        {
-            _historyBody.Children.Add(new TextBlock
-            {
-                Text = Loc.T("HomeHistoryHint"),
-                Style = S("BfrCaptionText"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 2, 0, 10)
-            });
-        }
-        else
-        {
-            foreach (var entry in recent)
-            {
-                var captured = entry;
-                var row = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-
-                var undoBtn = new Button
-                {
-                    Content = TryLoc("QuickUndo", "Undo"),
-                    Style = S("BfrGhostButton"),
-                    Padding = new Thickness(8, 2, 8, 2),
-                    FontSize = 11.5,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    IsEnabled = !string.IsNullOrWhiteSpace(captured.JournalPath) && File.Exists(captured.JournalPath)
-                };
-                undoBtn.Click += async (_, _) =>
-                {
-                    undoBtn.IsEnabled = false;
-                    var result = await Task.Run(() => new UndoService(fs).UndoJournal(captured.JournalPath));
-                    var msg = Loc.F("UndoMessage", result.Undone, result.Total)
-                        + (result.Failed > 0 ? Loc.F("UndoPartial", result.Failed) : string.Empty);
-                    MessageBox.Show(Window.GetWindow(this), msg, Loc.T("UndoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                    RefreshHistoryTile();
-                };
-                DockPanel.SetDock(undoBtn, Dock.Right);
-                row.Children.Add(undoBtn);
-
-                var utc = captured.StartedUtc.Kind == DateTimeKind.Utc
-                    ? captured.StartedUtc
-                    : DateTime.SpecifyKind(captured.StartedUtc, DateTimeKind.Utc);
-                var rel = HistoryPage.FormatRelative(DateTime.UtcNow - utc);
-                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                info.Children.Add(new TextBlock
-                {
-                    Text = $"{captured.Succeeded}/{captured.Total} · {captured.StatusText}",
-                    FontWeight = FontWeights.SemiBold,
-                    FontSize = 12.5,
-                    Foreground = Res("BfrFg"),
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-                info.Children.Add(new TextBlock
-                {
-                    Text = string.IsNullOrWhiteSpace(captured.PresetText) ? rel : $"{rel} · {captured.PresetText}",
-                    FontSize = 11,
-                    Foreground = Res("BfrFg3"),
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-                row.Children.Add(info);
-                _historyBody.Children.Add(row);
-            }
-        }
-
-        var openHistory = new Button
-        {
-            Content = TryLoc("HomeHistoryOpen", "View full history"),
-            Style = S("BfrGhostButton"),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-        openHistory.Click += (_, _) => _navigate("History");
-        _historyBody.Children.Add(openHistory);
+        _statusPillDot.Fill = Res(isRunning ? "BfrOk" : "BfrFg3");
+        _statusPillText.Text = IsVi
+            ? $"Theo dõi: {ruleCount} · Hoàn tác: {historyCount}"
+            : $"Watchers: {ruleCount} · Undo: {historyCount}";
     }
 }

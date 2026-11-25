@@ -123,8 +123,12 @@ public sealed class SpreadsheetConverter
             var text = File.ReadAllText(readable, Encoding.UTF8);
             var rows = ParseCsv(text);
 
+            var resolvedSheet = string.IsNullOrWhiteSpace(sheetName) ? "Sheet1" : sheetName.Trim();
+            if (resolvedSheet.Length > 31 || resolvedSheet.IndexOfAny(InvalidSheetNameChars) >= 0)
+                return DocumentResult.Fail(DocumentErrorCode.Unknown, $"Invalid Excel worksheet name '{sheetName}' (max 31 chars, cannot contain \\ / ? * [ ] :).");
+
             using var wb = new XLWorkbook();
-            var ws = wb.Worksheets.Add(string.IsNullOrWhiteSpace(sheetName) ? "Sheet1" : sheetName);
+            var ws = wb.Worksheets.Add(resolvedSheet);
 
             for (var r = 0; r < rows.Count; r++)
             {
@@ -309,6 +313,16 @@ public sealed class SpreadsheetConverter
         var candidate = header;
         for (var i = 2; !used.Add(candidate); i++) candidate = $"{header}_{i}";
         return candidate;
+    }
+
+    private static readonly char[] InvalidSheetNameChars = { '\\', '/', '?', '*', '[', ']', ':' };
+
+    public static string SanitizeSheetName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Sheet1";
+        var cleaned = new string(name.Trim().Where(c => Array.IndexOf(InvalidSheetNameChars, c) < 0).ToArray()).Trim('\'', ' ');
+        if (cleaned.Length == 0) return "Sheet1";
+        return cleaned.Length > 31 ? cleaned[..31].TrimEnd('\'', ' ') : cleaned;
     }
 
     internal static List<List<string>> ParseCsv(string content)
