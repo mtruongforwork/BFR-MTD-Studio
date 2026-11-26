@@ -2,7 +2,7 @@
   <!-- Phiên bản của mọi assembly (FileVersion/ProductVersion của exe). Giữ khớp với BFR.Core.AppVersion.Current;
        test VersionConsistencyTests sẽ báo lỗi nếu lệch. -->
   <PropertyGroup>
-    <Version>3.1.0</Version>
+    <Version>3.2.0</Version>
   </PropertyGroup>
 
   <!-- Chỉ cho project trong tests/: chạy được trên runtime .NET mới hơn (máy dev chỉ cài .NET 10 vẫn `dotnet test` được).
