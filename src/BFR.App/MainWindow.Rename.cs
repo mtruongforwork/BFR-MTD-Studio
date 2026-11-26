@@ -66,7 +66,36 @@ public partial class MainWindow
             HideSuccessBanner();
         };
 
+        // Cửa sổ hẹp hoặc chữ dài (tiếng Pháp): co ô lọc rồi ô sắp xếp để không nút nào bị che.
+        Toolbar.SizeChanged += (_, _) => FitRenameToolbarLater();
+        RenameToolbarCenter.SizeChanged += (_, _) => FitRenameToolbarLater();
+        RenameToolbarTrailing.SizeChanged += (_, _) => FitRenameToolbarLater();
+        RenameToolbarCenter.Loaded += (_, _) => FitRenameToolbarLater();
+
         LocalizeRename();
+    }
+
+    private const double FilterWidth = 128, SortWidth = 138, NarrowestField = 76;
+
+    private bool _toolbarFitQueued;
+
+    private void FitRenameToolbarLater()
+    {
+        if (_toolbarFitQueued) return;
+        _toolbarFitQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, FitRenameToolbar);
+    }
+
+    private void FitRenameToolbar()
+    {
+        _toolbarFitQueued = false;
+        if (_currentPage != "Rename" || !RenameToolbarCenter.IsLoaded) return;
+
+        // Quy về mức thiếu khi hai ô đang ở độ rộng mong muốn, nên kết quả không phụ thuộc độ rộng hiện tại.
+        var shortfall = Toolbar.CenterShortfall + (FilterWidth - PreviewSearchBox.Width) + (SortWidth - SortCombo.Width);
+        var widths = ToolbarFit.Shrink(shortfall, (FilterWidth, NarrowestField), (SortWidth, NarrowestField));
+        if (Math.Abs(PreviewSearchBox.Width - widths[0]) > 0.5) PreviewSearchBox.Width = widths[0];
+        if (Math.Abs(SortCombo.Width - widths[1]) > 0.5) SortCombo.Width = widths[1];
     }
 
     private void LocalizeRename()

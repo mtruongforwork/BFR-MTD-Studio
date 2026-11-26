@@ -621,7 +621,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
                     Height = 220,
                     VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                     Style = S("BfrTextField")
-                });
+                }.Named("Xem trước Markdown", "Markdown preview"));
             }
 
             dock.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = stack });
@@ -811,6 +811,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
 
         stack.Children.Add(new TextBlock { Text = TryLoc("DocsSheetName", "Tên trang tính (tuỳ chọn)"), Style = S("BfrCaptionText"), Margin = new Thickness(0, 2, 0, 6) });
         var sheetBox = new TextBox { Style = S("BfrTextField"), Text = _sheetName, Tag = "Sheet1", MaxWidth = 280, HorizontalAlignment = HorizontalAlignment.Left };
+        sheetBox.Named(TryLoc("DocsSheetName", "Tên trang tính (tuỳ chọn)"));
         sheetBox.TextChanged += (_, _) => _sheetName = sheetBox.Text;
         stack.Children.Add(sheetBox);
 
@@ -827,7 +828,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
     {
         var vi = IsVi;
         var split = new Grid();
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 480 });
+        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 380 });
         split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 340 });
 
         // Left: Preview or Dropzone
@@ -945,6 +946,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
                 IsSelected = string.Equals(lang.LanguageTag, _vm.SelectedLanguageTag, StringComparison.OrdinalIgnoreCase)
             });
         }
+        _ocrLangCombo.Named("Ngôn ngữ nhận dạng chữ", "OCR language");
         _ocrLangCombo.SelectionChanged += (_, _) =>
         {
             if (_ocrLangCombo.SelectedItem is ComboBoxItem { Tag: string tag })
@@ -1063,6 +1065,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
             FontFamily = Res<FontFamily>("BfrFontBody"),
             FontSize = 13.5
         };
+        _ocrTextBox.Named("Chữ nhận dạng được", "Recognised text");
         _ocrTextBox.TextChanged += (_, _) =>
         {
             _vm.ExtractedText = _ocrTextBox.Text;
@@ -1168,6 +1171,8 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
             Text = _aiModel,
             FontSize = 12
         };
+        baseUrlBox.Named("Địa chỉ máy chủ AI", "AI server address");
+        modelBox.Named("Tên mô hình AI", "AI model name");
         var apiKeyBox = new PasswordBox
         {
             Password = _aiApiKey,
@@ -1197,6 +1202,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
                 IsSelected = preset == _aiPreset
             });
         }
+        presetCombo.Named(TryLoc("OcrAiPresetLabel", "Cấu hình nhanh"));
         presetCombo.SelectionChanged += (_, _) =>
         {
             if (_initializingAiUi) return;
@@ -1249,6 +1255,7 @@ public sealed class DocsOcrPage : PageBase, IMacShellContent
         // Row 2, Col 2: API Key (PasswordBox protected via DPAPI)
         var keyPanel = new StackPanel();
         keyPanel.Children.Add(new TextBlock { Text = TryLoc("OcrAiApiKeyLabel", "API Key (tuỳ chọn)"), FontSize = 11, Foreground = Res<Brush>("BfrFg2"), Margin = new Thickness(0, 0, 0, 3) });
+        apiKeyBox.Named("Khoá API", "API key");
         apiKeyBox.PasswordChanged += (_, _) =>
         {
             if (_initializingAiUi) return;

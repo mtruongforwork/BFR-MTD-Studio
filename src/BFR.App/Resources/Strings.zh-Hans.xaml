@@ -1384,4 +1384,5 @@
     <sys:String x:Key="SettingsReduceMotionHint">仅保留短暂淡入淡出；关闭滑动、缩放和抖动。Windows 关闭动画时也会自动启用。</sys:String>
     <sys:String x:Key="MacSettingsLanguageLabel">语言</sys:String>
     <sys:String x:Key="MacSettingsThemeLabel">主题</sys:String>
+    <sys:String x:Key="HandoffFailed">无法将文件发送到正在运行的 FileFlow Studio 窗口。请等该窗口就绪后重新打开文件。</sys:String>
 </ResourceDictionary>

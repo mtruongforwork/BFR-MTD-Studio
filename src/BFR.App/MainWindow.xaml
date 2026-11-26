@@ -254,7 +254,7 @@
                         <mac:MacIcon Data="{StaticResource Icon.ChevronDown}" Size="10" Margin="2,0,0,0" />
                     </StackPanel>
                 </Button>
-                <ComboBox x:Name="SortCombo" Style="{StaticResource Mac.ComboBox}" Width="138" MinWidth="100" Margin="8,0,6,0"
+                <ComboBox x:Name="SortCombo" Style="{StaticResource Mac.ComboBox}" Width="138" MinWidth="76" Margin="8,0,6,0"
                           SelectionChanged="SortCombo_SelectionChanged" ToolTip="{DynamicResource SortByLabel}" AutomationProperties.Name="Sort order">
                     <ComboBoxItem Content="{DynamicResource SortNameNatural}" Tag="NameNatural" />
                     <ComboBoxItem Content="{DynamicResource SortName}" Tag="NameOrdinal" />

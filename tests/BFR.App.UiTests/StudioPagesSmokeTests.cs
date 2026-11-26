@@ -65,6 +65,13 @@ public sealed class StudioPagesSmokeTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Số thẻ trang: con của các hàng do VirtualizedPdfPageGrid dựng. Hàng chỉ có thẻ khi tìm được lưới cha.
+    /// Đếm theo cấu trúc, không theo kích thước thẻ (kích thước đổi theo giao diện).
+    /// </summary>
+    private static int PageCards(DependencyObject page) =>
+        Descendants<System.Windows.Controls.StackPanel>(page).Where(p => p.GetType().Name == "PdfPageRowPresenter").Sum(p => p.Children.Count);
+
     private static void Layout(FrameworkElement element, double width = 1200, double height = 800)
     {
         element.Measure(new Size(width, height));
@@ -117,8 +124,7 @@ public sealed class StudioPagesSmokeTests : IDisposable
                 await page.LoadFilesAsync(new[] { pdf });
                 Layout(page);
 
-                // Thẻ trang là Border 176 x 248 do VirtualizedPdfPageGrid.BuildCard dựng; chúng chỉ xuất hiện nếu hàng (presenter) tìm được lưới cha.
-                return Descendants<Border>(page).Count(b => Math.Abs(b.Width - 176) < 0.5 && Math.Abs(b.Height - 248) < 0.5);
+                return PageCards(page);
             }
             finally { page.Shutdown(); }
         });
@@ -157,7 +163,7 @@ public sealed class StudioPagesSmokeTests : IDisposable
             try
             {
                 Layout(page);
-                return Task.FromResult(Descendants<Border>(page).Count(b => Math.Abs(b.Width - 176) < 0.5 && Math.Abs(b.Height - 248) < 0.5));
+                return Task.FromResult(PageCards(page));
             }
             finally { page.Shutdown(); }
         });

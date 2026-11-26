@@ -15,16 +15,9 @@ using Xunit;
 public class DecisionTests
 {
     // ------------------------------------------------------------------ 6.2
-    private static Border Shadow(GlassTile tile)
-    {
-        tile.Measure(new Size(300, 200));
-        tile.Arrange(new Rect(0, 0, 300, 200));
-        tile.ApplyTemplate();
-        return (Border)tile.Template.FindName("PART_Shadow", tile);
-    }
 
     [Fact]
-    public void ReduceEffects_HidesBlobsAndTileShadows_AtRuntime_WithoutRebuildingControls()
+    public void ReduceEffects_HidesBlobs_AtRuntime_WithoutRebuildingControls()
     {
         StaHost.Run(() =>
         {
@@ -36,30 +29,26 @@ public class DecisionTests
                 BfrTheme.UserReduceEffects = false;
                 BfrTheme.Apply(true, BfrTheme.Accent.Aurora);
 
-                var tile = new GlassTile { Content = "x" };
+                // Bóng của GlassTile đã bỏ từ v3.1.0 (đổ bóng trên vùng cuộn làm giật) nên chỉ còn lớp blob phụ thuộc cài đặt này.
                 var blobs = new BackdropBlobs();
                 var panel = new Grid();
                 panel.Children.Add(blobs);
-                panel.Children.Add(tile);
                 host.Content = panel;
-                var shadow = Shadow(tile);
 
                 // Mặc định: theo phần cứng (runner không GPU sẽ tự tắt; máy có GPU thì bật).
                 var expected = BfrTheme.GlassEffectsEnabled ? Visibility.Visible : Visibility.Collapsed;
-                Assert.Equal(expected, shadow.Visibility);
                 Assert.Equal(expected, blobs.Visibility);
 
                 // Bật "Giảm hiệu ứng": cùng control, không dựng lại, phải ẩn ngay.
                 BfrTheme.UserReduceEffects = true;
                 BfrTheme.Apply(true, BfrTheme.Accent.Aurora);
                 Assert.False(BfrTheme.GlassEffectsEnabled);
-                Assert.Equal(Visibility.Collapsed, shadow.Visibility);
                 Assert.Equal(Visibility.Collapsed, blobs.Visibility);
 
                 // Tắt lại: trở về theo phần cứng.
                 BfrTheme.UserReduceEffects = false;
                 BfrTheme.Apply(true, BfrTheme.Accent.Aurora);
-                Assert.Equal(expected, shadow.Visibility);
+                Assert.Equal(expected, blobs.Visibility);
             }
             finally
             {

@@ -67,7 +67,7 @@ public sealed class ActiveFileDetectorHangTests : IDisposable
 
         Assert.NotNull(result);
         Assert.NotEqual(RadialContextKind.SinglePdf, result.Kind);     // không bịa ra tệp
-        Assert.Empty(result.Paths.Where(p => p.StartsWith(_dir, StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(result.Paths, p => p.StartsWith(_dir, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

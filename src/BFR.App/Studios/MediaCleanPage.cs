@@ -1,6 +1,7 @@
 namespace BFR.App.Studios;
 
 
+using BFR.App.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -311,7 +312,7 @@ public sealed class MediaCleanPage : PageBase
         var modelInstalled = _modelManager.IsInstalled(activeModel);
 
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 480 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 380 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 330 });
 
@@ -623,7 +624,7 @@ public sealed class MediaCleanPage : PageBase
         var modelInstalled = _modelManager.IsInstalled(activeModel);
 
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 480 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 380 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 330 });
 
@@ -726,6 +727,7 @@ public sealed class MediaCleanPage : PageBase
         // Language selector
         leftBody.Children.Add(new TextBlock { Text = TryLoc("MediaWhisperLangLabel", "NGÔN NGỮ ÂM THANH"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Res<Brush>("BfrFg3"), Margin = new Thickness(0, 0, 0, 6) });
         var langCombo = new ComboBox { Margin = new Thickness(0, 0, 0, 10) };
+        langCombo.Named("Ngôn ngữ âm thanh", "Audio language");
         var langs = new (string Code, string Label)[]
         {
             ("auto", vi ? "Tự động nhận diện" : "Auto-detect"),
@@ -815,6 +817,7 @@ public sealed class MediaCleanPage : PageBase
             Margin = new Thickness(16, 0, 16, 12),
             Style = S("BfrTextField")
         };
+        transcriptBox.Named("Bản chép lời", "Transcript");
         rightDock.Children.Add(transcriptBox);
 
         rightCard.Child = rightDock;
@@ -948,7 +951,7 @@ public sealed class MediaCleanPage : PageBase
     {
         var vi = IsVi;
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 480 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MinWidth = 380 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 330 });
 
@@ -1013,7 +1016,7 @@ public sealed class MediaCleanPage : PageBase
             IsReadOnly = true,
             Style = S("BfrTextField"),
             ToolTip = _scanFolder
-        });
+        }.Named("Thư mục quét", "Folder to scan"));
         leftBody.Children.Add(folderDock);
 
         var subCb = new CheckBox
@@ -1041,6 +1044,7 @@ public sealed class MediaCleanPage : PageBase
                 Margin = new Thickness(0, 8, 0, 4)
             });
             var slider = new Slider { Minimum = 2, Maximum = 12, Value = _similarMaxDistance, IsSnapToTickEnabled = true, TickFrequency = 1 };
+            slider.Named("Độ nhạy giống nhau", "Similarity threshold");
             slider.ValueChanged += (_, e) => _similarMaxDistance = (int)e.NewValue;
             leftBody.Children.Add(slider);
         }
@@ -1116,9 +1120,6 @@ public sealed class MediaCleanPage : PageBase
             Padding = new Thickness(16, 8, 16, 8)
         };
         _recycleBtn.Click += async (_, _) => await RunRecycleSelectedAsync();
-        DockPanel.SetDock(_recycleBtn, Dock.Right);
-        bottomDock.Children.Add(_recycleBtn);
-
         var renameBtn = new Button
         {
             Content = vi ? "Đẩy sang Đổi tên" : "Send to Renamer",
@@ -1131,16 +1132,20 @@ public sealed class MediaCleanPage : PageBase
             var allPaths = _vm.DuplicateGroups.SelectMany(g => g.Files.Select(f => f.FilePath)).Distinct().ToList();
             if (allPaths.Count > 0) _sendToRename(allPaths);
         };
-        DockPanel.SetDock(renameBtn, Dock.Right);
-        bottomDock.Children.Add(renameBtn);
-
-        bottomDock.Children.Add(new TextBlock
+        var safetyNote = new TextBlock
         {
             Text = vi ? "An toàn: luôn chuyển vào Thùng rác Windows, không xoá vĩnh viễn." : "Safe cleanup: always moves to Windows Recycle Bin.",
             Style = S("BfrCaptionText"),
             Foreground = Res<Brush>("BfrFg2"),
-            VerticalAlignment = VerticalAlignment.Center
-        });
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        DockPanel.SetDock(safetyNote, Dock.Top);
+        bottomDock.Children.Add(safetyNote);
+        var bottomButtons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        bottomButtons.Children.Add(renameBtn);
+        bottomButtons.Children.Add(_recycleBtn);
+        bottomDock.Children.Add(bottomButtons);
         bottomBar.Child = bottomDock;
         DockPanel.SetDock(bottomBar, Dock.Bottom);
         rightDock.Children.Add(bottomBar);

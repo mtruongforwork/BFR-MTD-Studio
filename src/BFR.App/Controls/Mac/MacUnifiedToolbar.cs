@@ -1,6 +1,7 @@
 namespace BFR.App.Controls.Mac;
 
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -172,6 +173,21 @@ public sealed class MacUnifiedToolbar : Border
         var width = visible ? 0 : TrafficLightsWidth;
         if (animate) Motion.AnimateWidth(_lightsSpacer, width);
         else _lightsSpacer.Width = width;
+    }
+
+    /// <summary>
+    /// Số điểm còn thiếu để mọi điều khiển giữa của trang không bị phần bên phải che (âm là còn dư).
+    /// Chỉ tính được khi phần giữa là một hàng các điều khiển.
+    /// </summary>
+    public double CenterShortfall
+    {
+        get
+        {
+            if (Child is not DockPanel dock || ActualWidth <= 0 || _center.Content is not Panel row) return 0;
+            var fixedWidth = dock.Children.Cast<UIElement>().Where(c => !ReferenceEquals(c, _center)).Sum(c => c.DesiredSize.Width);
+            var wanted = row.Children.Cast<UIElement>().Sum(c => c.DesiredSize.Width);
+            return wanted + fixedWidth + dock.Margin.Left + dock.Margin.Right - ActualWidth;
+        }
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)

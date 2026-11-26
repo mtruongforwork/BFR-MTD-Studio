@@ -81,6 +81,12 @@ public static class SingleInstanceClient
 {
     public const string DefaultPipeName = "BatchFileRenamer_IPC_Pipe";
 
+    /// <summary>
+    /// Thời gian phiên phụ chờ chuyển tệp. Phiên chính chỉ lắng nghe sau khi dựng xong cửa sổ, lúc khởi động nguội
+    /// trên máy chậm có thể mất hàng chục giây; bỏ sớm là mất tệp người dùng vừa mở.
+    /// </summary>
+    public const int HandoffTimeoutMs = 60_000;
+
     public static async Task<bool> TrySendAsync(
         IpcPayload payload,
         string pipeName = DefaultPipeName,

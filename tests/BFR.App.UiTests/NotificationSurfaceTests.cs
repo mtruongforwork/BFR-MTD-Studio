@@ -277,7 +277,7 @@ public class NotificationSurfaceTests
                 foreach (var toast in toasts)
                 {
                     var card = (FrameworkElement)toast.Content;
-                    toast.Content = null;
+                    toast.Content = new Grid();
                     column.Children.Add(card);
                 }
 

@@ -1384,4 +1384,5 @@
     <sys:String x:Key="SettingsReduceMotionHint">Only short fades remain; sliding, zooming and shaking are off. Also on when Windows animations are off.</sys:String>
     <sys:String x:Key="MacSettingsLanguageLabel">Language</sys:String>
     <sys:String x:Key="MacSettingsThemeLabel">Theme</sys:String>
+    <sys:String x:Key="HandoffFailed">The files could not be sent to the running FileFlow Studio window. Wait until that window is ready, then open the files again.</sys:String>
 </ResourceDictionary>

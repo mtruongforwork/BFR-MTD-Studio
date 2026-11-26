@@ -187,7 +187,13 @@ function Close-UpgradeSheet($win) {
 # (thanh bên kiểu macOS đặt tên hiển thị theo ngôn ngữ, chỉ AutomationId là cố định).
 function Select-Nav($win, [string]$name) {
     $nav = $null
-    if ($name -match '^Nav (\S+)') { $nav = Find-ById $win ("Nav." + $Matches[1]) }
+    if ($name -match '^Nav (\S+)') {
+        $id = "Nav." + $Matches[1]
+        # Ngay sau khi đổi giao diện/ngôn ngữ, app dựng lại cửa sổ Cài đặt: một lượt tìm duy nhất có thể trượt dù mục vẫn ở đó.
+        $script:__nav = $null
+        [void](Wait-For { $script:__nav = Find-ById $win $id; $null -ne $script:__nav } 3000 100)
+        $nav = $script:__nav
+    }
     if ($null -ne $nav -and -not $nav.Current.IsEnabled) { [void](Close-UpgradeSheet $win) }
     # Thanh bên đã thu thì bị vô hiệu hoá (không Tab hay chọn được): mở ra trước, như người dùng làm.
     if ($null -ne $nav -and -not $nav.Current.IsEnabled) { Invoke-Id $win 'Shell.ToggleSidebar'; Start-Sleep -Milliseconds 450 }

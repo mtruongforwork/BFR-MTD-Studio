@@ -1384,4 +1384,5 @@
     <sys:String x:Key="SettingsReduceMotionHint">Seuls de courts fondus restent ; glissements, zooms et secousses sont désactivés. Actif aussi quand les animations Windows sont coupées.</sys:String>
     <sys:String x:Key="MacSettingsLanguageLabel">Langue</sys:String>
     <sys:String x:Key="MacSettingsThemeLabel">Thème</sys:String>
+    <sys:String x:Key="HandoffFailed">Impossible d’envoyer les fichiers à la fenêtre FileFlow Studio déjà ouverte. Attendez qu’elle soit prête, puis rouvrez les fichiers.</sys:String>
 </ResourceDictionary>

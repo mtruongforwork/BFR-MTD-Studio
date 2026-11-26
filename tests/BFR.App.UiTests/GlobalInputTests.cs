@@ -139,7 +139,7 @@ public class GlobalInputTests
     /// chuột cả máy khựng. Test dựng một tiến trình riêng có cửa sổ bị chặn luồng giao diện rồi đo đúng các lời gọi đó.
     /// </summary>
     [Fact]
-    public void HitTestingAHungForeignWindow_DoesNotBlockTheHookThread()
+    public async System.Threading.Tasks.Task HitTestingAHungForeignWindow_DoesNotBlockTheHookThread()
     {
         const string script = """
             Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition 'using System.Windows.Forms; public class HungForm : Form { protected override bool ShowWithoutActivation { get { return true; } } }'
@@ -158,7 +158,7 @@ public class GlobalInputTests
         try
         {
             var readyTask = System.Threading.Tasks.Task.Run(() => child.StandardOutput.ReadLine());
-            Assert.True(readyTask.Wait(TimeSpan.FromSeconds(30)) && readyTask.Result == "ready", "Tiến trình thử không dựng được cửa sổ");
+            Assert.True(await readyTask.WaitAsync(TimeSpan.FromSeconds(30)) == "ready", "Tiến trình thử không dựng được cửa sổ");
 
             // Tìm một điểm thật sự thuộc cửa sổ thử (cửa sổ TopMost nên hầu như không bị che; thử lưới 5x5 phòng khi có cửa sổ khác chen vào).
             var target = FindWindow(null, "BFR hung-window test");

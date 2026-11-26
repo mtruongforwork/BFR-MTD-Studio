@@ -1,5 +1,6 @@
 namespace BFR.App.Studios;
 
+using BFR.App.Infrastructure;
 using BFR.App.Controls.Mac;
 
 using System;
@@ -593,6 +594,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             VerticalAlignment = VerticalAlignment.Center,
             IsMoveToPointEnabled = true
         };
+        zoomSlider.Named("Cỡ ảnh thu nhỏ", "Thumbnail size");
         zoomSlider.ValueChanged += (_, e) =>
         {
             _cardWidth = e.NewValue;
@@ -1201,6 +1203,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                     Margin = new Thickness(0, 1, 0, 1),
                     ToolTip = captured
                 };
+                rowBtn.Named(displayName);
                 rowBtn.Click += async (_, _) => await LoadFilesAsync(new[] { captured });
                 recentList.Children.Add(rowBtn);
             }
@@ -1859,6 +1862,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 VerticalContentAlignment = VerticalAlignment.Center,
                 HorizontalContentAlignment = HorizontalAlignment.Center
             };
+            _splitEveryNBox.Named("Số trang mỗi tệp", "Pages per file");
             everyRow.Children.Add(_splitEveryNBox);
             everyRow.Children.Add(new TextBlock
             {
@@ -1934,6 +1938,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             VerticalContentAlignment = VerticalAlignment.Center,
             Text = initialText
         };
+        box.Named(placeholder);
         var hint = new TextBlock
         {
             Text = placeholder,
@@ -1988,6 +1993,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             Text = _outputFileName,
             Margin = new Thickness(0, 0, 0, 10)
         };
+        _outputFileNameBox.Named("Tên tệp đầu ra", "Output filename");
         _outputFileNameBox.TextChanged += (_, _) =>
         {
             if (_suppressOutputNameChanged) return;
@@ -2972,6 +2978,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 Margin = new Thickness(0, 8, 0, 2)
             });
             var dpiSlider = new Slider { Minimum = 72, Maximum = 300, Value = _compressCustomDpi, TickFrequency = 12, IsSnapToTickEnabled = true };
+            dpiSlider.Named("DPI tối đa", "Maximum DPI");
             dpiSlider.ValueChanged += (_, e) => { _compressCustomDpi = (int)e.NewValue; _compressDirty = true; _ = RefreshCustomCompressEstimateAsync(); };
             customStack.Children.Add(dpiSlider);
 
@@ -2982,6 +2989,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 Margin = new Thickness(0, 6, 0, 2)
             });
             var qSlider = new Slider { Minimum = 30, Maximum = 95, Value = _compressCustomQuality, TickFrequency = 5, IsSnapToTickEnabled = true };
+            qSlider.Named("Chất lượng JPEG", "JPEG quality");
             qSlider.ValueChanged += (_, e) => { _compressCustomQuality = (int)e.NewValue; _compressDirty = true; _ = RefreshCustomCompressEstimateAsync(); };
             customStack.Children.Add(qSlider);
 
@@ -3053,6 +3061,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                     Padding = new Thickness(8, 3, 8, 3),
                     Margin = new Thickness(0, 0, 0, 8)
                 };
+                nameBox.Named("Tên tệp đầu ra", "Output filename");
                 nameBox.TextChanged += (_, _) => { _compressOutputFileName = nameBox.Text.Trim(); _compressDirty = true; UpdateStickyFooter(); };
                 outStack.Children.Add(nameBox);
             }
@@ -3158,7 +3167,8 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
         DockPanel.SetDock(savePresetBtn, Dock.Right);
         presetRow.Children.Add(savePresetBtn);
 
-        var presetCombo = new ComboBox { Height = 30 };
+        var presetCombo = new ComboBox();
+        presetCombo.Named("Mẫu đóng dấu đã lưu", "Saved stamp preset");
         presetCombo.Items.Add(new ComboBoxItem { Content = vi ? "Chọn mẫu cài đặt đã lưu…" : "Load saved preset…", IsEnabled = false });
         foreach (var pr in presets)
             presetCombo.Items.Add(new ComboBoxItem { Content = pr.Name, Tag = pr });
@@ -3270,12 +3280,14 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
 
                 wmStack.Children.Add(new TextBlock { Text = vi ? $"Tỉ lệ chiều rộng trang: {Math.Round(_watermarkImageScale * 100)}%" : $"Page width scale: {Math.Round(_watermarkImageScale * 100)}%", Style = S("BfrCaptionText"), Margin = new Thickness(0, 2, 0, 2) });
                 var imgScale = new Slider { Minimum = 0.1, Maximum = 0.8, Value = _watermarkImageScale, Margin = new Thickness(0, 0, 0, 8) };
+                imgScale.Named("Tỉ lệ chiều rộng logo", "Logo width scale");
                 imgScale.ValueChanged += (_, e) => { _watermarkImageScale = e.NewValue; UpdateStampLivePreview(); };
                 wmStack.Children.Add(imgScale);
             }
             else
             {
                 var wmBox = new TextBox { Style = S("BfrTextField"), Height = 40, Padding = new Thickness(8, 4, 8, 4), Text = _watermarkText, Margin = new Thickness(0, 0, 0, 8) };
+                wmBox.Named("Chữ hình mờ", "Watermark text");
                 wmBox.TextChanged += (_, _) => { _watermarkText = wmBox.Text; UpdateStampLivePreview(); };
                 wmStack.Children.Add(wmBox);
 
@@ -3288,6 +3300,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                     fontCombo.Items.Add(item);
                     if (string.Equals(_watermarkFontFamily, fName, StringComparison.OrdinalIgnoreCase)) fontCombo.SelectedItem = item;
                 }
+                fontCombo.Named("Phông chữ hình mờ", "Watermark font");
                 fontCombo.SelectionChanged += (_, _) => { if (fontCombo.SelectedItem is ComboBoxItem { Tag: string f }) { _watermarkFontFamily = f; UpdateStampLivePreview(); } };
                 wmStack.Children.Add(fontCombo);
 
@@ -3295,6 +3308,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 wmStack.Children.Add(new TextBlock { Text = vi ? "Màu chữ" : "Color", Style = S("BfrCaptionText"), Margin = new Thickness(0, 2, 0, 4) });
                 var colorRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
                 var hexBox = new TextBox { Style = S("BfrTextField"), Height = 32, Width = 84, Padding = new Thickness(6, 2, 6, 2), Text = _watermarkColorHex, FontSize = 11.5 };
+                hexBox.Named("Mã màu chữ", "Text colour code");
                 hexBox.TextChanged += (_, _) => { if (hexBox.Text.Trim().Length is 4 or 7 && hexBox.Text.StartsWith('#')) { _watermarkColorHex = hexBox.Text.Trim(); UpdateStampLivePreview(); } };
                 DockPanel.SetDock(hexBox, Dock.Right);
                 colorRow.Children.Add(hexBox);
@@ -3327,6 +3341,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 wmStack.Children.Add(new TextBlock { Text = vi ? "Cỡ chữ (pt)" : "Font size (pt)", Style = S("BfrCaptionText"), Margin = new Thickness(0, 2, 0, 4) });
                 var sizeDock = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
                 var szBox = new TextBox { Style = S("BfrTextField"), Height = 32, Width = 56, Padding = new Thickness(6, 2, 6, 2), Text = _watermarkFontSize.ToString("0"), FontSize = 11.5 };
+                szBox.Named("Cỡ chữ", "Font size");
                 szBox.TextChanged += (_, _) => { if (double.TryParse(szBox.Text, out var v) && v >= 8 && v <= 180) { _watermarkFontSize = v; UpdateStampLivePreview(); } };
                 DockPanel.SetDock(szBox, Dock.Right);
                 sizeDock.Children.Add(szBox);
@@ -3349,6 +3364,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             wmStack.Children.Add(opHeader);
 
             var opSlider = new Slider { Minimum = 0.05, Maximum = 1.0, Value = _watermarkOpacity, Margin = new Thickness(0, 0, 0, 8) };
+            opSlider.Named("Độ đậm", "Opacity");
             opSlider.ValueChanged += (_, e) => { _watermarkOpacity = e.NewValue; opValText.Text = $"{Math.Round(_watermarkOpacity * 100)}%"; UpdateStampLivePreview(); };
             wmStack.Children.Add(opSlider);
 
@@ -3368,6 +3384,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             }
             wmStack.Children.Add(angleRow);
             var angSlider = new Slider { Minimum = -180, Maximum = 180, Value = _watermarkAngle, Margin = new Thickness(0, 0, 0, 8) };
+            angSlider.Named(TryLoc("PdfWatermarkAngle", "Góc xoay (°)"));
             angSlider.ValueChanged += (_, e) => { _watermarkAngle = Math.Round(e.NewValue); angVal.Text = $"{_watermarkAngle:0}°"; UpdateStampLivePreview(); };
             wmStack.Children.Add(angSlider);
 
@@ -3484,6 +3501,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
                 BorderBrush = invalidTok ? Res<Brush>("BfrBad") : Res<Brush>("BfrGlassRim"),
                 Margin = new Thickness(0, 0, 0, 4)
             };
+            fmtBox.Named("Định dạng số trang", "Page number format");
             fmtBox.TextChanged += (_, _) => { _pageNumbersFormat = fmtBox.Text; UpdateStickyFooter(); UpdateStampLivePreview(); };
             pnStack.Children.Add(fmtBox);
 
@@ -3511,11 +3529,13 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             var startRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
             startRow.Children.Add(new TextBlock { Text = vi ? "Bắt đầu:" : "Start:", Style = S("BfrCaptionText"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
             var startBox = new TextBox { Style = S("BfrTextField"), Text = _pageNumbersStart.ToString(), Width = 64, Height = 36, Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 0, 12, 0) };
+            startBox.Named("Số bắt đầu", "Start number");
             startBox.TextChanged += (_, _) => { if (int.TryParse(startBox.Text, out var n) && n >= 1) { _pageNumbersStart = n; UpdateStampLivePreview(); } };
             startRow.Children.Add(startBox);
 
             startRow.Children.Add(new TextBlock { Text = vi ? "Lề (mm):" : "Margin (mm):", Style = S("BfrCaptionText"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
             var marginBox = new TextBox { Style = S("BfrTextField"), Text = _pageNumbersMarginMm.ToString("0"), Width = 54, Height = 36, Padding = new Thickness(6, 2, 6, 2) };
+            marginBox.Named("Lề số trang (mm)", "Page number margin (mm)");
             marginBox.TextChanged += (_, _) => { if (double.TryParse(marginBox.Text, out var mm) && mm >= 3 && mm <= 50) { _pageNumbersMarginMm = mm; UpdateStampLivePreview(); } };
             startRow.Children.Add(marginBox);
             pnStack.Children.Add(startRow);
@@ -3604,6 +3624,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
         if (current == StampPageScope.CustomRange)
         {
             var tb = new TextBox { Style = S("BfrTextField"), Height = 36, Padding = new Thickness(8, 3, 8, 3), Text = customRange, Margin = new Thickness(0, 6, 0, 0), ToolTip = "VD: 2-end" };
+            tb.Named("Khoảng trang tuỳ chỉnh", "Custom page range");
             tb.TextChanged += (_, _) => onCustom(tb.Text);
             sp.Children.Add(tb);
         }
@@ -3943,6 +3964,8 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
 
         var plainBox = new TextBox { Style = S("BfrTextField"), Text = initialValue, Visibility = Visibility.Collapsed };
 
+        pwdBox.Named("Mật khẩu", "Password");
+        plainBox.Named("Mật khẩu", "Password");
         var syncing = false;
         pwdBox.PasswordChanged += (_, _) => { if (syncing) return; syncing = true; plainBox.Text = pwdBox.Password; onChanged(pwdBox.Password); syncing = false; };
         plainBox.TextChanged += (_, _) => { if (syncing) return; syncing = true; pwdBox.Password = plainBox.Text; onChanged(plainBox.Text); syncing = false; };
@@ -3956,6 +3979,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             Margin = new Thickness(4, 0, 0, 0),
             ToolTip = IsVi ? "Hiện / Ẩn mật khẩu" : "Show / Hide password"
         };
+        eyeBtn.Named("Hiện hoặc ẩn mật khẩu", "Show or hide password");
         eyeBtn.Click += (_, _) =>
         {
             var showPlain = plainBox.Visibility != Visibility.Visible;
@@ -4135,6 +4159,7 @@ public sealed class PdfStudioPage : PageBase, IMacShellContent
             row.Children.Add(new TextBlock { Text = $"🔒 {captured.FileName}", FontWeight = FontWeights.SemiBold, Foreground = Res<Brush>("BfrFg"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
             var pwd = new PasswordBox { Width = 180, Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 8, 0) };
             var unlockBtn = new Button { Content = TryLoc("EdgeUnlockContinue", "Mở khoá"), Style = S("BfrPrimaryButton"), Padding = new Thickness(12, 5, 12, 5) };
+            pwd.Named($"Mật khẩu của {captured.FileName}", $"Password for {captured.FileName}");
             unlockBtn.Click += async (_, _) =>
             {
                 var ok = await _vm.UnlockFileAsync(captured.FilePath, pwd.Password);

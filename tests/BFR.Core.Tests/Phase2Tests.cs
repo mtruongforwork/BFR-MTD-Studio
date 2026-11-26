@@ -147,6 +147,30 @@ public class SingleInstanceIpcTests
     }
 
     [Fact]
+    public async Task Ipc_Handoff_WaitsForAPrimaryThatIsStillStarting()
+    {
+        // Mở nhiều tệp lúc app đang tắt: tiến trình chính dựng xong cửa sổ rồi mới lắng nghe (đã gặp 27 giây).
+        var pipeName = "BFR_Test_Pipe_" + Guid.NewGuid().ToString("N");
+        var payloads = new List<IpcPayload>();
+        var sends = Enumerable.Range(1, 5)
+            .Select(i => SingleInstanceClient.TrySendAsync(
+                new IpcPayload { Paths = new List<string> { $@"C:\Folder\file{i}.txt" } }, pipeName, SingleInstanceClient.HandoffTimeoutMs))
+            .ToList();
+
+        await Task.Delay(4000);   // lâu hơn mức 3 giây trước đây
+        await using var server = new SingleInstanceServer(payload => { lock (payloads) payloads.Add(payload); }, pipeName);
+        server.Start();
+
+        var results = await Task.WhenAll(sends).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.All(results, Assert.True);
+        lock (payloads) Assert.Equal(5, payloads.Select(p => p.Paths.Single()).Distinct().Count());
+    }
+
+    [Fact]
+    public void Ipc_HandoffTimeout_CoversASlowColdStart() => Assert.True(SingleInstanceClient.HandoffTimeoutMs >= 60_000);
+
+    [Fact]
     public async Task Ipc_ReturnsFalse_WhenServerNotRunning()
     {
         var nonexistentPipe = "BFR_Nonexistent_Pipe_" + Guid.NewGuid().ToString("N");

@@ -1384,4 +1384,5 @@
     <sys:String x:Key="SettingsReduceMotionHint">Chỉ còn mờ dần ngắn; tắt trượt, phóng to và rung. Tự bật khi Windows tắt hiệu ứng.</sys:String>
     <sys:String x:Key="MacSettingsLanguageLabel">Ngôn ngữ</sys:String>
     <sys:String x:Key="MacSettingsThemeLabel">Chế độ hiển thị</sys:String>
+    <sys:String x:Key="HandoffFailed">Không gửi được tệp tới cửa sổ FileFlow Studio đang chạy. Hãy đợi cửa sổ đó sẵn sàng rồi mở lại tệp.</sys:String>
 </ResourceDictionary>

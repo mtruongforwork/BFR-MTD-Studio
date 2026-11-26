@@ -108,7 +108,7 @@ public sealed class ContinueWithBar : UserControl
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 10, 0)
         };
-        var keepNewBtn = CreateActionButton("\uE73E", IsVi ? "Giữ tệp mới" : "Keep new file", () => _noGainBanner.Visibility = Visibility.Collapsed);
+        var keepNewBtn = CreateActionButton("\uE73E", IsVi ? "Giữ tệp mới" : "Keep new file", () => _noGainBanner!.Visibility = Visibility.Collapsed);
         var deleteNewBtn = CreateActionButton("\uE74D", IsVi ? "Xóa tệp vừa tạo" : "Delete new file", () =>
         {
             foreach (var p in _outputPaths.ToList())

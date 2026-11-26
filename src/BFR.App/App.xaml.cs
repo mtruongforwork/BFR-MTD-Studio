@@ -3,6 +3,7 @@ namespace BFR.App;
 using BFR.Core;
 using BFR.Core.Licensing;
 using BFR.Store;
+using BFR.App.Controls.Mac;
 using BFR.App.Infrastructure;
 using System;
 using System.Collections.Generic;
@@ -164,8 +165,14 @@ public partial class App : Application
         if (!_lock.IsPrimary)
         {
             // Đã có phiên ứng dụng chạy trước đó. Gửi danh sách tệp qua Named Pipe rồi thoát.
-            await SingleInstanceClient.TrySendAsync(payload, timeoutMs: 3000).ConfigureAwait(false);
-            _ = Dispatcher.BeginInvoke(() => Shutdown(0));
+            var delivered = await SingleInstanceClient.TrySendAsync(payload, timeoutMs: SingleInstanceClient.HandoffTimeoutMs).ConfigureAwait(false);
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                // Không gửi được mà đang cầm tệp của người dùng thì phải nói ra, đừng lặng lẽ thoát.
+                if (!delivered && (payload.Paths.Count > 0 || payload.FileListPath is not null))
+                    MacAlert.Show(Loc.T("HandoffFailed"), Loc.T("WindowTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown(delivered ? 0 : 1);
+            });
             return;
         }
 
